@@ -16,7 +16,14 @@
 
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  memoryLocalCache,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore,
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -74,16 +81,39 @@ export function getFirebaseAuth(): Auth | null {
   }
 }
 
+/**
+ * Firestore with an on-device cache, so the library and watchlist render
+ * offline (and instantly on launch) from the last snapshot, and writes made
+ * offline queue and sync when the connection returns.
+ *
+ * The multi-tab manager lets several open tabs (or the installed app and a
+ * tab) share one IndexedDB cache instead of the second one failing to get it.
+ * Where IndexedDB is missing (some private modes, locked-down webviews) it
+ * falls back to the in-memory cache: online behaviour is unchanged, there's
+ * just no offline copy.
+ */
 export function getDb(): Firestore | null {
   if (cachedDb) return cachedDb;
   const app = getFirebaseApp();
   if (!app) return null;
   try {
-    cachedDb = getFirestore(app);
+    cachedDb = initializeFirestore(app, {
+      localCache:
+        typeof indexedDB !== "undefined"
+          ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+          : memoryLocalCache(),
+    });
     return cachedDb;
   } catch (err) {
-    console.error("[firebase] firestore unavailable", err);
-    return null;
+    // initializeFirestore throws if this app already has an instance (e.g.
+    // after a hot reload reset this module's cache); reuse that one.
+    try {
+      cachedDb = getFirestore(app);
+      return cachedDb;
+    } catch {
+      console.error("[firebase] firestore unavailable", err);
+      return null;
+    }
   }
 }
 

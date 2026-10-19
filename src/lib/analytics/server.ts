@@ -4,6 +4,10 @@
  * What is stored, and what deliberately isn't:
  *  - stored: event type, pathname, referrer *host*, country (from Cloudflare's
  *    edge header), coarse device class, and per-type fields (slug, metric).
+ *    Pageviews may also carry the ISO week of the browser's first visit and a
+ *    new/return flag (once per day), and conversions the shelf that led to
+ *    them — all shared by every visitor in the same bucket, so none of them
+ *    singles anyone out.
  *  - never stored: IP address, user agent, user id, cookies, full URLs or
  *    query strings. The user agent is read once to drop bots and discarded.
  *
@@ -14,11 +18,15 @@
 import { getDb, runAfterResponse, type D1PreparedStatement } from "@/lib/cloudflare/db";
 import {
   CLIENT_EVENT_TYPES,
+  COHORT_RE,
   DEVICES,
   MAX_EVENTS_PER_REQUEST,
+  SRC_RE,
+  VISIT_KINDS,
   VITAL_NAMES,
   type ClientEventType,
   type Device,
+  type VisitKind,
   type VitalName,
 } from "./types";
 
@@ -33,6 +41,9 @@ export interface EventRow {
   results: number | null;
   value: number | null;
   name: VitalName | null;
+  cohort?: string | null;
+  visit?: VisitKind | null;
+  src?: string | null;
 }
 
 /*
@@ -125,6 +136,16 @@ function cleanDevice(value: unknown): Device | null {
   return (DEVICES as readonly unknown[]).includes(value) ? (value as Device) : null;
 }
 
+/*
+ * Optional tags are dropped rather than rejecting the event when malformed:
+ * they are enrichment, and an old cached tracker (or a future one) sending a
+ * shape we don't know must not cost us the pageview itself.
+ */
+function cleanSrc(value: unknown): string | null {
+  const raw = str(value);
+  return raw && SRC_RE.test(raw) ? raw : null;
+}
+
 /**
  * Validates one event strictly. Anything malformed rejects the event (never
  * "repairs" it into something we'd then count), and numbers are clamped to
@@ -154,6 +175,14 @@ function validateEvent(input: unknown, ownHost: string | null): EventRow | null 
     case "pageview": {
       base.ref_host = event.ref == null ? null : cleanHost(event.ref, ownHost);
       base.value = num(event.value) === 1 ? 1 : 0;
+      // Cohort and visit only make sense together (the first pageview of a day).
+      const cohort = str(event.cohort);
+      const visit = event.visit;
+      if (cohort && COHORT_RE.test(cohort) && (VISIT_KINDS as readonly unknown[]).includes(visit)) {
+        base.cohort = cohort;
+        base.visit = visit as VisitKind;
+      }
+      base.src = cleanSrc(event.src);
       return base;
     }
     case "vital": {
@@ -169,15 +198,18 @@ function validateEvent(input: unknown, ownHost: string | null): EventRow | null 
       if (!slug || !SLUG_RE.test(slug)) return null;
       base.game_slug = slug;
       base.value = num(event.value) === 0 ? 0 : 1;
+      base.src = cleanSrc(event.src);
       return base;
     }
     case "own": {
       const slug = str(event.slug);
       if (!slug || !SLUG_RE.test(slug)) return null;
       base.game_slug = slug;
+      base.src = cleanSrc(event.src);
       return base;
     }
     case "signup":
+      base.src = cleanSrc(event.src);
       return base;
   }
   return null;
@@ -211,8 +243,8 @@ export function parseEvents(body: string, ownHost: string | null): EventRow[] | 
 // ---------------------------------------------------------------------------
 
 const INSERT_SQL =
-  "INSERT INTO analytics_events (ts, type, path, ref_host, country, device, game_slug, query, results, value, name) " +
-  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+  "INSERT INTO analytics_events (ts, type, path, ref_host, country, device, game_slug, query, results, value, name, cohort, visit, src) " +
+  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 /**
  * Queues rows for insertion after the response is sent. Resolves once the
@@ -240,6 +272,9 @@ export async function recordEvents(rows: EventRow[], country: string | null): Pr
         row.results,
         row.value,
         row.name,
+        row.cohort ?? null,
+        row.visit ?? null,
+        row.src ?? null,
       ),
   );
   const write = statements.length === 1 ? statements[0].run() : db.batch(statements);

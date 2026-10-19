@@ -4,6 +4,7 @@ import { isDelay } from "@/lib/games/release-value";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/format";
 import type { ReleaseChange, ReleaseEvent } from "@/lib/games/types";
+import { DetailHeading } from "./DetailSection";
 import { groupReleases, releaseValueLabel, shortPlatform, slipDays } from "./release";
 
 /**
@@ -28,25 +29,29 @@ export function ReleaseDates({
   if (!showTable && changes.length === 0) return null;
 
   return (
-    <section id="release-dates" className="scroll-mt-32 space-y-6">
-      <Reveal>
-        <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--game-accent)]">
-          <CalendarClock size={13} /> Release dates
-        </p>
-        <h2 className="text-3xl font-black sm:text-4xl">When it lands, where</h2>
-        {visitorRegion && countryName && (
-          <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
-            <MapPin size={14} className="text-[var(--game-accent)]" />
-            Showing {countryName} under <strong className="font-semibold text-text">{visitorRegion}</strong>
-          </p>
-        )}
-      </Reveal>
+    <section id="release-dates" aria-labelledby="release-dates-title" className="scroll-mt-36 space-y-5 sm:space-y-6">
+      <DetailHeading
+        titleId="release-dates-title"
+        eyebrow="Release dates"
+        icon={<CalendarClock size={14} />}
+        title={showTable ? "When it lands, where" : "How the date has moved"}
+        description={
+          visitorRegion && countryName ? (
+            <span className="flex items-center gap-1.5">
+              <MapPin size={14} className="shrink-0 text-[var(--game-accent)]" />
+              <span>
+                Showing {countryName} under <strong className="font-semibold text-text">{visitorRegion}</strong>
+              </span>
+            </span>
+          ) : undefined
+        }
+      />
 
       {showTable && (
         <Reveal className="overflow-hidden rounded-3xl border border-line bg-panel/40">
           <table className="w-full border-collapse text-left text-sm">
             <caption className="sr-only">Release dates by region and platform</caption>
-            <thead className="border-b border-line text-[10px] uppercase tracking-[0.08em] text-faint">
+            <thead className="border-b border-line text-[11px] font-semibold text-muted">
               <tr>
                 <th scope="col" className="px-4 py-3 font-semibold sm:px-5">Region</th>
                 <th scope="col" className="px-2 py-3 font-semibold">Date</th>
@@ -100,10 +105,10 @@ function DateChanges({ changes }: { changes: ReleaseChange[] }) {
   const ordered = [...changes].reverse();
   return (
     <Reveal className="rounded-3xl border border-line bg-panel/40 p-5 sm:p-6">
-      <h3 className="flex items-center gap-2 text-lg font-bold">
+      <h3 className="flex items-center gap-2 text-[17px] font-semibold">
         <History size={17} className="text-[var(--game-accent)]" /> Date changes
       </h3>
-      <p className="mt-1 text-xs leading-relaxed text-faint">
+      <p className="mt-1 text-xs leading-relaxed text-muted">
         Recorded by Arnav Games since it began tracking this game&rsquo;s release date. Earlier changes aren&rsquo;t shown.
       </p>
       <ol className="relative mt-5 space-y-4 border-l border-line pl-5">
@@ -132,7 +137,7 @@ function DateChanges({ changes }: { changes: ReleaseChange[] }) {
                   {delay ? (days ? `Delayed ${days} days` : "Delayed") : days && days < 0 ? `Moved up ${-days} days` : "Date firmed up"}
                 </span>
               </p>
-              <p className="mt-0.5 text-[11px] text-faint">Noticed {formatDate(change.observedAt.slice(0, 10))}</p>
+              <p className="mt-0.5 text-[11px] text-muted">Noticed {formatDate(change.observedAt.slice(0, 10))}</p>
             </li>
           );
         })}

@@ -1,47 +1,69 @@
 "use client";
 
 /**
- * The reader's owned-games collection, as a first-class browsable page.
+ * The reader's owned-games collection.
  *
- * A collection is a fundamentally different thing to browse than a catalogue:
- * it is small enough to hold in your head, so the useful operations are
- * "narrow it down" and "reorder it", not "search 300,000 records". Everything
- * here works against the already-loaded watchlist snapshot — no network, no
- * pagination, instant feedback on every control.
+ * Laid out the way Apple Music treats a library: one headline (how big it
+ * is, how much is finished, how many hours are waiting), then smart groups
+ * that answer the questions people actually open a library with — what am I
+ * playing, what's next, what's sitting unplayed on which system — and only
+ * then the full, filterable collection, as a grid, a list, or a shelf of
+ * covers you can pick up and throw.
  *
- * A game can be owned on several storefronts at once. Filtering by store shows
+ * Everything works against the already-loaded watchlist snapshot: no
+ * network for browsing, no pagination, instant feedback on every control.
+ * The one fetch is IGDB time-to-beat for the backlog-hours figure, shared
+ * with /stats so both pages quote the same number.
+ *
+ * A game can be owned on several storefronts at once. Store filters show
  * every copy that matches rather than collapsing to one, because owning the
  * same title twice is normal and hiding it would misreport the collection.
  */
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
-import { CalendarClock, Check, Layers3, Library, PackageOpen, PencilLine, Trophy } from "lucide-react";
+import { Children, useMemo, useRef, useState, type ReactNode } from "react";
+import { Boxes, Check, ChevronRight, LayoutGrid, PackageOpen, PencilLine, Rows3 } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { GameCover } from "@/components/game/GameCover";
 import { ScorePill } from "@/components/ui/ScoreRing";
-import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Container } from "@/components/ui/SectionHeading";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { FilterToolbar, SearchField, SegmentedControl, SortMenu, type FacetDef } from "@/components/filters";
 import { Reveal } from "@/components/motion/Reveal";
-import {
-  PosterSizeToggle,
-  posterGridClass,
-  usePosterSize,
-} from "@/components/ui/PosterSizeToggle";
+import { CountUp } from "@/components/motion/text";
 import { PosterTile } from "@/components/game/PosterTile";
 import { OwnershipPicker } from "@/components/game/OwnershipPicker";
+import { entryAsGameSummary } from "@/components/interactions/game-menu-targets";
+import { useTimeToBeat } from "@/components/stats/useTimeToBeat";
 import { BatchEditPanel } from "./BatchEditPanel";
-import { useAuth } from "@/lib/firebase/AuthProvider";
+import { BacklogRoulette } from "./BacklogRoulette";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
+import { usePreferences } from "@/lib/preferences/PreferencesProvider";
 import { OWNERSHIP_PLATFORMS, ownershipPlatform } from "@/lib/games/stores-catalog";
-import { cn } from "@/lib/utils/cn";
+import { buildPersonalAnalytics, type TimeToBeatLike } from "@/lib/games/stats";
 import { fuzzyMatches } from "@/lib/games/fuzzy-search";
 import { releaseState, type ReleaseState } from "@/lib/games/release-state";
+import { haptic } from "@/lib/haptics";
+import { cn } from "@/lib/utils/cn";
 import type { WatchlistEntry, WatchStatus } from "@/lib/firebase/db";
-import type { GameSummary } from "@/lib/games/types";
+
+/*
+ * The shelf is a physics toy: heavy, rarely opened, and meaningless without
+ * a browser. It never ships in the server bundle or the first paint.
+ */
+const PhysicsShelf = dynamic(() => import("@/components/shelf/PhysicsShelf"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[480px] rounded-3xl" />,
+});
 
 type SortKey = "added" | "name" | "score" | "released";
 type ReleaseFilter = ReleaseState | "all";
+type ViewMode = "grid" | "list" | "shelf";
+
+const VIEW_KEY = "arnav-games:library-view";
+const SHELF_LIMIT = 60;
 
 const SORTS: { value: SortKey; label: string }[] = [
   { value: "added", label: "Recently added" },
@@ -65,17 +87,31 @@ const RELEASE_OPTIONS: { value: ReleaseState; label: string; short?: string }[] 
   { value: "unknown", label: "Date unknown" },
 ];
 
+const STATUS_LABELS: Record<WatchStatus, string> = {
+  none: "No status",
+  want: "Want to play",
+  playing: "Playing",
+  played: "Played",
+};
+
+const hoursOf = (ttb: TimeToBeatLike | undefined) => ttb?.normally ?? ttb?.hastily ?? null;
+const plural = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString("en")} ${count === 1 ? one : many}`;
+
 export function LibraryView({
   previewEntries,
+  previewHours,
 }: {
   /** Dev-only sample data for `/library/preview`; bypasses auth. */
   previewEntries?: WatchlistEntry[];
+  previewHours?: Record<number, TimeToBeatLike>;
 } = {}) {
-  const { user: authUser } = useAuth();
   const live = useWatchlist();
   const entries = previewEntries ?? live.entries;
   const loading = previewEntries ? false : live.loading;
-  const user = previewEntries ? true : authUser;
+
+  /** Only games the reader has actually marked as owned somewhere. */
+  const owned = useMemo(() => entries.filter((entry) => (entry.ownedOn ?? []).length > 0), [entries]);
+  const ttb = useTimeToBeat(owned, { enabled: !loading, preview: previewHours });
 
   const [store, setStore] = useState<string | "all">("all");
   const [status, setStatus] = useState<WatchStatus | "all">("all");
@@ -84,35 +120,22 @@ export function LibraryView({
   const [query, setQuery] = useState("");
   const [batchMode, setBatchMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const { size: posterSize, setSize: setPosterSize } = usePosterSize("arnav-games:library-size");
-
-  /** Only games the reader has actually marked as owned somewhere. */
-  const owned = useMemo(
-    () => entries.filter((entry) => (entry.ownedOn ?? []).length > 0),
-    [entries],
-  );
+  const { posterSizes, setPosterSize } = usePreferences();
+  const storedView = posterSizes[VIEW_KEY];
+  const view: ViewMode = storedView === "list" || storedView === "shelf" ? storedView : "grid";
+  const collectionRef = useRef<HTMLElement>(null);
 
   /** Stores that actually appear in this collection, with counts. */
   const stores = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const entry of owned) {
-      for (const slug of entry.ownedOn ?? []) {
-        counts.set(slug, (counts.get(slug) ?? 0) + 1);
-      }
-    }
+    for (const entry of owned) for (const slug of new Set(entry.ownedOn ?? [])) counts.set(slug, (counts.get(slug) ?? 0) + 1);
     return [...counts.entries()]
-      .map(([slug, count]) => ({
-        slug,
-        count,
-        name: ownershipPlatform(slug)?.name ?? slug,
-        icon: ownershipPlatform(slug)?.icon ?? null,
-      }))
+      .map(([slug, count]) => ({ slug, count, name: ownershipPlatform(slug)?.name ?? slug, icon: ownershipPlatform(slug)?.icon ?? null }))
       .sort((a, b) => b.count - a.count);
   }, [owned]);
 
   const visible = useMemo(() => {
     const term = query.trim();
-
     const filtered = owned.filter((entry) => {
       if (store !== "all" && !(entry.ownedOn ?? []).includes(store)) return false;
       if (status !== "all" && entry.status !== status) return false;
@@ -120,7 +143,6 @@ export function LibraryView({
       if (term && !fuzzyMatches(entry.name, term)) return false;
       return true;
     });
-
     const sorted = [...filtered];
     switch (sort) {
       case "name":
@@ -141,7 +163,6 @@ export function LibraryView({
     for (const entry of owned) counts[entry.status]++;
     return counts;
   }, [owned]);
-
   const releaseCounts = useMemo(() => {
     const counts: Record<ReleaseState, number> = { released: 0, upcoming: 0, unknown: 0 };
     for (const entry of owned) counts[releaseState(entry)]++;
@@ -174,165 +195,515 @@ export function LibraryView({
     },
   ], [stores, store, release, releaseCounts]);
 
-  const collection = useMemo(() => ({
-    copies: owned.reduce((sum, entry) => sum + new Set(entry.ownedOn ?? []).size, 0),
-    completed: owned.filter((entry) => entry.status === "played").length,
-    upcoming: owned.filter((entry) => releaseState(entry) === "upcoming").length,
-  }), [owned]);
+  const analytics = useMemo(
+    () => buildPersonalAnalytics(owned, { timeToBeat: ttb.status === "ready" ? ttb.data : null }),
+    [owned, ttb.status, ttb.data],
+  );
 
-  if (!user) {
-    return (
-      <EmptyState
-        title="Sign in to see your library"
-        body="Your collection is tied to your account, so it follows you to any device."
-        action={{ href: "/login", label: "Sign in" }}
-      />
-    );
-  }
+  const groups = useMemo(() => smartGroups(owned), [owned]);
 
-  if (loading) {
-    return (
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="shimmer-bg h-24 rounded-2xl" />
-        ))}
-      </div>
-    );
-  }
+  const clearFilters = () => {
+    setStore("all");
+    setStatus("all");
+    setRelease("all");
+    setQuery("");
+  };
+
+  /** "See all" on a smart group: the same filter, applied to the full collection below. */
+  const showStatus = (next: WatchStatus) => {
+    clearFilters();
+    setStatus(next);
+    haptic("selection");
+    collectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  if (loading) return <LibrarySkeleton />;
 
   if (owned.length === 0) {
     return (
-      <EmptyState
-        title="Nothing here yet"
-        body="Open any game and use “I own this” to record where you bought it — Steam, PlayStation, a physical copy, wherever."
-        action={{ href: "/browse", label: "Find your games" }}
-      />
+      <Container className="py-8">
+        <EmptyState
+          icon={<PackageOpen size={24} />}
+          title="Your library is empty"
+          body="Open any game and use “I own this” to record where you have it — Steam, PlayStation, a physical copy, anywhere."
+          action={{ href: "/browse", label: "Find your games" }}
+          secondaryAction={{ href: "/watchlist", label: "Open your watchlist" }}
+        />
+      </Container>
     );
   }
 
   return (
-    <div className="mt-6 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs leading-relaxed text-muted">Manage unique games while preserving every owned copy.</p>
-        <button type="button" onClick={() => { setBatchMode((value) => !value); setSelected(new Set()); }} aria-pressed={batchMode} className={cn("inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors", batchMode ? "border-brand/45 bg-brand/15 text-text" : "border-fg/10 bg-fg/[0.06] text-text fine:hover:bg-fg/[0.1]")}><PencilLine size={15} />{batchMode ? "Exit batch edit" : "Batch edit"}</button>
-      </div>
+    <div className="pb-8 lg:pb-12">
+      <Container>
+        <LibraryHero owned={owned} analytics={analytics} hoursStatus={ttb.status} storeCount={stores.length} />
+      </Container>
 
-      {batchMode && (
-        <BatchEditPanel
-          gameIds={[...selected]}
-          onDone={() => setSelected(new Set())}
-          onClose={() => { setBatchMode(false); setSelected(new Set()); }}
-        />
-      )}
-
-      {/* One game stays one game even when several owned copies exist. */}
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        <LibraryMetric icon={<Library size={16} />} label="Unique games" value={owned.length} tone="mint" />
-        <LibraryMetric icon={<Layers3 size={16} />} label="Owned copies" value={collection.copies} />
-        <LibraryMetric icon={<Trophy size={16} />} label="Completed" value={collection.completed} tone="gold" />
-        <LibraryMetric icon={<CalendarClock size={16} />} label="Not released yet" value={collection.upcoming} tone="brand" />
-      </div>
-
-      {/*
-        Controls, collapsed. Status is the axis people switch most, so it gets
-        a segmented control; store and release state fold into facet pills.
-      */}
-      <div className="space-y-3">
-        <SearchField
-          value={query}
-          onChange={setQuery}
-          placeholder="Search your library"
-          label="Search your library"
-          className="sm:max-w-md"
-        />
-
-        <SegmentedControl
-          label="Play status"
-          value={status}
-          onChange={setStatus}
-          fill={false}
-          className="max-w-full sm:w-fit"
-          segments={STATUS_FILTERS.map((option) => ({
-            value: option.value,
-            label: option.label,
-            count: statusCounts[option.value],
-          }))}
-        />
-
-        <FilterToolbar
-          summary={
-            <p>
-              {activeFilters > 0 ? (
-                <>
-                  <span className="font-semibold tabular-nums text-text">{visible.length}</span> of {owned.length} games
-                </>
-              ) : (
-                <>
-                  <span className="font-semibold tabular-nums text-text">{owned.length}</span> {owned.length === 1 ? "game" : "games"}
-                </>
-              )}
-            </p>
-          }
-          actions={<SortMenu options={SORTS} value={sort} onChange={setSort} label="Sort library" />}
-          facets={facets}
-          onClearAll={() => {
-            setStore("all");
-            setRelease("all");
-          }}
-          resultLabel={`Show ${visible.length} ${visible.length === 1 ? "game" : "games"}`}
-          railLabel="Library filters"
-          railTrailing={<PosterSizeToggle size={posterSize} onChange={setPosterSize} />}
-        />
-
-        {batchMode && (
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-fg/[0.03] px-4 py-3 text-xs">
-            <button type="button" onClick={() => setSelected(new Set(visible.map((entry) => entry.gameId)))} className="min-h-9 font-semibold text-brand-soft hover:text-text">Select all {visible.length} visible</button>
-            <button type="button" onClick={() => setSelected(new Set())} className="min-h-9 font-semibold text-faint hover:text-text">Clear selection</button>
-            <span className="ml-auto tabular-nums text-muted">{selected.size} selected</span>
-          </div>
+      <div className="mt-10 space-y-10 sm:mt-14 sm:space-y-14">
+        {groups.playing.length > 0 && (
+          <SmartRail title="Playing now" count={groups.playing.length} onSeeAll={() => showStatus("playing")}>
+            {groups.playing.map((entry) => (
+              <PosterTile key={entry.gameId} entry={entry} size="large" badge={playedOn(entry)} />
+            ))}
+          </SmartRail>
         )}
+        {groups.upNext.length > 0 && (
+          <SmartRail title="Up next" subtitle="Marked “Want to play”, and out now" count={groups.upNext.length} onSeeAll={() => showStatus("want")}>
+            {groups.upNext.map((entry) => (
+              <PosterTile key={entry.gameId} entry={entry} badge={hoursBadge(ttb.data?.[entry.gameId])} />
+            ))}
+          </SmartRail>
+        )}
+        {groups.backlog.length > 0 && <BacklogByPlatform platforms={groups.backlog} hours={ttb.data} />}
+        {groups.finished.length > 0 && (
+          <SmartRail title="Recently finished" count={groups.finished.length} onSeeAll={() => showStatus("played")}>
+            {groups.finished.map((entry) => (
+              <PosterTile key={entry.gameId} entry={entry} badge={finishedLabel(entry)} />
+            ))}
+          </SmartRail>
+        )}
+
+        <Container>
+          <BacklogRoulette
+            preview={previewEntries ? { entries: previewEntries, hours: flatHours(previewHours) } : undefined}
+          />
+        </Container>
       </div>
 
-      {/* Results */}
-      {visible.length === 0 ? (
-        <div className="flex flex-col items-center rounded-3xl border border-dashed border-line py-16 text-center">
-          <PackageOpen size={22} className="text-faint" />
-          <p className="mt-3 text-sm text-muted">Nothing in your library matches those filters.</p>
-          <button
-            type="button"
-            onClick={() => {
-              setStore("all");
-              setStatus("all");
-              setRelease("all");
-              setQuery("");
-            }}
-            className="mt-4 text-xs font-medium text-brand-soft underline underline-offset-2"
-          >
-            Clear filters
-          </button>
-        </div>
-      ) : (
-        <ul className={cn("grid gap-3", posterGridClass(posterSize))}>
-          {visible.map((entry, index) => (
-            <li key={entry.gameId} className="relative">
-              {batchMode && <SelectionToggle selected={selected.has(entry.gameId)} name={entry.name} onToggle={() => setSelected(toggleSelected(selected, entry.gameId))} />}
-              {/* Mount-based: filtering re-mounts these while the reader is
-                  already scrolled into the results. */}
-              <Reveal delay={Math.min(index, 10) * 0.025} blur={false} onMount>
-                {posterSize === "list" ? (
-                  <LibraryRow entry={entry} />
-                ) : (
-                  <PosterTile
-                    entry={entry}
-                    size={posterSize === "large" ? "large" : "compact"}
-                    badge={STATUS_LABELS[entry.status]}
-                  />
+      <Container>
+        <section ref={collectionRef} aria-labelledby="library-all" className="mt-12 scroll-mt-24 sm:mt-16">
+          <div className="flex items-end justify-between gap-3">
+            <h2 id="library-all" className="font-display text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">All games</h2>
+            {view !== "shelf" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setBatchMode((value) => !value);
+                  setSelected(new Set());
+                }}
+                aria-pressed={batchMode}
+                className={cn(
+                  "press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[15px] font-medium transition-colors",
+                  batchMode ? "bg-brand/15 text-text" : "text-brand-soft fine:hover:bg-brand/10",
                 )}
-              </Reveal>
-            </li>
-          ))}
-        </ul>
+              >
+                <PencilLine size={15} aria-hidden />
+                {batchMode ? "Done" : "Select"}
+              </button>
+            )}
+          </div>
+
+          {batchMode && (
+            <div className="mt-4">
+              <BatchEditPanel
+                gameIds={[...selected]}
+                onDone={() => setSelected(new Set())}
+                onClose={() => {
+                  setBatchMode(false);
+                  setSelected(new Set());
+                }}
+              />
+            </div>
+          )}
+
+          {/*
+            Controls, collapsed. Status is the axis people switch most, so it
+            gets a segmented control; store and release state fold into facet
+            pills; the view switch sits at the end of the rail.
+          */}
+          <div className="mt-5 space-y-3">
+            <SearchField value={query} onChange={setQuery} placeholder="Search your library" label="Search your library" className="sm:max-w-md" />
+            <SegmentedControl
+              label="Play status"
+              value={status}
+              onChange={setStatus}
+              fill={false}
+              className="max-w-full sm:w-fit"
+              segments={STATUS_FILTERS.map((option) => ({ value: option.value, label: option.label, count: statusCounts[option.value] }))}
+            />
+            <FilterToolbar
+              summary={
+                <p>
+                  {activeFilters > 0 ? (
+                    <><span className="font-semibold tabular-nums text-text">{visible.length}</span> of {owned.length} games</>
+                  ) : (
+                    <><span className="font-semibold tabular-nums text-text">{owned.length}</span> {owned.length === 1 ? "game" : "games"}</>
+                  )}
+                </p>
+              }
+              actions={<SortMenu options={SORTS} value={sort} onChange={setSort} label="Sort library" />}
+              facets={facets}
+              onClearAll={() => {
+                setStore("all");
+                setRelease("all");
+              }}
+              resultLabel={`Show ${visible.length} ${visible.length === 1 ? "game" : "games"}`}
+              railLabel="Library filters"
+              railTrailing={
+                <ViewSwitch
+                  value={view}
+                  onChange={(next) => {
+                    setPosterSize(VIEW_KEY, next);
+                    if (next === "shelf") {
+                      setBatchMode(false);
+                      setSelected(new Set());
+                    }
+                  }}
+                />
+              }
+            />
+
+            {batchMode && (
+              <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-fg/[0.04] px-4 py-2 text-[13px]">
+                <button type="button" onClick={() => setSelected(new Set(visible.map((entry) => entry.gameId)))} className="min-h-11 font-semibold text-brand-soft fine:hover:text-text">
+                  Select all {visible.length}
+                </button>
+                <button type="button" onClick={() => setSelected(new Set())} className="min-h-11 font-semibold text-muted fine:hover:text-text">
+                  Clear
+                </button>
+                <span className="ml-auto tabular-nums text-muted">{selected.size} selected</span>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6">
+            {visible.length === 0 ? (
+              <EmptyState
+                icon={<PackageOpen size={22} />}
+                title="Nothing matches those filters"
+                body="Try another status or store, or clear the search."
+                action={{ onClick: clearFilters, label: "Clear filters" }}
+              />
+            ) : view === "shelf" ? (
+              <>
+                <PhysicsShelf entries={visible.slice(0, SHELF_LIMIT)} />
+                {visible.length > SHELF_LIMIT && (
+                  <p className="mt-1 px-1 text-[13px] text-faint">
+                    The shelf holds {SHELF_LIMIT} at a time — showing the first {SHELF_LIMIT} of {visible.length}. Filter or sort to change which.
+                  </p>
+                )}
+              </>
+            ) : view === "list" ? (
+              <ul className="overflow-hidden rounded-2xl border border-line bg-panel/55 light:bg-panel">
+                {visible.map((entry, index) => (
+                  <li key={entry.gameId} className={cn("relative", index > 0 && "border-t border-line")}>
+                    {batchMode && <SelectionToggle selected={selected.has(entry.gameId)} name={entry.name} onToggle={() => setSelected(toggleSelected(selected, entry.gameId))} />}
+                    <LibraryRow entry={entry} hours={hoursOf(ttb.data?.[entry.gameId])} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <ul className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
+                {visible.map((entry, index) => (
+                  <li key={entry.gameId} className="relative">
+                    {batchMode && <SelectionToggle selected={selected.has(entry.gameId)} name={entry.name} onToggle={() => setSelected(toggleSelected(selected, entry.gameId))} />}
+                    {/* Mount-based: filtering re-mounts these while the reader is already scrolled in. */}
+                    <Reveal delay={Math.min(index, 10) * 0.025} blur={false} onMount>
+                      <PosterTile entry={entry} badge={STATUS_LABELS[entry.status]} />
+                    </Reveal>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+      </Container>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Hero                                                                       */
+/* -------------------------------------------------------------------------- */
+
+function LibraryHero({
+  owned,
+  analytics,
+  hoursStatus,
+  storeCount,
+}: {
+  owned: WatchlistEntry[];
+  analytics: ReturnType<typeof buildPersonalAnalytics>;
+  hoursStatus: "loading" | "ready" | "unavailable";
+  storeCount: number;
+}) {
+  const { finish, funnel, hours } = analytics;
+  const upcoming = owned.filter((entry) => releaseState(entry) === "upcoming").length;
+  const hoursReady = hoursStatus === "ready" && hours.available && hours.backlog > 0;
+  const recent = [...owned].sort((a, b) => b.addedAt - a.addedAt).slice(0, 5);
+  const unfinished = Math.max(0, finish.base - finish.finished);
+
+  return (
+    <section aria-labelledby="library-hero" className="glass relative isolate overflow-hidden rounded-3xl p-5 sm:p-8">
+      <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 -z-10 h-72 w-72 rounded-full bg-brand/20 blur-3xl" />
+      <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="min-w-0">
+          <h2 id="library-hero" className="text-[13px] font-semibold text-muted">Your collection</h2>
+          <p className="mt-1 flex items-baseline gap-2.5">
+            <CountUp value={owned.length} className="font-display text-[56px] font-bold leading-none tracking-[-0.04em] tabular-nums sm:text-[72px]" />
+            <span className="text-[17px] text-muted">{owned.length === 1 ? "game" : "games"}</span>
+          </p>
+          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:text-[17px]">
+            {headline(finish.finished, funnel.playing, unfinished, hoursReady ? hours.backlog : null)}
+          </p>
+        </div>
+        <CoverFan entries={recent} />
+      </div>
+
+      <dl className="mt-6 grid grid-cols-2 gap-2 sm:mt-8 sm:grid-cols-4">
+        <HeroTile label="Copies" value={analytics.ownedCopies} note={`across ${plural(storeCount, "store")}`} />
+        <HeroTile
+          label="Finished"
+          value={finish.finished}
+          note={finish.rate !== null ? `${Math.round(finish.rate * 100)}% of released games` : "none released yet"}
+        />
+        {hoursStatus === "loading" ? (
+          <div className="rounded-2xl bg-fg/[0.04] p-3.5" aria-label="Loading backlog hours">
+            <Skeleton className="h-3 w-16 rounded" />
+            <Skeleton className="mt-2.5 h-7 w-14 rounded" />
+          </div>
+        ) : hoursReady ? (
+          <HeroTile label="Backlog" value={hours.backlog} suffix="h" note={`to finish ${plural(hours.backlogGames, "game")}`} />
+        ) : (
+          <HeroTile label="Unfinished" value={unfinished} note="owned and released" />
+        )}
+        {upcoming > 0 ? (
+          <HeroTile label="Not out yet" value={upcoming} note="pre-ordered or owned early" />
+        ) : (
+          <HeroTile label="Playing" value={funnel.playing} note={funnel.playing ? "on the go right now" : "nothing in progress"} />
+        )}
+      </dl>
+      {hoursReady && hours.withData < hours.eligible && (
+        <p className="mt-3 text-[12px] text-faint">
+          Hours are IGDB time-to-beat estimates for {hours.withData} of {plural(hours.eligible, "game")}; the rest have no data and count nothing.
+        </p>
       )}
+    </section>
+  );
+}
+
+function headline(finished: number, playing: number, unfinished: number, backlogHours: number | null): string {
+  const parts: string[] = [];
+  parts.push(finished ? `${plural(finished, "game")} finished` : "Nothing marked finished yet");
+  if (playing) parts.push(`${playing} on the go`);
+  const lead = parts.join(", ");
+  if (backlogHours) return `${lead}. About ${Math.round(backlogHours).toLocaleString("en")} hours of backlog left to play.`;
+  if (unfinished) return `${lead}. ${plural(unfinished, "game")} still waiting to be played.`;
+  return `${lead}. Your backlog is clear.`;
+}
+
+function HeroTile({ label, value, note, suffix = "" }: { label: string; value: number; note: string; suffix?: string }) {
+  return (
+    <div className="min-w-0 rounded-2xl bg-fg/[0.045] p-3.5">
+      <dt className="truncate text-[12px] font-medium text-muted">{label}</dt>
+      <dd className="mt-1">
+        <CountUp value={Math.round(value)} suffix={suffix} className="font-display text-[26px] font-bold leading-none tabular-nums" />
+        <span className="mt-1 block truncate text-[11px] text-faint">{note}</span>
+      </dd>
+    </div>
+  );
+}
+
+/** The five most recently added covers, fanned like a hand of cards. */
+function CoverFan({ entries }: { entries: WatchlistEntry[] }) {
+  if (entries.length === 0) return null;
+  const middle = (entries.length - 1) / 2;
+  return (
+    <div aria-hidden className="relative hidden h-44 sm:block" style={{ width: 96 + (entries.length - 1) * 46 }}>
+      {entries.map((entry, index) => (
+        <span
+          key={entry.gameId}
+          className="absolute bottom-0 h-[128px] w-24 overflow-hidden rounded-xl shadow-[0_18px_40px_-18px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-fg/15 light:shadow-[0_14px_30px_-16px_rgba(0,0,0,0.35)]"
+          style={{
+            left: index * 46,
+            transform: `rotate(${(index - middle) * 5}deg) translateY(${Math.abs(index - middle) * 8}px)`,
+            zIndex: entries.length - Math.abs(Math.round(index - middle)),
+          }}
+        >
+          <GameCover name={entry.name} slug={entry.slug} image={entry.image} imageFallback={entry.imageFallback} width={200} sizes="96px" />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Smart groups                                                               */
+/* -------------------------------------------------------------------------- */
+
+interface PlatformBacklog {
+  slug: string;
+  name: string;
+  icon: string | null;
+  entries: WatchlistEntry[];
+}
+
+function smartGroups(owned: WatchlistEntry[]) {
+  const released = (entry: WatchlistEntry) => releaseState(entry) !== "upcoming";
+  const playing = owned.filter((entry) => entry.status === "playing").sort((a, b) => (b.startedAt ?? b.addedAt) - (a.startedAt ?? a.addedAt));
+  const upNext = owned.filter((entry) => entry.status === "want" && released(entry)).sort((a, b) => b.addedAt - a.addedAt);
+  const finished = owned.filter((entry) => entry.status === "played").sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
+  const untouched = owned.filter((entry) => entry.status === "none" && released(entry));
+  const byPlatform = new Map<string, WatchlistEntry[]>();
+  for (const entry of untouched) {
+    for (const slug of new Set(entry.ownedOn ?? [])) byPlatform.set(slug, [...(byPlatform.get(slug) ?? []), entry]);
+  }
+  const backlog: PlatformBacklog[] = [...byPlatform.entries()]
+    .map(([slug, list]) => ({ slug, name: ownershipPlatform(slug)?.name ?? slug, icon: ownershipPlatform(slug)?.icon ?? null, entries: list }))
+    .sort((a, b) => b.entries.length - a.entries.length);
+  return { playing, upNext, finished: finished.slice(0, 20), backlog };
+}
+
+function SmartRail({
+  title,
+  subtitle,
+  count,
+  onSeeAll,
+  header,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  count: number;
+  onSeeAll?: () => void;
+  header?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-label={title}>
+      <Container className="mb-3 flex items-end justify-between gap-3 sm:mb-4">
+        <div className="min-w-0">
+          <h2 className="font-display text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">
+            {title} <span className="text-[17px] font-semibold tabular-nums text-faint sm:text-[20px]">{count}</span>
+          </h2>
+          {subtitle && <p className="text-[13px] text-muted sm:text-[15px]">{subtitle}</p>}
+        </div>
+        {onSeeAll && (
+          <button type="button" onClick={onSeeAll} className="press inline-flex min-h-11 shrink-0 items-center gap-0.5 text-[15px] font-medium text-brand-soft fine:hover:text-text">
+            See all
+            <ChevronRight size={17} aria-hidden />
+          </button>
+        )}
+      </Container>
+      {header}
+      <ul className="snap-rail rail-gutter gap-3 pb-2 sm:gap-4">
+        {Children.map(children, (child) => (
+          <li className="w-[120px] sm:w-[156px]">{child}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function BacklogByPlatform({ platforms, hours }: { platforms: PlatformBacklog[]; hours: Record<number, TimeToBeatLike> | null }) {
+  const [active, setActive] = useState(platforms[0].slug);
+  const current = platforms.find((platform) => platform.slug === active) ?? platforms[0];
+  const total = new Set(platforms.flatMap((platform) => platform.entries.map((entry) => entry.gameId))).size;
+
+  return (
+    <SmartRail
+      title="Backlog"
+      subtitle="Owned, out, and not started — by where you have it"
+      count={total}
+      header={
+        platforms.length > 1 ? (
+          <Container className="mb-4">
+            <div role="group" aria-label="Backlog platform" className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              {platforms.map((platform) => {
+                const on = platform.slug === current.slug;
+                return (
+                  <button
+                    key={platform.slug}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => {
+                      haptic("selection");
+                      setActive(platform.slug);
+                    }}
+                    className={cn(
+                      "press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition-colors coarse:min-h-11",
+                      on ? "bg-fg text-bg" : "bg-fg/[0.06] text-muted fine:hover:bg-fg/[0.1] fine:hover:text-text",
+                    )}
+                  >
+                    {platform.icon && <BrandIcon name={platform.icon} size={13} title={null} />}
+                    {platform.name}
+                    <span className={cn("tabular-nums", on ? "text-bg/60" : "text-faint")}>{platform.entries.length}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </Container>
+        ) : undefined
+      }
+    >
+      {current.entries.map((entry) => (
+        <PosterTile key={`${current.slug}-${entry.gameId}`} entry={entry} badge={hoursBadge(hours?.[entry.gameId])} />
+      ))}
+    </SmartRail>
+  );
+}
+
+const MONTH_YEAR = new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" });
+
+function finishedLabel(entry: WatchlistEntry): string | undefined {
+  return entry.finishedAt ? `Finished ${MONTH_YEAR.format(new Date(entry.finishedAt))}` : undefined;
+}
+
+function hoursBadge(ttb: TimeToBeatLike | undefined): string | undefined {
+  const hours = hoursOf(ttb);
+  return hours ? `About ${Math.round(hours)} h` : undefined;
+}
+
+function playedOn(entry: WatchlistEntry): string | undefined {
+  const platform = entry.platform ? OWNERSHIP_PLATFORMS.find((item) => item.slug === entry.platform) : null;
+  return platform ? `On ${platform.name}` : undefined;
+}
+
+function flatHours(preview?: Record<number, TimeToBeatLike>): Record<number, number> {
+  const out: Record<number, number> = {};
+  for (const [id, ttb] of Object.entries(preview ?? {})) {
+    const hours = hoursOf(ttb);
+    if (hours) out[Number(id)] = hours;
+  }
+  return out;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Collection pieces                                                          */
+/* -------------------------------------------------------------------------- */
+
+const VIEWS: { value: ViewMode; label: string; icon: typeof Rows3 }[] = [
+  { value: "grid", label: "Grid", icon: LayoutGrid },
+  { value: "list", label: "List", icon: Rows3 },
+  { value: "shelf", label: "Shelf", icon: Boxes },
+];
+
+function ViewSwitch({ value, onChange }: { value: ViewMode; onChange: (value: ViewMode) => void }) {
+  return (
+    <div role="group" aria-label="Library view" className="flex items-center gap-0.5 rounded-full border border-fg/[0.08] bg-fg/[0.06] p-0.5">
+      {VIEWS.map((option) => {
+        const Icon = option.icon;
+        const on = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={on}
+            aria-label={`${option.label} view`}
+            title={`${option.label} view`}
+            onClick={() => {
+              haptic("selection");
+              onChange(option.value);
+            }}
+            className={cn(
+              "press grid h-8 w-8 place-items-center rounded-full transition-colors coarse:h-10 coarse:w-10",
+              on ? "bg-fg/[0.16] text-text shadow-[0_3px_10px_-2px_#00000080] light:bg-panel light:shadow-[0_2px_8px_-2px_#00000029]" : "text-faint fine:hover:text-text",
+            )}
+          >
+            <Icon size={15} aria-hidden />
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -345,134 +716,61 @@ function toggleSelected(selected: Set<number>, gameId: number): Set<number> {
 }
 
 function SelectionToggle({ selected, name, onToggle }: { selected: boolean; name: string; onToggle: () => void }) {
-  return <button type="button" onClick={onToggle} aria-label={`${selected ? "Deselect" : "Select"} ${name}`} aria-pressed={selected} className={cn("absolute inset-0 z-30 rounded-2xl p-2 text-left transition-shadow", selected && "ring-2 ring-inset ring-brand")}><span className={cn("grid h-10 w-10 place-items-center rounded-full border shadow-xl backdrop-blur-xl transition-colors", selected ? "border-brand/60 bg-brand text-white" : "border-white/20 bg-black/75 text-white hover:bg-black")}><Check size={16} className={cn(!selected && "opacity-0")} /></span></button>;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={`${selected ? "Deselect" : "Select"} ${name}`}
+      aria-pressed={selected}
+      className={cn("absolute inset-0 z-30 rounded-2xl p-2 text-left transition-shadow", selected && "ring-2 ring-inset ring-brand")}
+    >
+      <span className={cn("grid h-8 w-8 place-items-center rounded-full border shadow-xl backdrop-blur-xl transition-colors", selected ? "border-brand/60 bg-brand text-white" : "border-white/30 bg-black/55 text-white")}>
+        <Check size={15} className={cn(!selected && "opacity-0")} />
+      </span>
+    </button>
+  );
 }
 
-/* -------------------------------------------------------------------------- */
-
-const STATUS_LABELS: Record<WatchStatus, string> = {
-  none: "No status",
-  want: "Want to play",
-  playing: "Playing",
-  played: "Played",
-};
-
-function LibraryRow({ entry }: { entry: WatchlistEntry }) {
+function LibraryRow({ entry, hours }: { entry: WatchlistEntry; hours: number | null }) {
   const owned = entry.ownedOn ?? [];
-  const game = entryAsGame(entry);
-
+  const game = useMemo(() => entryAsGameSummary(entry), [entry]);
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-line bg-panel/50 p-3 transition-all duration-300 fine:hover:border-line-strong fine:hover:bg-panel sm:gap-3.5">
-      <Link href={`/game/${entry.slug}`} className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg">
-        <GameCover
-          name={entry.name}
-          slug={entry.slug}
-          image={entry.image}
-          imageFallback={entry.imageFallback}
-          width={160}
-          sizes="48px"
-        />
+    <div className="flex items-center gap-3 px-3 py-2.5 transition-colors fine:hover:bg-fg/[0.035] sm:gap-4">
+      <Link href={`/game/${entry.slug}`} tabIndex={-1} aria-hidden className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-inset ring-fg/10">
+        <GameCover name={entry.name} slug={entry.slug} image={entry.image} imageFallback={entry.imageFallback} width={160} sizes="48px" />
       </Link>
-
-      <span className="min-w-0 flex-1">
-        <Link href={`/game/${entry.slug}`} className="block truncate text-sm font-semibold hover:text-brand-soft">{entry.name}</Link>
-        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-[11px] uppercase tracking-[0.08em] text-faint">
-            {STATUS_LABELS[entry.status]}
-          </span>
-          {entry.released && (
-            <span className="text-[11px] text-muted tabular-nums">
-              {entry.released.slice(0, 4)}
-            </span>
-          )}
-        </span>
-        <span className="mt-1.5 flex items-center gap-1.5">
+      <div className="min-w-0 flex-1">
+        <Link href={`/game/${entry.slug}`} className="block truncate text-[15px] font-semibold fine:hover:text-brand-soft">{entry.name}</Link>
+        <p className="mt-0.5 flex min-w-0 items-center gap-2 text-[12px] text-muted">
+          <span className="shrink-0">{STATUS_LABELS[entry.status]}</span>
+          {entry.released && <span className="shrink-0 tabular-nums text-faint">{entry.released.slice(0, 4)}</span>}
+          {hours && <span className="shrink-0 tabular-nums text-faint">≈ {Math.round(hours)} h</span>}
+        </p>
+        <span className="mt-1 flex items-center gap-1.5">
           {owned.slice(0, 5).map((slug) => {
             const platform = OWNERSHIP_PLATFORMS.find((p) => p.slug === slug);
             return platform?.icon ? (
               <BrandIcon key={slug} name={platform.icon} size={12} title={platform.name} />
             ) : (
-              <span key={slug} className="text-[10px] text-faint">
-                {platform?.name ?? slug}
-              </span>
+              <span key={slug} className="text-[11px] text-faint">{platform?.name ?? slug}</span>
             );
           })}
         </span>
-      </span>
-
+      </div>
       <ScorePill score={entry.metacritic} className="hidden sm:inline-flex" />
       <OwnershipPicker game={game} variant="icon" />
     </div>
   );
 }
 
-function entryAsGame(entry: WatchlistEntry): GameSummary {
-  return {
-    id: entry.gameId,
-    slug: entry.slug,
-    name: entry.name,
-    released: entry.released,
-    releaseWindow: entry.releaseWindow,
-    tba: entry.tba,
-    image: entry.image,
-    imageFallback: entry.imageFallback,
-    rating: 0,
-    ratingsCount: 0,
-    metacritic: entry.metacritic,
-    platforms: [],
-    parentPlatforms: (entry.platformSlugs ?? []).map((slug, index) => ({ id: -(index + 1), slug, name: slug })),
-    genres: entry.genres ?? [],
-    screenshots: [],
-    esrb: null,
-    popScore: null,
-    heroTrailer: null,
-    playtime: entry.playtime ?? 0,
-    added: 0,
-  };
-}
-
-function LibraryMetric({
-  icon,
-  label,
-  value,
-  tone = "neutral",
-}: {
-  icon: ReactNode;
-  label: string;
-  value: number;
-  tone?: "neutral" | "brand" | "mint" | "gold";
-}) {
+function LibrarySkeleton() {
   return (
-    <div className="min-w-0 rounded-2xl border border-line bg-panel/45 p-3.5 sm:p-4">
-      <div className={cn(
-        "mb-3 grid h-8 w-8 place-items-center rounded-xl bg-fg/[0.05] text-muted",
-        tone === "brand" && "bg-brand/15 text-brand-soft",
-        tone === "mint" && "bg-mint/10 text-mint",
-        tone === "gold" && "bg-amber-400/10 text-amber-300",
-      )}>{icon}</div>
-      <p className="font-display text-2xl font-bold tabular-nums sm:text-3xl">{value}</p>
-      <p className="mt-0.5 truncate text-[11px] uppercase tracking-[0.06em] text-faint">{label}</p>
-    </div>
-  );
-}
-
-function EmptyState({
-  title,
-  body,
-  action,
-}: {
-  title: string;
-  body: string;
-  action: { href: string; label: string };
-}) {
-  return (
-    <div className="mt-6 flex flex-col items-center rounded-3xl border border-dashed border-line py-16 text-center">
-      <PackageOpen size={22} className="text-faint" />
-      <h2 className="mt-4 text-lg font-semibold">{title}</h2>
-      <p className="mt-2 max-w-sm text-sm text-muted">{body}</p>
-      <Button href={action.href} variant="secondary" size="sm" className="mt-5">
-        {action.label}
-      </Button>
-    </div>
+    <Container className="pb-12">
+      <Skeleton className="h-[300px] rounded-3xl" />
+      <Skeleton className="mt-12 h-7 w-40 rounded-lg" />
+      <div className="mt-4 flex gap-3 overflow-hidden">
+        {Array.from({ length: 7 }, (_, index) => <Skeleton key={index} className="aspect-[3/4] w-[156px] shrink-0 rounded-xl" />)}
+      </div>
+    </Container>
   );
 }

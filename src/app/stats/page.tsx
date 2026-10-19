@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { AuthGate } from "@/components/auth/AuthGate";
-import { StatsView } from "@/components/stats/StatsView";
+import { BarChart3, Clock3, Radar } from "lucide-react";
+import { CollectionGate } from "@/components/library/CollectionGate";
+import { StatsSkeleton, StatsView } from "@/components/stats/StatsView";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { browseGames, getGenres } from "@/lib/games/source";
 import { catalogueBenchmark } from "@/lib/games/stats";
@@ -27,13 +28,21 @@ export default async function StatsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Your collection, decoded"
-        title="Personal stats"
-        description="Your taste, your time and your backlog, calculated from your own library. Nothing here is guessed: every chart says what it's based on."
+        title="Your stats"
+        description="Your taste, your time and your backlog, from your own library. Every chart says what it's based on."
       />
-      <AuthGate>
+      <CollectionGate
+        title="Your gaming, decoded"
+        body="Track and rate games and this page turns them into an honest picture of how you play."
+        skeleton={<StatsSkeleton />}
+        points={[
+          { icon: <BarChart3 size={18} />, title: "Finish rate and backlog", body: "How much of what you own you've actually played, and how long the rest would take." },
+          { icon: <Radar size={18} />, title: "The shape of your taste", body: "Your genre radar, and how your mix has shifted over time." },
+          { icon: <Clock3 size={18} />, title: "Where your time goes", body: "Estimated hours by platform, from IGDB's real completion times." },
+        ]}
+      >
         <StatsView genreDirectory={genres} benchmark={benchmark} />
-      </AuthGate>
+      </CollectionGate>
     </>
   );
 }

@@ -23,12 +23,18 @@ import {
   type SeriesPoint,
   type StatsRange,
   type StatsResponse,
+  type AttributionRow,
+  type RetentionCohort,
   type VitalName,
   type VitalSummary,
 } from "./types";
+import { isoWeekOf, weekStartOf } from "./week";
 
 const HOUR = 3600;
 const DAY = 86_400;
+const WEEK = 7 * DAY;
+/** Cohorts shown in the retention triangle (current week included). */
+export const RETENTION_WEEKS = 8;
 
 const RANGES: Record<StatsRange, { span: number; bucket: number }> = {
   "24h": { span: DAY, bucket: HOUR },
@@ -56,9 +62,14 @@ type Row = Record<string, unknown>;
 const n = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0);
 const s = (value: unknown): string => (typeof value === "string" ? value : "");
 
-export async function computeStats(db: D1Database, range: StatsRange): Promise<StatsResponse> {
+/**
+ * `nowOverride` (unix seconds) pins "now" — the weekly digest passes the last
+ * second of the previous week so its 7d range is exactly Monday–Sunday.
+ * Every query is bounded above by "now", so later events never leak in.
+ */
+export async function computeStats(db: D1Database, range: StatsRange, nowOverride?: number): Promise<StatsResponse> {
   const { span, bucket } = RANGES[range];
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowOverride ?? Math.floor(Date.now() / 1000);
   const until = Math.floor(now / bucket) * bucket + bucket; // end of the current bucket
   const since = until - span;
   const prevSince = since - span;
@@ -98,67 +109,67 @@ export async function computeStats(db: D1Database, range: StatsRange): Promise<S
     // 2 — top pages
     q(
       `SELECT path, COUNT(*) AS c FROM analytics_events
-       WHERE type = 'pageview' AND ts >= ?1 AND path IS NOT NULL
+       WHERE type = 'pageview' AND ts >= ?1 AND ts <= ?2 AND path IS NOT NULL
        GROUP BY path ORDER BY c DESC, path LIMIT 10`,
-      since,
+      since, now,
     ),
     // 3 — game page views by slug
     q(
       `SELECT ${SLUG_FROM_PATH} AS slug, COUNT(*) AS c FROM analytics_events
-       WHERE type = 'pageview' AND ts >= ?1 AND ${GAME_PATH}
+       WHERE type = 'pageview' AND ts >= ?1 AND ts <= ?2 AND ${GAME_PATH}
        GROUP BY slug ORDER BY c DESC LIMIT 25`,
-      since,
+      since, now,
     ),
     // 4 — follows/owns by slug
     q(
       `SELECT game_slug AS slug, SUM(${FOLLOW}) AS follows, SUM(type = 'own') AS owns
        FROM analytics_events
-       WHERE type IN ('follow', 'own') AND ts >= ?1 AND game_slug IS NOT NULL
+       WHERE type IN ('follow', 'own') AND ts >= ?1 AND ts <= ?2 AND game_slug IS NOT NULL
        GROUP BY game_slug ORDER BY SUM(${FOLLOW}) + SUM(type = 'own') DESC LIMIT 25`,
-      since,
+      since, now,
     ),
     // 5 — top searches
     q(
       `SELECT query, COUNT(*) AS c, AVG(results) AS r FROM analytics_events
-       WHERE type = 'search' AND ts >= ?1 AND query IS NOT NULL
+       WHERE type = 'search' AND ts >= ?1 AND ts <= ?2 AND query IS NOT NULL
        GROUP BY query ORDER BY c DESC, query LIMIT 10`,
-      since,
+      since, now,
     ),
     // 6 — searches that found nothing
     q(
       `SELECT query, COUNT(*) AS c, MAX(ts) AS last FROM analytics_events
-       WHERE type = 'search' AND ts >= ?1 AND results = 0 AND query IS NOT NULL
+       WHERE type = 'search' AND ts >= ?1 AND ts <= ?2 AND results = 0 AND query IS NOT NULL
        GROUP BY query ORDER BY c DESC, last DESC LIMIT 15`,
-      since,
+      since, now,
     ),
     // 7 — referrers
     q(
       `SELECT ref_host, COUNT(*) AS c FROM analytics_events
-       WHERE type = 'pageview' AND ts >= ?1 AND ref_host IS NOT NULL
+       WHERE type = 'pageview' AND ts >= ?1 AND ts <= ?2 AND ref_host IS NOT NULL
        GROUP BY ref_host ORDER BY c DESC LIMIT 10`,
-      since,
+      since, now,
     ),
     // 8 — countries ('' = unknown)
     q(
       `SELECT COALESCE(country, '') AS code, COUNT(*) AS c FROM analytics_events
-       WHERE type = 'pageview' AND ts >= ?1
+       WHERE type = 'pageview' AND ts >= ?1 AND ts <= ?2
        GROUP BY code ORDER BY c DESC LIMIT 13`,
-      since,
+      since, now,
     ),
     // 9 — devices
     q(
       `SELECT COALESCE(device, 'unknown') AS d, COUNT(*) AS c FROM analytics_events
-       WHERE type = 'pageview' AND ts >= ?1
+       WHERE type = 'pageview' AND ts >= ?1 AND ts <= ?2
        GROUP BY d`,
-      since,
+      since, now,
     ),
     // 10 — vitals: sample counts and good/poor split
     q(
       `SELECT name, COUNT(*) AS c, SUM(${GOOD_CASE}) AS good, SUM(${POOR_CASE}) AS poor
        FROM analytics_events
-       WHERE type = 'vital' AND ts >= ?1 AND name IS NOT NULL AND value IS NOT NULL
+       WHERE type = 'vital' AND ts >= ?1 AND ts <= ?2 AND name IS NOT NULL AND value IS NOT NULL
        GROUP BY name`,
-      since,
+      since, now,
     ),
     // 11 — vitals p75 (nearest-rank via window functions)
     q(
@@ -167,9 +178,9 @@ export async function computeStats(db: D1Database, range: StatsRange): Promise<S
            ROW_NUMBER() OVER (PARTITION BY name ORDER BY value) AS rn,
            COUNT(*) OVER (PARTITION BY name) AS total
          FROM analytics_events
-         WHERE type = 'vital' AND ts >= ?1 AND name IS NOT NULL AND value IS NOT NULL
+         WHERE type = 'vital' AND ts >= ?1 AND ts <= ?2 AND name IS NOT NULL AND value IS NOT NULL
        ) WHERE rn = CAST((total * 3 + 3) / 4 AS INTEGER)`,
-      since,
+      since, now,
     ),
     // 12 — funnel stages by device
     q(
@@ -179,12 +190,46 @@ export async function computeStats(db: D1Database, range: StatsRange): Promise<S
          SUM(${FOLLOW}) AS follows,
          SUM(type = 'signup') AS signups
        FROM analytics_events
-       WHERE ts >= ?1 AND type IN ('pageview', 'follow', 'signup')
+       WHERE ts >= ?1 AND ts <= ?2 AND type IN ('pageview', 'follow', 'signup')
        GROUP BY d`,
-      since,
+      since, now,
     ),
     // 13 — lifetime
-    q(`SELECT COUNT(*) AS c, MIN(ts) AS first FROM analytics_events`),
+    q(`SELECT COUNT(*) AS c, MIN(ts) AS first FROM analytics_events WHERE ts <= ?1`, now),
+    // 14 — returning visitor-days (first pageview of a day), current vs previous
+    q(
+      `SELECT CASE WHEN ts >= ?1 THEN 1 ELSE 0 END AS cur,
+         COUNT(*) AS days, SUM(visit != 'new') AS ret
+       FROM analytics_events
+       WHERE type = 'pageview' AND visit IS NOT NULL
+         AND ((ts >= ?1 AND ts <= ?2) OR (ts >= ?3 AND ts <= ?4))
+       GROUP BY cur`,
+      since, now, prevSince, prevUntil,
+    ),
+    // 15 — retention: tagged pageviews per cohort × visit kind × ISO week
+    q(
+      `SELECT cohort, visit,
+         (CAST(ts / 86400 AS INTEGER) - ((CAST(ts / 86400 AS INTEGER) + 3) % 7)) * 86400 AS wk,
+         COUNT(*) AS c
+       FROM analytics_events
+       WHERE type = 'pageview' AND visit IS NOT NULL AND cohort >= ?1 AND ts >= ?2 AND ts <= ?3
+       GROUP BY cohort, visit, wk`,
+      isoWeekOf(new Date(retentionStart(now) * 1000)), retentionStart(now), now,
+    ),
+    // 16 — attribution: game views and conversions per source
+    q(
+      `SELECT COALESCE(src, '') AS s,
+         SUM(type = 'pageview') AS views,
+         SUM(${FOLLOW}) AS follows,
+         SUM(type = 'signup') AS signups
+       FROM analytics_events
+       WHERE ts >= ?1 AND ts <= ?2 AND type IN ('pageview', 'follow', 'signup')
+         AND (type != 'pageview' OR ${GAME_PATH})
+       GROUP BY s
+       ORDER BY SUM(${FOLLOW}) + SUM(type = 'signup') DESC, views DESC
+       LIMIT 16`,
+      since, now,
+    ),
   ];
 
   const results = await db.batch(statements);
@@ -275,6 +320,19 @@ export async function computeStats(db: D1Database, range: StatsRange): Promise<S
 
   const lifetime = rows(13)[0] ?? {};
 
+  // --- Returning share
+  const returningRow = (cur: 0 | 1) => rows(14).find((row) => n(row.cur) === cur) ?? {};
+  const returning = {
+    current: n(returningRow(1).ret),
+    previous: n(returningRow(0).ret),
+    currentDays: n(returningRow(1).days),
+    previousDays: n(returningRow(0).days),
+  };
+
+  const attribution: AttributionRow[] = rows(16)
+    .map((row) => ({ src: s(row.s), views: n(row.views), follows: n(row.follows), signups: n(row.signups) }))
+    .filter((row) => row.views + row.follows + row.signups > 0);
+
   return {
     range,
     bucket: bucket === HOUR ? "hour" : "day",
@@ -301,7 +359,53 @@ export async function computeStats(db: D1Database, range: StatsRange): Promise<S
     devices,
     vitals,
     funnel,
+    returning,
+    retention: buildRetention(rows(15), now),
+    attribution,
   };
+}
+
+/** Monday 00:00 UTC of the oldest cohort in the triangle. */
+function retentionStart(now: number): number {
+  return weekStartOf(now) - (RETENTION_WEEKS - 1) * WEEK;
+}
+
+/**
+ * Folds (cohort, visit, week) counts into the triangle. Cohort size is the
+ * number of `new` days in the cohort; week k counts `return-wk` pageviews in
+ * the k-th week after it — each browser sends at most one per week, so this
+ * approximates distinct returning browsers without identifying any.
+ */
+function buildRetention(rows: Row[], now: number): RetentionCohort[] {
+  const currentWeek = weekStartOf(now);
+  const start = retentionStart(now);
+  const cohorts: RetentionCohort[] = Array.from({ length: RETENTION_WEEKS }, (_, i) => {
+    const weekStart = start + i * WEEK;
+    const reached = Math.round((currentWeek - weekStart) / WEEK);
+    return {
+      cohort: isoWeekOf(new Date(weekStart * 1000)),
+      weekStart,
+      size: 0,
+      weeks: Array.from({ length: RETENTION_WEEKS }, (_, k) => (k <= reached ? { returners: 0, returnDays: 0 } : null)),
+    };
+  });
+  const byLabel = new Map(cohorts.map((cohort) => [cohort.cohort, cohort]));
+  for (const row of rows) {
+    const cohort = byLabel.get(s(row.cohort));
+    if (!cohort) continue;
+    const count = n(row.c);
+    if (row.visit === "new") {
+      cohort.size += count;
+      continue;
+    }
+    const k = Math.round((n(row.wk) - cohort.weekStart) / WEEK);
+    const cell = cohort.weeks[k];
+    if (!cell) continue;
+    cell.returnDays += count;
+    if (row.visit === "return-wk") cell.returners += count;
+  }
+  // Newest cohort first, like every retention chart people already know.
+  return cohorts.reverse();
 }
 
 function asDevice(value: unknown): Device | "unknown" {

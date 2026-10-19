@@ -42,7 +42,7 @@
   ],
   "triggers": {
     // Each schedule maps to an /api/cron/<job> route in worker.mjs.
-    "crons": ["5 * * * *", "20 4 * * *", "0 8 * * 1"]
+    "crons": ["*/10 * * * *", "20 4 * * *", "0 8 * * 1"]
   },
   "observability": {
     "enabled": true

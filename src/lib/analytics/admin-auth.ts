@@ -34,7 +34,8 @@ export type AdminCheck =
   | { ok: true; email: string }
   | { ok: false; status: 401 | 403 | 503; reason: AdminDenial };
 
-async function adminEmails(): Promise<Set<string>> {
+/** The allow-list, lowercased. Also the weekly digest's recipients. */
+export async function adminEmails(): Promise<Set<string>> {
   let raw = process.env.ADMIN_EMAILS;
   if (!raw) {
     // On Workers, vars/secrets live on the binding env; OpenNext mirrors most

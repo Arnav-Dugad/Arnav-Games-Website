@@ -46,7 +46,32 @@ export interface ClientEvent {
    * (the cookieless stand-in for "a visit").
    */
   value?: number;
+  /** ISO week of the device's first visit ("2026-W42"); first pageview of a day only. */
+  cohort?: string;
+  /** First pageview of a day only — see `VisitKind`. */
+  visit?: VisitKind;
+  /** The shelf/rail that led here (`home:trending`); see `lib/analytics/attribution`. */
+  src?: string;
 }
+
+/**
+ * How the first pageview of a UTC day relates to the device's history.
+ *
+ * - `new`: the first visit this browser has ever made (its cohort week starts).
+ * - `return-wk`: a returning browser's first visit *this ISO week* — counting
+ *   these per week gives "how many of a cohort came back that week" without
+ *   any identifier, so retention can't exceed 100% from one keen visitor.
+ * - `return`: any other returning day.
+ *
+ * Return days are therefore `return` + `return-wk`.
+ */
+export const VISIT_KINDS = ["new", "return", "return-wk"] as const;
+export type VisitKind = (typeof VISIT_KINDS)[number];
+
+/** `2026-W42`. Shared by the tracker (writer) and the ingest validator. */
+export const COHORT_RE = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
+/** `home:trending`, `game:related`, `search` — lowercase, short, no spaces. */
+export const SRC_RE = /^[a-z0-9][a-z0-9:_.-]{0,63}$/;
 
 /** The ingest route refuses anything larger; the tracker never comes close. */
 export const MAX_TRACK_BODY_BYTES = 2048;
@@ -128,6 +153,99 @@ export interface StatsResponse {
   devices: { device: Device | "unknown"; count: number }[];
   vitals: VitalSummary[];
   funnel: FunnelRow[];
+  /**
+   * First-of-day pageviews from returning browsers vs all first-of-day
+   * pageviews ("visitor-days"), current and previous period.
+   */
+  returning: { current: number; previous: number; currentDays: number; previousDays: number };
+  retention: RetentionCohort[];
+  attribution: AttributionRow[];
+}
+
+/** One row of the retention triangle. Weeks are ISO weeks (Monday, UTC). */
+export interface RetentionCohort {
+  /** `2026-W42`. */
+  cohort: string;
+  /** Monday 00:00 UTC of the cohort week, unix seconds. */
+  weekStart: number;
+  /** Browsers whose first visit fell in this week (`visit = 'new'`). */
+  size: number;
+  /**
+   * Index = weeks since the cohort week (0 is the cohort week itself).
+   * `returners` counts first-of-week return pageviews (≈ distinct returning
+   * browsers); `returnDays` counts every returning day. Null = week not reached yet.
+   */
+  weeks: ({ returners: number; returnDays: number } | null)[];
+}
+
+export interface AttributionRow {
+  /** `home:trending`, or "" for game views with no recorded source. */
+  src: string;
+  views: number;
+  follows: number;
+  signups: number;
+}
+
+// ---------------------------------------------------------------------------
+// Presence (GET /api/admin/presence)
+// ---------------------------------------------------------------------------
+
+export interface PresenceSnapshot {
+  /** Null when live presence isn't available in this environment. */
+  online: number | null;
+  available: boolean;
+  pages: { path: string; count: number }[];
+  /** Unix ms. */
+  updatedAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// Search fixes (GET/POST /api/admin/search-fixes)
+// ---------------------------------------------------------------------------
+
+export interface AliasCandidate {
+  id: number;
+  slug: string;
+  name: string;
+  image: string | null;
+  /** Release year or window, for telling remakes apart. */
+  year: string | null;
+}
+
+export type AliasStatus = "suggested" | "approved" | "dismissed";
+
+export interface SearchFix {
+  alias: string;
+  status: AliasStatus;
+  /** Zero-result searches seen for this exact query. */
+  hits: number;
+  /** The mapped game once approved. */
+  game: AliasCandidate | null;
+  /** Null until proposed (fetched lazily, one IGDB round-trip each). */
+  candidates: AliasCandidate[] | null;
+  updatedAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// Weekly digest (GET/POST /api/admin/digest)
+// ---------------------------------------------------------------------------
+
+export type DigestDelivery = "sent" | "not-configured" | "failed";
+
+export interface DigestRecord {
+  id: number;
+  kind: "scheduled" | "test";
+  /** Unix seconds. */
+  createdAt: number;
+  periodStart: number;
+  periodEnd: number;
+  subject: string;
+  html: string;
+  text: string;
+  delivery: DigestDelivery;
+  recipients: number;
+  /** Provider error, trimmed — never shown outside /admin. */
+  error: string | null;
 }
 
 /** Why the stats route refused — drives the dashboard's locked states. */

@@ -120,6 +120,9 @@ in `.env.local` (or the shell) on the machine running `npm run deploy`.
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Accounts | |
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | — | Unused; Analytics is not wired up |
 | `ADMIN_EMAILS` | `/admin` analytics | Runtime var, comma-separated. Verified emails allowed to read analytics. Defaults to `arnavrival12@gmail.com,arnavrival16@gmail.com` when unset |
+| `CRON_SECRET` | Cron jobs (`/api/cron/*`) | Secret. Sent by the Worker's cron triggers as `x-cron-secret`; without it scheduled jobs don't run |
+| `RESEND_API_KEY` | Weekly digest email | Optional secret. Without it the digest is built and shown in `/admin` only |
+| `DIGEST_FROM` | Weekly digest email | Optional. Defaults to `Arnav Games <onboarding@resend.dev>` (Resend delivers that sender only to the account owner) |
 
 If you add Firebase after the first deploy, remember step 6 above — add the
 `workers.dev` (or custom) domain to Firebase's authorised domains or Google
@@ -149,6 +152,38 @@ in front of `/api/search`, cached repeats aren't counted — and include
 type-ahead prefixes. Locally, `next dev` uses the emulated D1, so events land
 in `.wrangler/state`; `/admin?devBypass=1` skips sign-in **only** in `next dev`
 on localhost (the branch doesn't exist in production builds).
+
+What the dashboard adds on top of counts — all still cookieless:
+
+- **Online now.** Each visible tab posts a heartbeat (a random id made up in
+  memory, never stored, plus the current path) to `POST /api/presence` every
+  30s while someone is active; the `PresenceRoom` Durable Object
+  (`src/server/presence-room.ts`, binding `PRESENCE`) keeps them in memory for
+  75s. Skipped for DNT/GPC, hidden or idle tabs and `/admin`. Durable Objects
+  don't run under `next dev`, so locally the tile says so. Every heartbeat is
+  a Worker + Durable Object request — on the Workers Free plan's 100k/day
+  that's roughly 800 visitor-hours a day.
+- **Retention.** The tracker keeps the ISO week of a browser's first visit
+  (`arnav-games:first-seen`, shared by everyone that week — not an identifier)
+  and its last active day in localStorage, and tags the first pageview of each
+  day `new`, `return-wk` (first return that week) or `return`. The triangle is
+  `return-wk` per cohort ÷ cohort size: an estimate, since cleared storage or a
+  second device reads as new.
+- **Attribution.** Taps inside `[data-track-src="home:trending"]` (or, failing
+  that, `<page>:<section heading>`) are remembered per tab for 30 minutes and
+  attached to the game view they cause and to follow/own/sign-up events.
+- **Search fixes.** Zero-result searches become `search_aliases` suggestions
+  with IGDB candidates (abbreviations, Roman numerals and fragments are tried).
+  Approving one makes that game lead `/api/search` results for the query
+  (cached per isolate for 5 minutes). `applySearchAlias()` in
+  `src/lib/search/aliases.ts` does the same for server-rendered search.
+- **Weekly digest.** `POST /api/cron/digest` (cron, Mondays 08:00 UTC) builds
+  last Monday–Sunday's summary, stores it in `analytics_digests` and emails it
+  via Resend when `RESEND_API_KEY` is set. "Send test now" on `/admin` does the
+  same on demand (once per two minutes).
+
+Migrations live in `migrations/`; apply new ones with
+`npx wrangler d1 migrations apply arnav-games --remote` before deploying.
 
 ### Notifications
 

@@ -11,6 +11,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 
 import { usePathname } from "next/navigation";
+import { useSyncExternalStore } from "react";
 import { Search } from "lucide-react";
 import { Logo } from "./Logo";
 import { UserMenu } from "./UserMenu";
@@ -28,8 +29,24 @@ const NAV = [
   { href: "/franchises", label: "Franchises" },
 ];
 
+const subscribeNothing = () => () => {};
+/**
+ * "⌘K" on Apple platforms, "Ctrl K" elsewhere — the shortcut works with both,
+ * but the hint should name the key the reader actually has. The server (and
+ * the hydrating render) can't know, so it renders the neutral form and the
+ * client corrects it one commit later.
+ */
+function useShortcutLabel(): string {
+  return useSyncExternalStore(
+    subscribeNothing,
+    () => (/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent) ? "⌘K" : "Ctrl K"),
+    () => "⌘K",
+  );
+}
+
 export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
   const pathname = usePathname();
+  const shortcut = useShortcutLabel();
   const { scrolled } = useScrollDirection();
 
   const isActive = (href: string) =>
@@ -103,9 +120,9 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
             )}
           >
             <Search size={16} className="shrink-0" />
-            <span className="hidden text-[13px] xl:inline">Search everything…</span>
-            <kbd className="ml-auto hidden items-center gap-0.5 rounded border border-line px-1.5 py-0.5 text-[10px] text-faint xl:inline-flex">
-              ⌘K
+            <span className="hidden text-[13px] xl:inline">Search</span>
+            <kbd className="ml-auto hidden items-center gap-0.5 rounded-[5px] border border-line px-1.5 py-0.5 font-sans text-[10px] text-faint xl:inline-flex">
+              {shortcut}
             </kbd>
           </button>
 

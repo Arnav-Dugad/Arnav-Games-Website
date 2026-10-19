@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { GameCover } from "./GameCover";
 import { DARK_STAGE_STYLE } from "./detail/theme";
+import { DetailHeading } from "./detail/DetailSection";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { Badge } from "@/components/ui/Badge";
 import { ScorePill } from "@/components/ui/ScoreRing";
@@ -121,30 +122,23 @@ export function GameCollectionShowcase({ game }: { game: GameDetail }) {
   if (!hasUniverse && groups.length === 0 && !game.parentGame) return null;
 
   return (
-    <section id="collection" className="scroll-mt-32 space-y-12 sm:space-y-16">
+    <section id="collection" aria-labelledby="collection-title" className="scroll-mt-36 space-y-10 sm:space-y-12">
+      <DetailHeading
+        titleId="collection-title"
+        eyebrow="DLC & more"
+        icon={<Boxes size={14} />}
+        title={groups.length > 0 ? "Add-ons, editions and the wider series" : "Part of a bigger world"}
+        description={
+          groups.length > 0
+            ? "DLC, expansions, editions and bundles are different products, so each keeps its own shelf."
+            : undefined
+        }
+      />
+
       {hasUniverse && <UniverseShowcase game={game} />}
 
       {(groups.length > 0 || game.parentGame) && (
         <div>
-          <Reveal className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">
-                Content map
-              </p>
-              <h2 className="text-3xl font-black sm:text-4xl">Everything connected to this release</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-[15px]">
-                DLC, expansions, editions, and bundles are different products. Each stays in its own lane so you always know what you are looking at.
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              {groups.slice(0, 5).map((group) => (
-                <span key={group.title} className="rounded-full border border-line bg-fg/[0.03] px-3 py-1.5 text-[11px] text-muted">
-                  {group.games.length} {group.label}
-                </span>
-              ))}
-            </div>
-          </Reveal>
-
           {game.parentGame && (
             <Reveal className="mb-9 rounded-3xl border border-gold/25 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-gold)_12%,transparent),color-mix(in_oklab,var(--color-panel)_70%,transparent))] p-4 sm:p-5">
               <div className="flex items-center gap-4">
@@ -185,13 +179,7 @@ function UniverseShowcase({ game }: { game: GameDetail }) {
 
   return (
     <div id="universe">
-      <Reveal className="mb-6">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">Beyond this game</p>
-        <h2 className="text-3xl font-black sm:text-4xl">Explore the complete universe</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-[15px]">
-          One complete franchise view connects the main releases, spin-offs, settings, and related game families.
-        </p>
-      </Reveal>
+      <h3 className="mb-4 text-[17px] font-semibold text-text">{cards.length > 1 ? "Franchises" : "Franchise"}</h3>
 
       <Stagger className={cn("grid gap-3.5", cards.length > 1 && "lg:grid-cols-2")} gap={0.06} onMount>
         {cards.map(({ entry, kind, href }, index) => (
@@ -239,11 +227,10 @@ function RelationShelf({ group }: { group: RelationGroup }) {
     <div>
       <Reveal className="mb-5 flex items-end justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3.5">
-          <span className={cn("mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-2xl border", toneClasses(group.tone))}><Icon size={18} /></span>
+          <span className={cn("mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl border", toneClasses(group.tone))}><Icon size={17} /></span>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-faint">{group.eyebrow}</p>
-            <h3 className="mt-1 text-2xl font-bold sm:text-3xl">{group.title}</h3>
-            <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">{group.description}</p>
+            <h3 className="text-[17px] font-semibold text-text sm:text-[20px]">{group.title}</h3>
+            <p className="mt-1 max-w-xl text-[13px] leading-snug text-muted sm:text-sm">{group.description}</p>
           </div>
         </div>
         <span className="hidden rounded-full border border-line bg-fg/[0.03] px-3 py-1.5 text-xs text-faint sm:inline-flex">{group.games.length} {group.games.length === 1 ? "release" : "releases"}</span>

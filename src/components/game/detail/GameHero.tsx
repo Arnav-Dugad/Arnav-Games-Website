@@ -1,27 +1,26 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, ExternalLink, Globe, MapPin, Star } from "lucide-react";
+import { ArrowLeft, CalendarDays, ExternalLink, MapPin, Star } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { GameLogo } from "@/components/game/GameLogo";
 import { Countdown } from "@/components/game/Countdown";
 import { PlatformIcons } from "@/components/game/PlatformIcons";
 import { BackdropTrailer } from "@/components/game/BackdropTrailer";
-import { StudioCredit } from "@/components/game/GameEntities";
 import { OwnershipPicker } from "@/components/game/OwnershipPicker";
 import { SubscriptionAccessPicker } from "@/components/game/SubscriptionAccessPicker";
 import { StatusPicker } from "@/components/game/StatusPicker";
 import { WatchButton } from "@/components/game/WatchButton";
 import { SaveButton } from "@/components/game/SaveButton";
+import { GAME_HERO_ID } from "@/components/game/GameDetailDock";
+import type { PickedGame } from "@/components/compare/GamePickerSheet";
 import { CoverTransition } from "@/components/interactions/CoverTransition";
 import { ScorePill } from "@/components/ui/ScoreRing";
-import { Badge, Chip } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/SectionHeading";
 import { Reveal } from "@/components/motion/Reveal";
 import { TextReveal } from "@/components/motion/text";
 import { Parallax } from "@/components/motion/effects";
-import { GridLines } from "@/components/motion/Aurora";
 import { formatLongDate, relativeRelease } from "@/lib/utils/format";
 import type { GameDetail } from "@/lib/games/types";
+import { CompareButton } from "./CompareButton";
 import { DelayBadge } from "./ReleaseDates";
 import { DARK_STAGE_STYLE } from "./theme";
 import type { LocalRelease } from "./release";
@@ -34,6 +33,12 @@ import type { LocalRelease } from "./release";
  * The heading still carries the plain name for search and screen readers —
  * the logo image itself is decorative inside it.
  *
+ * It answers the three questions people arrive with, in order — what is it
+ * (logo, genre, studio), is it out / is it good (date, countdown, scores) —
+ * and offers one primary action, Follow. Everything personal (status,
+ * ownership, subscriptions) sits in a quieter second row, and the rest of
+ * the facts live in "At a glance" below rather than being repeated here.
+ *
  * Always a dark surface (see `DARK_STAGE_STYLE`): logos are mostly white
  * marks drawn for dark art, and the light theme takes over below the fold.
  */
@@ -43,19 +48,28 @@ export function GameHero({
   delays,
   showCountdown,
   criticLabel,
+  compareSuggestions,
 }: {
   game: GameDetail;
   local: LocalRelease;
   delays: number;
   showCountdown: boolean;
   criticLabel: string;
+  compareSuggestions: PickedGame[];
 }) {
   const franchise = game.franchises[0] ?? game.series[0];
   const backdrop = game.artworks[0] ?? game.screenshots[0] ?? game.image;
   const dateLabel = local.date ? formatLongDate(local.date) : game.releaseWindow ?? "Release date to be announced";
+  const studio = game.developers[0]?.name ?? game.publishers[0]?.name ?? null;
+  const kicker = [game.genres.slice(0, 2).map((genre) => genre.name).join(" · "), studio].filter(Boolean).join("  ·  ");
 
   return (
-    <header data-stage="dark" style={DARK_STAGE_STYLE} className="noise relative isolate overflow-hidden bg-bg text-text">
+    <header
+      id={GAME_HERO_ID}
+      data-stage="dark"
+      style={DARK_STAGE_STYLE}
+      className="noise relative isolate overflow-hidden bg-bg text-text"
+    >
       <div className="absolute inset-0 -z-10">
         <Parallax distance={40} scale className="h-full w-full">
           <GameCover
@@ -74,18 +88,17 @@ export function GameHero({
             Sits under the scrims so the title never loses contrast. */}
         <BackdropTrailer trailer={game.trailers[0] ?? game.heroTrailer} />
 
-        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/80 to-bg/40" />
-        <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/70 to-transparent lg:via-bg/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/75 to-bg/30" />
+        <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/45 to-transparent" />
         {/* The cover's own colour, washed in from the corner: each game's page
             opens in its own light. */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_100%,color-mix(in_oklab,var(--game-tint)_90%,transparent)_0%,transparent_58%)] opacity-90" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_85%_10%,var(--game-glow),transparent_55%)] opacity-50 mix-blend-screen" />
-        <GridLines className="opacity-15" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_85%_10%,var(--game-glow),transparent_55%)] opacity-40 mix-blend-screen" />
       </div>
 
-      <Container className="flex min-h-[680px] flex-col justify-end pb-9 pt-24 sm:min-h-[740px] lg:min-h-[800px] lg:pb-14 lg:pt-32">
+      <Container className="flex min-h-[600px] flex-col justify-end pb-8 pt-24 sm:min-h-[680px] lg:min-h-[760px] lg:pb-12 lg:pt-32">
         <Reveal>
-          <div className="mb-7 flex flex-wrap items-center gap-2 text-xs text-white/60">
+          <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-2 text-xs text-white/65 sm:mb-8">
             <Link
               href="/browse"
               className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/10 bg-black/25 px-3 backdrop-blur-md transition-colors hover:border-white/20 hover:text-white"
@@ -98,105 +111,83 @@ export function GameHero({
                 href={`/franchise/${franchise.slug}`}
                 className="inline-flex min-h-9 items-center rounded-full border border-white/10 bg-black/25 px-3 backdrop-blur-md transition-colors hover:border-[var(--game-accent)] hover:text-white"
               >
-                {franchise.name} franchise
+                {franchise.name}
               </Link>
             )}
-          </div>
+          </nav>
         </Reveal>
 
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:gap-9 lg:gap-12">
-          <div className="flex items-end gap-4 sm:gap-8">
-            <Reveal direction="right" className="relative w-36 shrink-0 sm:w-48 lg:w-64">
-              {/* A soft halo in the cover's own colour. */}
-              <span aria-hidden className="absolute -inset-6 rounded-[2.5rem] bg-[var(--game-glow)] opacity-80 blur-2xl" />
-              <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/20 bg-panel shadow-[0_35px_90px_-30px_rgba(0,0,0,0.95)]">
-                <CoverTransition slug={game.slug} role="target">
-                  <GameCover
-                    name={game.name}
-                    slug={game.slug}
-                    image={game.image}
-                    imageFallback={game.imageFallback}
-                    width={720}
-                    sizes="(max-width: 640px) 144px, (max-width: 1024px) 192px, 256px"
-                    priority
-                  />
-                </CoverTransition>
-                <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/20 via-transparent to-white/[0.08]" />
-              </div>
-            </Reveal>
-
-            {game.parentPlatforms.length > 0 && (
-              <Reveal delay={0.08} className="shrink-0 self-end pb-1">
-                <ul className="flex flex-col gap-2 sm:gap-2.5">
-                  {game.parentPlatforms.slice(0, 5).map((platform) => (
-                    <li
-                      key={platform.id}
-                      title={platform.name}
-                      className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-md sm:h-10 sm:w-10 lg:h-11 lg:w-11"
-                    >
-                      <PlatformIcons platforms={[platform]} size={17} max={1} tinted />
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-            )}
-          </div>
+          <Reveal direction="right" className="relative w-28 shrink-0 sm:w-44 lg:w-56">
+            {/* A soft halo in the cover's own colour. */}
+            <span aria-hidden className="absolute -inset-6 rounded-[2.5rem] bg-[var(--game-glow)] opacity-70 blur-2xl" />
+            <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/20 bg-panel shadow-[0_35px_90px_-30px_rgba(0,0,0,0.95)]">
+              <CoverTransition slug={game.slug} role="target">
+                <GameCover
+                  name={game.name}
+                  slug={game.slug}
+                  image={game.image}
+                  imageFallback={game.imageFallback}
+                  width={720}
+                  sizes="(max-width: 640px) 112px, (max-width: 1024px) 176px, 224px"
+                  priority
+                />
+              </CoverTransition>
+              <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/20 via-transparent to-white/[0.08]" />
+            </div>
+          </Reveal>
 
           <div className="min-w-0 flex-1">
-            <Reveal className="mb-3 flex flex-wrap items-center gap-2 sm:mb-4">
-              {game.genres.slice(0, 3).map((genre) => (
-                <Chip key={genre.id} href={`/browse?genres=${genre.slug}`}>
-                  {genre.name}
-                </Chip>
-              ))}
-              {game.esrb && <Badge tone="neutral">{game.esrb}</Badge>}
-            </Reveal>
+            {kicker && (
+              <Reveal>
+                <p className="mb-3 truncate text-[13px] font-semibold text-white/70 sm:text-sm">{kicker}</p>
+              </Reveal>
+            )}
 
             {game.logo ? (
-              <Reveal delay={0.04} blur={false}>
-                <h1 className="max-w-[min(100%,34rem)]">
+              // The logo plays its own one-time slice reveal (a light sweeping
+              // across the mark), so it isn't also wrapped in a fade.
+              <div>
+                <h1 className="max-w-[min(100%,36rem)]">
                   <span className="sr-only">{game.name}</span>
                   <span aria-hidden className="block">
                     <GameLogo
                       name={game.name}
                       logo={game.logo}
                       priority
-                      height="clamp(4.5rem, 13vw, 9.5rem)"
+                      height="clamp(4.25rem, 12vw, 9rem)"
                       // The stage stays dark in the light theme too.
                       surface="dark"
-                      className="max-h-[9.5rem] drop-shadow-[0_10px_40px_rgba(0,0,0,0.55)]"
+                      reveal
+                      className="max-h-[9rem] drop-shadow-[0_10px_40px_rgba(0,0,0,0.55)]"
                     />
                   </span>
                 </h1>
-              </Reveal>
+              </div>
             ) : (
               <TextReveal
                 as="h1"
                 text={game.name}
-                className="max-w-4xl font-display text-[clamp(2.25rem,7vw,5.5rem)] font-black leading-[0.94] tracking-[-0.055em] text-white [text-shadow:0_10px_50px_rgba(0,0,0,0.45)]"
+                className="max-w-4xl font-display text-[clamp(2.25rem,7vw,5.25rem)] font-black leading-[0.95] tracking-[-0.05em] text-white [text-shadow:0_10px_50px_rgba(0,0,0,0.45)]"
               />
             )}
 
-            <Reveal delay={0.1} className="mt-4">
-              <StudioCredit developers={game.developers} publishers={game.publishers} />
-            </Reveal>
-
-            <Reveal delay={0.14} className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2.5">
+            <Reveal delay={0.12} className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2.5 text-sm text-white/75">
               {game.metacritic !== null && (
-                <a href="#glance" className="flex items-center gap-2">
+                <a href="#overview" className="flex items-center gap-2" aria-label={`${criticLabel} ${game.metacritic}`}>
                   <ScorePill score={game.metacritic} />
-                  <span className="text-xs text-faint">{criticLabel}</span>
+                  <span className="text-xs text-white/55">{criticLabel}</span>
                 </a>
               )}
               {game.rating > 0 && (
-                <span className="flex items-center gap-1.5 text-sm text-muted">
+                <a href="#reviews" className="flex items-center gap-1.5" aria-label={`Rated ${game.rating.toFixed(1)} out of 5 — see reviews`}>
                   <Star size={14} className="fill-gold text-gold" />
-                  <span className="font-semibold tabular-nums text-text">{game.rating.toFixed(1)}</span>
-                  <span className="text-faint">/5</span>
-                </span>
+                  <span className="font-semibold tabular-nums text-white">{game.rating.toFixed(1)}</span>
+                  <span className="text-white/50">/5</span>
+                </a>
               )}
-              <span className="flex items-center gap-2 text-sm text-muted">
-                <CalendarDays size={15} className="text-faint" />
+              <span className="flex items-center gap-2">
+                <CalendarDays size={15} className="text-white/50" />
                 {dateLabel}
               </span>
               {local.date && (
@@ -205,10 +196,15 @@ export function GameHero({
                 </span>
               )}
               <DelayBadge count={delays} />
+              {game.parentPlatforms.length > 0 && (
+                <span className="flex items-center" aria-label={`Platforms: ${game.parentPlatforms.map((p) => p.name).join(", ")}`}>
+                  <PlatformIcons platforms={game.parentPlatforms} size={15} max={6} tinted />
+                </span>
+              )}
             </Reveal>
             {local.region && local.countryName && (
               <Reveal delay={0.16} className="mt-2">
-                <p className="flex items-center gap-1.5 text-xs text-faint">
+                <p className="flex items-center gap-1.5 text-xs text-white/50">
                   <MapPin size={12} />
                   {local.differs ? `Your date in ${local.countryName} (${local.region})` : `Dated for ${local.countryName} · ${local.region}`}
                 </p>
@@ -223,31 +219,40 @@ export function GameHero({
           </div>
         </div>
 
-        {/* Actions span the full width rather than sharing the narrow title
-            column, which on a phone left no room for two buttons side by side.
-            Below 360px the pair also tightens, or "Save game" / "Follow game"
-            broke onto two lines. */}
-        <Reveal delay={0.24} className="mt-7 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
-          <SaveButton game={game} className="w-full justify-center sm:w-auto max-[359px]:px-3" />
-          <WatchButton game={game} variant="full" className="w-full px-4 sm:w-auto sm:px-6 max-[359px]:px-3 max-[359px]:text-[14px]" />
-          <StatusPicker game={game} className="col-span-2 sm:col-span-1" />
-          <OwnershipPicker game={game} className="[&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto" />
-          <SubscriptionAccessPicker game={game} className="[&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto" />
-          {game.website && (
-            <Button
-              href={game.website}
-              external
-              variant="outline"
-              icon={<Globe size={16} />}
-              iconRight={<ExternalLink size={13} />}
-              className="w-full border-white/15 bg-white/[0.08] backdrop-blur-xl sm:w-auto"
-            >
-              Official site
-            </Button>
-          )}
-          <Button href="#reviews" variant="ghost" icon={<Star size={16} />} className="w-full sm:w-auto">
-            Rate this game
-          </Button>
+        {/* One primary action (Follow), then the reader's own relationship
+            with the game in a quieter second row. Full width on phones, where
+            two buttons side by side are the most a thumb can parse at once. */}
+        <Reveal delay={0.22} className="mt-7 space-y-2.5 sm:mt-8 sm:space-y-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+            <WatchButton game={game} variant="primary" className="w-full px-4 sm:w-auto sm:px-7 max-[359px]:px-3 max-[359px]:text-[14px]" />
+            <SaveButton game={game} className="w-full sm:w-auto max-[359px]:px-3" />
+            {/* Phones get the icon version in the row below, beside the pickers. */}
+            <div className="hidden sm:block">
+              <CompareButton slug={game.slug} name={game.name} suggestions={compareSuggestions} className="min-h-12 px-5 text-[15px]" />
+            </div>
+            {game.website && (
+              <a
+                href={game.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="press hidden min-h-12 items-center gap-2 rounded-full px-4 text-[14px] font-semibold text-white/75 transition-colors hover:text-white lg:inline-flex"
+              >
+                Official site <ExternalLink size={13} />
+              </a>
+            )}
+          </div>
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+            <StatusPicker game={game} className="col-span-3 sm:col-span-1" />
+            <OwnershipPicker game={game} className="[&>button]:min-h-11 [&>button]:w-full [&>button]:justify-center [&>button]:whitespace-nowrap [&>button]:px-3 [&>button]:text-[14px] max-[359px]:[&>button]:gap-1.5 max-[359px]:[&>button]:px-2 max-[359px]:[&>button]:text-[13px] sm:[&>button]:w-auto sm:[&>button]:px-5" />
+            <SubscriptionAccessPicker game={game} className="[&>button]:min-h-11 [&>button]:w-full [&>button]:justify-center [&>button]:whitespace-nowrap [&>button]:px-3 [&>button]:text-[14px] max-[359px]:[&>button]:gap-1.5 max-[359px]:[&>button]:px-2 max-[359px]:[&>button]:text-[13px] sm:[&>button]:w-auto sm:[&>button]:px-5" />
+            <CompareButton
+              slug={game.slug}
+              name={game.name}
+              suggestions={compareSuggestions}
+              variant="icon"
+              className="h-11 w-11 rounded-full border-fg/15 bg-fg/[0.08] text-text sm:hidden"
+            />
+          </div>
         </Reveal>
       </Container>
     </header>

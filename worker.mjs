@@ -18,7 +18,10 @@ export { PresenceRoom } from "./src/server/presence-room.ts";
 
 /** Cron expression (as written in wrangler.jsonc) → internal job route. */
 const CRON_JOBS = {
-  "5 * * * *": "players", // hourly Steam player-count snapshots
+  // Every 10 minutes, ~40 games per run: the Workers Free plan allows 50
+  // outbound fetches per invocation, so hourly coverage of ~240 games is
+  // spread across six small runs instead of one that would be cut short.
+  "*/10 * * * *": "players",
   "20 4 * * *": "prices", // daily local-price snapshots
   "0 8 * * 1": "digest", // weekly owner digest, Mondays 08:00 UTC
 };

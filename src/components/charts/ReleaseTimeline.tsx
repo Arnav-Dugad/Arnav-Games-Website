@@ -374,6 +374,11 @@ export function ReleaseTimeline({
         <div
           ref={scrollerRef}
           onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}
+          // A horizontally scrolling chart must be reachable by keyboard so
+          // arrow keys can pan it (WCAG 2.1.1).
+          tabIndex={scrollable ? 0 : undefined}
+          role={scrollable ? "region" : undefined}
+          aria-label={scrollable ? "Release timeline, scrolls sideways" : undefined}
           className={cn(
             "relative min-w-0 flex-1 overscroll-x-contain",
             scrollable ? "no-scrollbar snap-x snap-proximity overflow-x-auto" : "overflow-hidden",

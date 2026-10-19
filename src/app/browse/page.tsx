@@ -48,13 +48,9 @@ export default async function BrowsePage({ searchParams }: { searchParams: Searc
   return (
     <>
       <PageHeader
-        eyebrow="Database"
-        title={search ? `Results for “${search}”` : "Browse every game"}
-        description={
-          search
-            ? undefined
-            : "Filter by genre and platform, then sort by popularity, score or release date."
-        }
+        eyebrow={search ? "Browse" : undefined}
+        title={search ? `Results for “${search}”` : "Browse"}
+        description={search ? undefined : "Every game in the database. Filter by genre, platform, score or era, and sort it your way."}
       />
 
       <Container className="py-8 lg:py-12">

@@ -19,7 +19,7 @@ export default function WatchlistPreviewPage() {
   const { entries } = sampleLibrary();
   return (
     <>
-      <PageHeader eyebrow="Dev preview · sample data" title="Watchlist" />
+      <PageHeader eyebrow="Dev preview · sample data" title="Watchlist" description="Everything you're tracking, with the next release up top." />
       <WatchlistView previewEntries={entries.map((entry) => ({ ...entry, watchlisted: true }))} />
     </>
   );

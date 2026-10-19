@@ -37,7 +37,7 @@ import { OwnershipPicker } from "./OwnershipPicker";
 import { WatchButton } from "./WatchButton";
 import { ScorePill } from "@/components/ui/ScoreRing";
 import { cn } from "@/lib/utils/cn";
-import { isUnreleased, releaseLabel } from "@/lib/utils/format";
+import { isUnreleased, releaseLabel, releaseYear } from "@/lib/utils/format";
 import type { GameSummary } from "@/lib/games/types";
 
 interface GameCardProps {
@@ -63,6 +63,7 @@ export function GameCard({
   size = "default",
 }: GameCardProps) {
   const upcoming = isUnreleased(game);
+  const caption = cardCaption(game, upcoming);
   const cover = useSharedCover(game.slug, game.image);
   const menuRef = useGameMenuTarget(game, cover.claim);
 
@@ -120,15 +121,6 @@ export function GameCard({
             </div>
           </div>
 
-          {upcoming && (
-            <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-3 pb-3 pt-10">
-              <CalendarClock size={13} className="shrink-0 text-brand-soft" />
-              <span className="min-w-0 truncate text-[11px] font-semibold tracking-[-0.005em] text-white/95">
-                {releaseLabel(game)}
-              </span>
-            </div>
-          )}
-
           {/* Hover-only inner glow ring. */}
           <span
             aria-hidden
@@ -146,17 +138,33 @@ export function GameCard({
       </div>
 
       <div className="mt-2.5 flex items-start gap-2">
-        <Link
-          href={`/game/${game.slug}`}
-          onClick={cover.claim}
-          className={cn(
-            "min-w-0 flex-1 font-display font-semibold leading-snug tracking-[-0.01em] text-text transition-colors",
-            "line-clamp-2 fine:group-hover/card:text-brand-soft",
-            size === "large" ? "text-[15px] lg:text-base" : "text-[13px] lg:text-sm",
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/game/${game.slug}`}
+            onClick={cover.claim}
+            className={cn(
+              "block font-display font-semibold leading-snug tracking-[-0.01em] text-text transition-colors",
+              "line-clamp-2 fine:group-hover/card:text-brand-soft",
+              size === "large" ? "text-[15px] lg:text-base" : "text-[14px] lg:text-[15px]",
+            )}
+          >
+            {game.name}
+          </Link>
+          {/* One quiet line of context. The release date used to sit on the
+              poster behind a scrim; down here it no longer dims the art, and
+              every card gets a caption rather than only upcoming ones. */}
+          {caption && (
+            <p
+              className={cn(
+                "mt-0.5 flex min-w-0 items-center gap-1 truncate text-[12px] lg:text-[13px]",
+                upcoming ? "font-medium text-brand-soft" : "text-muted",
+              )}
+            >
+              {upcoming && <CalendarClock size={12} aria-hidden className="shrink-0" />}
+              <span className="truncate">{caption}</span>
+            </p>
           )}
-        >
-          {game.name}
-        </Link>
+        </div>
 
         {/*
           Ownership rather than the watchlist.
@@ -173,4 +181,17 @@ export function GameCard({
       </div>
     </div>
   );
+}
+
+/**
+ * Upcoming: when (the question you have about it). Released: what kind of
+ * game and when, e.g. "Role-playing (RPG) · 2015". Missing pieces drop out
+ * rather than printing "TBA" twice or an empty separator.
+ */
+function cardCaption(game: GameSummary, upcoming: boolean): string {
+  if (upcoming) return releaseLabel(game);
+  // "Role-playing (RPG)" → "Role-playing": the abbreviation only costs width.
+  const genre = game.genres[0]?.name.replace(/\s*\([^)]*\)$/, "");
+  const year = game.released ? releaseYear(game.released) : game.releaseWindow;
+  return [genre, year].filter(Boolean).join(" · ");
 }

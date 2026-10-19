@@ -123,7 +123,8 @@ function PageLink({
 
   if (disabled) {
     return (
-      <span className={classes} aria-disabled {...rest}>
+      // `role="link"` makes the label and disabled state valid ARIA on a span.
+      <span role="link" aria-disabled="true" className={classes} {...rest}>
         {children}
       </span>
     );

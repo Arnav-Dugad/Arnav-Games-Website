@@ -41,6 +41,7 @@ import { gamePassShelf } from "./gamepass";
 import { paletteFor } from "./palette";
 import { getReleaseChanges, recordReleaseObservations } from "./release-history";
 import { steamLogoFor } from "./steam-logo";
+import { trackGameView } from "./tracked";
 import { wikidataFor } from "./wikidata";
 import type {
   BrowseFilters,
@@ -302,6 +303,9 @@ export const getGame = cache(async (slug: string): Promise<Sourced<GameDetail> |
   // Steam's portrait capsule is missing for some apps, hence the header fallback.
   const palette =
     (await paletteFor(result.data.image)) ?? (await paletteFor(result.data.imageFallback));
+  // Market crons key Steam-only titles on the negated appid (see tracked.ts).
+  const appid = result.data.steamAppId ?? result.data.id;
+  void runAfterResponse(trackGameView({ gameId: -appid, slug: result.data.slug, steamApp: appid, microsoft: null }));
   return { ...result, data: { ...result.data, palette } };
 });
 
@@ -356,6 +360,15 @@ async function enrichIgdbDetail(detail: GameDetail): Promise<GameDetail> {
     null;
 
   void runAfterResponse(recordReleaseObservations([detail]));
+  // A viewed game joins the hourly player / daily price snapshots.
+  void runAfterResponse(
+    trackGameView({
+      gameId: detail.id,
+      slug: detail.slug,
+      steamApp: enriched.steamAppId,
+      microsoft: ids?.microsoft ?? null,
+    }),
+  );
 
   return {
     ...enriched,

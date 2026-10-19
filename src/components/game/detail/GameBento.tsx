@@ -44,8 +44,12 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { cn } from "@/lib/utils/cn";
 import { compactNumber, formatDate } from "@/lib/utils/format";
-import type { GameLiveData, HypeIndex, Ref, StoreRef, TimeToBeat } from "@/lib/games/types";
+import { usePriceRegion } from "@/lib/preferences/region";
+import type { GameLiveData, GameMarket, HypeIndex, LocalPrice, Ref, StoreRef, TimeToBeat } from "@/lib/games/types";
+import { marketUrl, useEndpoint, type GameIds } from "./endpoint";
 import { useLiveField } from "./live";
+import { bestPrice, DiscountTag, STORE_LABEL, StoreMark, VerdictChip } from "./market-ui";
+import { countryName, formatMoney } from "./money";
 
 export interface BentoData {
   name: string;
@@ -65,6 +69,10 @@ export interface BentoData {
     upcoming: boolean;
   };
   stores: StoreRef[];
+  /** Store ids for local prices; null when the game has no Steam or Microsoft listing. */
+  market: GameIds | null;
+  /** Whether the Stats section exists to link to. */
+  hasStats: boolean;
 }
 
 export function GameBento({ data }: { data: BentoData }) {
@@ -73,6 +81,9 @@ export function GameBento({ data }: { data: BentoData }) {
   const players = useLiveField((live) => live.steamPlayers);
   const twitch = useLiveField((live) => (live.twitch && live.twitch.streams > 0 ? live.twitch : null));
   const deals = useLiveField((live) => live.deals?.cheapest ? live.deals : null);
+  const [region] = usePriceRegion();
+  const market = useEndpoint<GameMarket>(data.market && region ? marketUrl(data.market, region) : null);
+  const local = market.status === "ready" ? bestPrice(market.data) : null;
   const gamePass = useLiveField((live) => live.gamePass);
 
   const hasCritic = data.critic.score !== null || data.userRating !== null;
@@ -83,13 +94,21 @@ export function GameBento({ data }: { data: BentoData }) {
   }
   tiles.push({ key: "release", span: [1, 1], node: <ReleaseTile release={data.release} /> });
   if (data.hasSteam && players.state !== "empty") {
-    tiles.push({ key: "players", span: [1, 1], node: <PlayersTile players={players} /> });
+    tiles.push({ key: "players", span: [1, 1], node: <PlayersTile players={players} hasStats={data.hasStats} /> });
   }
   const ttb = data.timeToBeat;
   if (ttb && (ttb.hastily || ttb.normally || ttb.completely)) {
     tiles.push({ key: "ttb", span: [2, 2], node: <TimeToBeatTile ttb={ttb} url={data.howLongToBeatUrl} /> });
   }
-  if (deals.state !== "empty") {
+  // Local store prices for the reader's region. CheapShark's PC deals are US
+  // prices, so they only stand in for readers in the US — anyone else would
+  // be shown dollars they can't pay.
+  const marketPending = Boolean(data.market) && (!region || market.status === "loading");
+  if (local && market.status === "ready") {
+    tiles.push({ key: "price", span: [1, 1], node: <LocalPriceTile price={local} market={market.data} /> });
+  } else if (marketPending) {
+    tiles.push({ key: "price", span: [1, 1], node: <PriceSkeletonTile /> });
+  } else if (region === "US" && deals.state !== "empty") {
     tiles.push({ key: "price", span: [1, 1], node: <PriceTile deals={deals} name={data.name} /> });
   }
   if (data.hype && data.release.upcoming) {
@@ -318,7 +337,7 @@ function ReleaseTile({ release }: { release: BentoData["release"] }) {
   );
 }
 
-function PlayersTile({ players }: { players: Field<number> }) {
+function PlayersTile({ players, hasStats }: { players: Field<number>; hasStats: boolean }) {
   return (
     <Tile icon={<Users size={13} />} label="Playing now" aside={players.state === "ready" ? <LiveDot /> : null}>
       {players.state === "ready" ? (
@@ -329,6 +348,11 @@ function PlayersTile({ players }: { players: Field<number> }) {
           <p className="mt-2 text-xs text-muted">
             in-game on Steam right now
           </p>
+          {hasStats && (
+            <a href="#stats" className="mt-auto pt-3 text-[12px] font-semibold text-[color-mix(in_oklab,var(--game-accent,var(--color-brand-soft))_72%,var(--color-text))] underline-offset-2 hover:underline">
+              Player history
+            </a>
+          )}
         </Morph>
       ) : (
         <div aria-hidden className="space-y-2.5">
@@ -387,6 +411,46 @@ function TimeToBeatTile({ ttb, url }: { ttb: TimeToBeat; url: string | null }) {
   );
 }
 
+function PriceSkeletonTile() {
+  return (
+    <Tile icon={<BadgePercent size={13} />} label="Price">
+      <div aria-hidden className="space-y-2.5">
+        <Skeleton className="h-8 w-24 rounded-lg" />
+        <Skeleton className="h-3 w-28 rounded-full" />
+        <Skeleton className="h-6 w-20 rounded-full" />
+      </div>
+    </Tile>
+  );
+}
+
+/** The cheapest local listing, in the store's own currency, with the buy/wait call. */
+function LocalPriceTile({ price, market }: { price: LocalPrice; market: GameMarket }) {
+  const free = price.price === 0;
+  return (
+    <Tile icon={<BadgePercent size={13} />} label={`Price · ${countryName(market.country)}`}>
+      <Morph className="flex flex-1 flex-col">
+        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="font-display text-[26px] font-bold leading-none text-text sm:text-[28px]">
+            {free ? "Free" : formatMoney(price.price, price.currency, price.country)}
+          </span>
+          {!free && <DiscountTag percent={price.discount} />}
+        </p>
+        <p className="mt-1.5 flex items-center gap-1.5 truncate text-xs text-muted">
+          <StoreMark store={price.store} size={12} />
+          {STORE_LABEL[price.store]}
+          {!free && price.initial !== null && price.initial > price.price && (
+            <s className="text-faint">{formatMoney(price.initial, price.currency, price.country)}</s>
+          )}
+        </p>
+        {!free && market.verdict.kind !== "unknown" && <VerdictChip kind={market.verdict.kind} short className="mt-3 w-fit" />}
+        <a href="#prices" className="mt-auto pt-3 text-[12px] font-semibold text-[color-mix(in_oklab,var(--game-accent,var(--color-brand-soft))_72%,var(--color-text))] underline-offset-2 hover:underline">
+          {free ? "Store details" : "Price history"}
+        </a>
+      </Morph>
+    </Tile>
+  );
+}
+
 function PriceTile({ deals, name }: { deals: Field<NonNullable<GameLiveData["deals"]>>; name: string }) {
   const [open, setOpen] = useState(false);
   // Mounted on first open, then kept so the sheet can animate out.
@@ -406,7 +470,7 @@ function PriceTile({ deals, name }: { deals: Field<NonNullable<GameLiveData["dea
   if (!cheapest) return null;
 
   return (
-    <Tile icon={<BadgePercent size={13} />} label="Best price (PC)">
+    <Tile icon={<BadgePercent size={13} />} label="Best PC price · US">
       <Morph className="flex flex-1 flex-col">
         <a href={cheapest.url} target="_blank" rel="noopener noreferrer sponsored" className="group">
           <p className="flex flex-wrap items-baseline gap-x-2">

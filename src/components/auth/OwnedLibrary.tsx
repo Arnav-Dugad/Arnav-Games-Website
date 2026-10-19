@@ -1,157 +1,72 @@
 "use client";
 
 /**
- * The reader's collection, grouped by where they own each game.
+ * "Where you play": the profile's platform breakdown.
  *
- * Distinct from both the watchlist ("what am I waiting for") and play history
- * ("what have I played"). A game can appear under several storefronts, because
- * owning the same title twice is normal and collapsing that would misreport
- * the collection.
+ * Counts come from the library itself (where each game is marked as owned),
+ * so the bars are facts, not self-description. Platforms the reader declared
+ * on their profile but hasn't recorded any games on still appear, honestly
+ * labelled, because "I have a Switch" is true even with an empty library.
+ * The full collection lives on /library; this is the summary.
  */
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { Library, PackageOpen } from "lucide-react";
+import { ChevronRight, Gamepad2 } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
-import { GameCover } from "@/components/game/GameCover";
-import { ScorePill } from "@/components/ui/ScoreRing";
-import { Button } from "@/components/ui/Button";
-import { Reveal } from "@/components/motion/Reveal";
-import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
-import { OWNERSHIP_PLATFORMS, ownershipPlatform } from "@/lib/games/stores-catalog";
+import { ownershipPlatform } from "@/lib/games/stores-catalog";
 import type { WatchlistEntry } from "@/lib/firebase/db";
 
-interface Group {
-  slug: string;
-  name: string;
-  icon: string | null;
-  entries: WatchlistEntry[];
-}
+export function OwnedLibrary({ entries, declared = [] }: { entries: WatchlistEntry[]; declared?: string[] }) {
+  const rows = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of entries) for (const slug of new Set(entry.ownedOn ?? [])) counts.set(slug, (counts.get(slug) ?? 0) + 1);
+    for (const slug of declared) if (!counts.has(slug)) counts.set(slug, 0);
+    return [...counts.entries()]
+      .map(([slug, count]) => ({ slug, count, name: ownershipPlatform(slug)?.name ?? slug, icon: ownershipPlatform(slug)?.icon ?? null }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [entries, declared]);
 
-export function OwnedLibrary() {
-  const { entries, loading } = useWatchlist();
-
-  const groups = useMemo<Group[]>(() => {
-    const buckets = new Map<string, WatchlistEntry[]>();
-
-    for (const entry of entries) {
-      for (const slug of entry.ownedOn ?? []) {
-        const bucket = buckets.get(slug);
-        if (bucket) bucket.push(entry);
-        else buckets.set(slug, [entry]);
-      }
-    }
-
-    return [...buckets.entries()]
-      .map(([slug, list]) => {
-        const platform = ownershipPlatform(slug);
-        return {
-          slug,
-          name: platform?.name ?? slug,
-          icon: platform?.icon ?? null,
-          entries: [...list].sort((a, b) => b.addedAt - a.addedAt),
-        };
-      })
-      // Largest collection first; the catch-all buckets sink to the bottom.
-      .sort((a, b) => {
-        const rank = (slug: string) => (slug === "other" || slug === "physical" ? 1 : 0);
-        return rank(a.slug) - rank(b.slug) || b.entries.length - a.entries.length;
-      });
-  }, [entries]);
-
-  const total = useMemo(
-    () => entries.filter((entry) => (entry.ownedOn ?? []).length > 0).length,
-    [entries],
-  );
-
-  if (loading) return <div className="shimmer-bg mt-6 h-40 rounded-3xl" />;
-
-  if (groups.length === 0) {
+  if (rows.length === 0) {
     return (
-      <div className="mt-6 flex flex-col items-center rounded-3xl border border-dashed border-line py-16 text-center">
-        <PackageOpen size={22} className="text-faint" />
-        <p className="mt-3 max-w-sm text-sm text-muted">
-          Nothing here yet. Open any game and use <span className="text-text">I own this</span> to
-          record where you bought it — Steam, PlayStation, a physical copy, wherever.
-        </p>
-        <Button href="/browse" variant="secondary" size="sm" className="mt-5">
-          Find your games
-        </Button>
-      </div>
+      <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-[14px] text-muted">
+        Mark where you own a game and your platforms appear here.{" "}
+        <Link href="/browse" className="font-medium text-brand-soft">Find your games</Link>
+      </p>
     );
   }
 
+  const max = Math.max(1, ...rows.map((row) => row.count));
+  const shown = rows.slice(0, 6);
+
   return (
-    <div className="mt-6 space-y-8">
-      <div className="flex flex-wrap gap-3">
-        <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2 text-sm">
-          <Library size={15} className="text-mint" />
-          <span className="font-semibold tabular-nums">{total}</span>
-          <span className="text-muted">{total === 1 ? "game owned" : "games owned"}</span>
-        </span>
-        <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2 text-sm">
-          <span className="font-semibold tabular-nums">{groups.length}</span>
-          <span className="text-muted">{groups.length === 1 ? "store" : "stores"}</span>
-        </span>
-      </div>
-
-      {groups.map((group, index) => (
-        <Reveal key={group.slug} delay={Math.min(index, 4) * 0.05} blur={false}>
-          <div className="mb-3 flex items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-fg/[0.04]">
-              {group.icon ? (
-                <BrandIcon name={group.icon} size={15} tinted title={null} />
-              ) : (
-                <Library size={14} className="text-faint" />
-              )}
-            </span>
-            <h3 className="font-display text-lg font-bold">{group.name}</h3>
-            <span className="rounded-full bg-fg/6 px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
-              {group.entries.length}
-            </span>
-          </div>
-
-          <ul className="grid gap-2.5 sm:grid-cols-2">
-            {group.entries.map((entry) => (
-              <li key={`${group.slug}-${entry.gameId}`}>
-                <Link
-                  href={`/game/${entry.slug}`}
-                  className="flex items-center gap-3 rounded-2xl border border-line bg-panel/50 p-2.5 transition-colors fine:hover:border-line-strong"
-                >
-                  <span className="relative h-14 w-11 shrink-0 overflow-hidden rounded-lg">
-                    <GameCover
-                      name={entry.name}
-                      slug={entry.slug}
-                      image={entry.image}
-                      imageFallback={entry.imageFallback}
-                      width={160}
-                      sizes="44px"
-                    />
+    <div className="overflow-hidden rounded-2xl border border-line bg-panel/55 light:bg-panel">
+      <ul>
+        {shown.map((row, index) => (
+          <li key={row.slug} className={index > 0 ? "border-t border-line" : undefined}>
+            <div className="flex items-center gap-3 px-4 py-3">
+              <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-fg/[0.07] text-text">
+                {row.icon ? <BrandIcon name={row.icon} size={15} title={null} /> : <Gamepad2 size={15} />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="truncate text-[15px] font-medium">{row.name}</span>
+                  <span className="shrink-0 text-[13px] tabular-nums text-muted">
+                    {row.count ? `${row.count} ${row.count === 1 ? "game" : "games"}` : "No games yet"}
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{entry.name}</span>
-                    {(entry.ownedOn ?? []).length > 1 && (
-                      <span className="mt-1 flex items-center gap-1.5">
-                        {(entry.ownedOn ?? [])
-                          .filter((slug) => slug !== group.slug)
-                          .slice(0, 4)
-                          .map((slug) => {
-                            const other = OWNERSHIP_PLATFORMS.find((p) => p.slug === slug);
-                            return other?.icon ? (
-                              <BrandIcon key={slug} name={other.icon} size={12} title={other.name} />
-                            ) : null;
-                          })}
-                        <span className="text-[10px] text-faint">also owned elsewhere</span>
-                      </span>
-                    )}
-                  </span>
-                  <ScorePill score={entry.metacritic} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Reveal>
-      ))}
+                </span>
+                <span aria-hidden className="mt-1.5 block h-1 overflow-hidden rounded-full bg-fg/[0.07]">
+                  <span className="block h-full rounded-full bg-brand" style={{ width: `${(row.count / max) * 100}%` }} />
+                </span>
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <Link href="/library" className="press flex min-h-[48px] items-center justify-between border-t border-line px-4 text-[15px] font-medium text-brand-soft fine:hover:bg-fg/[0.04]">
+        {rows.length > shown.length ? `See all ${rows.length} platforms in your library` : "Open your library"}
+        <ChevronRight size={17} aria-hidden className="text-faint" />
+      </Link>
     </div>
   );
 }

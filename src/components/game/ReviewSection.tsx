@@ -11,7 +11,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { MessageSquare, Pencil, Star, Trash2 } from "lucide-react";
+import { MessageSquare, MessagesSquare, Pencil, Star, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import {
   averageRating,
@@ -82,8 +82,11 @@ export function ReviewSection({ game }: { game: GameDetail }) {
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold sm:text-3xl">Community reviews</h2>
-          <p className="mt-1.5 text-sm text-muted">
+          <p className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold text-[color-mix(in_oklab,var(--game-accent,var(--color-brand-soft))_72%,var(--color-text))]">
+            <MessagesSquare size={14} aria-hidden /> Reviews
+          </p>
+          <h2 className="text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">Community reviews</h2>
+          <p className="mt-1.5 text-[15px] text-muted">
             {reviews.length === 0
               ? "No reviews yet — be the first."
               : `${reviews.length} ${reviews.length === 1 ? "review" : "reviews"} from players.`}

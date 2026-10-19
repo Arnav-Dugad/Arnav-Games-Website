@@ -23,7 +23,8 @@ import type { GameSummary } from "@/lib/games/types";
 
 interface WatchButtonProps {
   game: GameSummary;
-  variant?: "icon" | "full";
+  /** "primary" is the full button filled with the page accent until followed — the game page's main call to action. */
+  variant?: "icon" | "full" | "primary";
   /** Smaller glass chip for overlaying a poster; keeps a 44px hit area. */
   compact?: boolean;
   className?: string;
@@ -132,7 +133,9 @@ export function WatchButton({ game, variant = "icon", compact = false, className
         // Followed takes the page's cover-derived accent where there is one.
         followed
           ? "border-[color-mix(in_oklab,var(--game-accent,var(--color-brand))_55%,transparent)] bg-[color-mix(in_oklab,var(--game-accent,var(--color-brand))_20%,transparent)] text-text shadow-[0_8px_24px_-12px_var(--game-glow,transparent)]"
-          : "border-fg/15 bg-fg/[0.08] text-text backdrop-blur-xl fine:hover:bg-fg/[0.14]",
+          : variant === "primary"
+            ? "border-transparent bg-[var(--game-accent,var(--color-brand))] text-[var(--game-on-accent,#fff)] shadow-[0_12px_32px_-14px_var(--game-glow,rgba(138,114,255,0.7))] fine:hover:brightness-110"
+            : "border-fg/15 bg-fg/[0.08] text-text backdrop-blur-xl fine:hover:bg-fg/[0.14]",
         busy && "opacity-60",
         className,
       )}

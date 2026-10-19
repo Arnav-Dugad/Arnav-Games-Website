@@ -37,6 +37,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Columns3,
   ExternalLink,
   Gamepad2,
   Library,
@@ -46,6 +47,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
+import { compareHref } from "@/components/compare/types";
 import { useToast } from "@/components/ui/Toast";
 import { useLockBodyScroll, usePointerFine } from "@/hooks";
 import { useAuth } from "@/lib/firebase/AuthProvider";
@@ -568,6 +570,14 @@ function GameMenu({
     }
   };
 
+  // Opens the compare page with this game in the first column and the
+  // picker already up, so the next tap is choosing what to compare it with.
+  const compare = () => {
+    onClose();
+    haptic("selection");
+    router.push(compareHref([game.slug], true));
+  };
+
   const share = async () => {
     const url = new URL(href, window.location.origin).toString();
     onClose();
@@ -699,6 +709,9 @@ function GameMenu({
               }}
             >
               I own this…
+            </MenuItem>
+            <MenuItem icon={<Columns3 size={16} />} onSelect={compare}>
+              Compare with…
             </MenuItem>
             <MenuItem icon={<Share size={16} />} onSelect={share}>
               Share

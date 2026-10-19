@@ -38,7 +38,9 @@ export function SearchHitVisual({
   size?: "compact" | "card";
 }) {
   const Icon = ICONS[hit.kind];
-  const dimensions = size === "card" ? "h-24 w-20 rounded-2xl" : "h-14 w-11 rounded-xl";
+  // `flex` on every root: the visual is often placed in a plain block (the
+  // preview pane, the top-hit card), where an inline span would collapse.
+  const dimensions = size === "card" ? "h-24 w-[72px] rounded-2xl" : "h-14 w-[42px] rounded-xl";
 
   if (hit.kind === "game") {
     const upcoming = hit.released !== undefined && isUnreleased({
@@ -47,7 +49,7 @@ export function SearchHitVisual({
       tba: hit.tba ?? false,
     });
     return (
-      <span className={cn("relative shrink-0 overflow-hidden border border-fg/10", dimensions)}>
+      <span className={cn("relative flex shrink-0 overflow-hidden border border-fg/10", dimensions)}>
         <GameCover
           name={hit.name}
           slug={hit.slug}
@@ -67,7 +69,7 @@ export function SearchHitVisual({
 
   if (hit.image) {
     return (
-      <span className={cn("relative shrink-0 overflow-hidden border border-fg/10 bg-fg/[0.05]", dimensions, hit.kind === "company" || hit.kind === "platform" ? "p-2" : "")}>
+      <span className={cn("relative flex shrink-0 overflow-hidden border border-fg/10 bg-fg/[0.05]", dimensions, hit.kind === "company" || hit.kind === "platform" ? "p-2" : "")}>
         <ResilientMediaImage
           src={hit.image}
           alt=""

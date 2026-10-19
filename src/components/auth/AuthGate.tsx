@@ -88,7 +88,8 @@ function Prompt({
       <span className="grid h-16 w-16 place-items-center rounded-2xl border border-line bg-fg/[0.04]">
         {icon}
       </span>
-      <h1 className="mt-6 font-display text-2xl font-bold sm:text-3xl">{title}</h1>
+      {/* h2: every page using the gate already has its own PageHeader h1. */}
+      <h2 className="mt-6 font-display text-2xl font-bold sm:text-3xl">{title}</h2>
       <p className="mt-3 max-w-md text-[15px] leading-relaxed text-muted">{body}</p>
       <div className="mt-7 flex flex-wrap items-center justify-center gap-4">{children}</div>
     </Container>

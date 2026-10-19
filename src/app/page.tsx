@@ -1,52 +1,81 @@
-import Link from "next/link";
-import { ArrowRight, CalendarClock, Database, Flame, Trophy } from "lucide-react";
+import { Suspense } from "react";
 import { CinematicHero } from "@/components/home/CinematicHero";
+import { ForYou } from "@/components/home/ForYou";
+import { GenreTiles, pickGenreTiles } from "@/components/home/GenreTiles";
+import { HomeSection } from "@/components/home/HomeSection";
+import { ChartsShelf, GamePassShelf, TodayShelf } from "@/components/home/HomeShelves";
+import { JoinCta } from "@/components/home/JoinCta";
+import { buildWeek, ThisWeek } from "@/components/home/ThisWeek";
+import { TodayStoriesSkeleton } from "@/components/home/TodayStories";
+import { TopChartsSkeleton } from "@/components/home/TopCharts";
 import { GameRail } from "@/components/game/GameRail";
 import { CoverFlow } from "@/components/interactions/CoverFlow";
-import { GameGrid } from "@/components/game/GameGrid";
-import { Container, Section, SectionHeading } from "@/components/ui/SectionHeading";
+import { Container } from "@/components/ui/SectionHeading";
 import { DataSourceNotice } from "@/components/ui/DataSourceNotice";
-import { Stagger, StaggerItem } from "@/components/motion/Reveal";
-import { JoinCta } from "@/components/home/JoinCta";
-import { AnticipatedShelf, GamePassShelves } from "@/components/home/HomeShelves";
-import { Suspense, type CSSProperties } from "react";
-import { PersonalCommandCenter } from "@/components/home/PersonalCommandCenter";
-import { CountUp } from "@/components/motion/text";
-import { Marquee, Spotlight } from "@/components/motion/effects";
-import { cn } from "@/lib/utils/cn";
+import { Skeleton } from "@/components/ui/Skeleton";
+import type { WatchlistEntry } from "@/lib/firebase/db";
 import {
   getGenres,
   getNewReleases,
-  getTopRated,
-  getTotalGames,
   getSpotlight,
+  getTopRated,
   getTrending,
   getUpcoming,
   isDegraded,
 } from "@/lib/games/source";
-import { hueFromString } from "@/lib/utils/format";
+import type { GameSummary } from "@/lib/games/types";
 
-/** Revalidate hourly — release data changes on the order of days, not minutes. */
 // Render from cached provider data at request time so an upstream outage is
 // never baked into the homepage HTML during deployment.
 export const revalidate = 0;
 
-export default async function HomePage() {
+/** A week view needs a few releases to be worth a section of its own. */
+const MIN_WEEK_GAMES = 3;
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/**
+ * The front door, in the order a reader's questions arrive:
+ *
+ *   hero          — one featured game, full-bleed (the single focal point)
+ *   for you       — signed in only: your library in motion + picks
+ *   today         — four stories, each with a one-line, data-backed reason
+ *   this week     — the next seven days of releases, by day
+ *   top charts    — trending / most anticipated / top rated, ranked
+ *   new releases  — what just came out
+ *   game pass     — just added / leaving soon
+ *   genres        — where to go next
+ *   join          — signed out only
+ *
+ * The old stats strip (database counts) and the separate trending, most
+ * anticipated and critically acclaimed shelves were folded into Top charts:
+ * three poster rails in a row read as one long wall of covers.
+ */
+export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
   // One await point: these queries are independent and must not waterfall.
-  const [spotlight, upcoming, trending, topRated, newReleases, genres, totalGames] =
-    await Promise.all([
-      getSpotlight(6),
-      // Notable only, matching the calendar's default view.
-      getUpcoming(18, 1, { notableOnly: true }),
-      getTrending(14),
-      getTopRated(10),
-      getNewReleases(14),
-      getGenres(),
-      getTotalGames(),
-    ]);
+  const [spotlight, upcoming, trending, topRated, newReleases, genres] = await Promise.all([
+    getSpotlight(6),
+    // Notable only, matching the calendar's default view; enough of it to
+    // cover a busy week.
+    getUpcoming(40, 1, { notableOnly: true }),
+    getTrending(12),
+    getTopRated(12),
+    getNewReleases(14),
+    getGenres(),
+  ]);
 
   const source = upcoming.source;
-  const featured = upcoming.data.results;
+  const upcomingGames = upcoming.data.results;
+  const week = buildWeek(upcomingGames);
+  const weekCount = week.reduce((sum, day) => sum + day.games.length, 0);
+  const genreTiles = pickGenreTiles(genres.data, [
+    ...trending.data,
+    ...topRated.data,
+    ...newReleases.data,
+    ...upcomingGames,
+  ]);
+
+  const preview = await devPreview(searchParams, [...trending.data, ...upcomingGames, ...topRated.data]);
 
   return (
     <>
@@ -60,210 +89,163 @@ export default async function HomePage() {
         </Container>
       )}
 
-      <PersonalCommandCenter genres={genres.data} />
+      <ForYou genres={genres.data} previewEntries={preview} />
 
-      <StatsStrip
-        totalGames={totalGames}
-        upcomingCount={upcoming.data.count}
-        genreCount={genres.data.length}
-      />
+      {/* Streamed: Today and Top charts wait on the hype index, Game Pass on
+          Microsoft's catalogue. Each fallback matches its final geometry. */}
+      <Suspense fallback={<TodayFallback />}>
+        <TodayShelf
+          upcoming={upcomingGames}
+          trending={trending.data}
+          newReleases={newReleases.data}
+          topRated={topRated.data}
+          exclude={spotlight.data.map((game) => game.id)}
+        />
+      </Suspense>
 
-      <Section className="pt-4">
-        <Container>
-          <SectionHeading
+      {weekCount >= MIN_WEEK_GAMES ? (
+        <HomeSection
+          id="this-week"
+          eyebrow="Release calendar"
+          title="This week"
+          description={`${weekCount} notable ${weekCount === 1 ? "game" : "games"} out in the next seven days.`}
+          href="/upcoming"
+        >
+          <Container>
+            <ThisWeek days={week} />
+          </Container>
+        </HomeSection>
+      ) : (
+        upcomingGames.length > 0 && (
+          // A quiet week falls back to the calendar's next arrivals rather
+          // than a grid of empty days.
+          <HomeSection
+            id="this-week"
             eyebrow="Release calendar"
             title="Landing soon"
-            description="Everything on the horizon, ordered by release date."
+            description="The next notable releases, in date order."
             href="/upcoming"
-          />
-        </Container>
-        {/* Touch-sized screens get the cover-flow; md+ keeps the rail. A CSS
-            switch rather than a JS media query, so the server HTML is already
-            right and nothing swaps after hydration. */}
-        <div className="mt-6 md:hidden">
-          <CoverFlow games={featured} label="Landing soon" />
-        </div>
-        {/* Not inside Container: the rail aligns itself with `rail-gutter`. */}
-        <div className="mt-7 hidden md:block"><GameRail games={featured} priorityCount={3} /></div>
-      </Section>
+          >
+            <ComingSoon games={upcomingGames.slice(0, 18)} label="Landing soon" />
+          </HomeSection>
+        )
+      )}
 
-      {/* Streamed: each shelf waits on its own sources (hype index, the Game
-          Pass catalogue) without holding up the page above it. */}
-      <Suspense fallback={null}>
-        <AnticipatedShelf />
+      <Suspense fallback={<TopChartsSkeleton />}>
+        <ChartsShelf trending={trending.data} topRated={topRated.data} />
       </Suspense>
 
-      <Section className="py-8 sm:py-11">
-        <Container>
-          <SectionHeading
-            eyebrow="Momentum"
-            title="Trending right now"
-            description="Ranked from IGDB's worldwide playing-now signal, refreshed as player attention moves."
-            href="/browse?ordering=-added"
-          />
-        </Container>
-        {/* Full-bleed, not inside a Container: the rail's own gutter lines
-            the first card up with the heading and lets cards scroll off the
-            viewport edge. Inside a Container it double-indented and clipped. */}
-        <div className="mt-7"><GameRail games={trending.data} /></div>
-      </Section>
+      {newReleases.data.length > 0 && (
+        <HomeSection
+          id="new-releases"
+          eyebrow="Just released"
+          title="New releases"
+          description="Out in the last two months."
+          href="/browse?ordering=-released"
+        >
+          <ComingSoon games={newReleases.data} label="New releases" />
+        </HomeSection>
+      )}
 
       <Suspense fallback={null}>
-        <GamePassShelves />
+        <GamePassShelf />
       </Suspense>
 
-      <Section>
-        <Container>
-          <SectionHeading
-            eyebrow="Critic scores"
-            title="Critically acclaimed"
-            description="The highest-scoring games in the database."
-            href="/browse?ordering=-metacritic"
-          />
-          <div className="mt-8">
-            <GameGrid games={topRated.data} priorityCount={0} />
-          </div>
-        </Container>
-      </Section>
-
-      <GenreShowcase genres={genres.data} />
-
-      <Section className="py-8 sm:py-11">
-        <Container>
-          <SectionHeading
-            eyebrow="Just shipped"
-            title="New releases"
-            description="Out in the last two months."
-            href="/browse?ordering=-released"
-          />
-        </Container>
-        <div className="mt-7"><GameRail games={newReleases.data} /></div>
-      </Section>
+      {genreTiles.length > 0 && (
+        <HomeSection
+          id="genres"
+          eyebrow="Find your lane"
+          title="Browse by genre"
+          href="/genres"
+          linkLabel="All genres"
+        >
+          <Container>
+            <GenreTiles tiles={genreTiles} />
+          </Container>
+        </HomeSection>
+      )}
 
       <JoinCta />
     </>
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
-function StatsStrip({
-  totalGames,
-  upcomingCount,
-  genreCount,
-}: {
-  totalGames: number | null;
-  upcomingCount: number;
-  genreCount: number;
-}) {
-  const stats = [
-    // Omitted entirely when unknown, rather than showing a fabricated number —
-    // Steam alone has no honest answer to "how many games total".
-    ...(totalGames !== null
-      ? [{ value: totalGames, label: "Games in the database", icon: Database, compact: true, plus: true }]
-      : []),
-    { value: upcomingCount, label: "Upcoming releases tracked", icon: CalendarClock, compact: true, plus: true },
-    { value: genreCount, label: "Genres to explore", icon: Flame, compact: false, plus: false },
-    { value: 100, label: "Critic scores, 0–100", icon: Trophy, compact: false, plus: false },
-  ];
-
+/**
+ * Touch-sized screens get the cover-flow; md+ keeps the rail. A CSS switch
+ * rather than a JS media query, so the server HTML is already right and
+ * nothing swaps after hydration.
+ */
+function ComingSoon({ games, label }: { games: GameSummary[]; label: string }) {
   return (
-    <Section className="py-8 sm:py-10">
-      <Container>
-        <Stagger
-          className={cn(
-            "grid grid-cols-2 gap-3 lg:gap-4",
-            // Falls back to a 3-up layout when the database count is
-            // unavailable, so a missing stat never leaves a visible gap.
-            stats.length === 4 ? "lg:grid-cols-4" : "sm:grid-cols-3",
-          )}
-        >
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <StaggerItem key={stat.label}>
-                <Spotlight className="glass h-full rounded-2xl p-4 lg:p-5">
-                  <Icon size={17} className="text-brand-soft" />
-                  <p className="mt-3 font-display text-2xl font-bold leading-none lg:text-3xl">
-                    <CountUp value={stat.value} compact={stat.compact} />
-                    {stat.plus ? "+" : ""}
-                  </p>
-                  <p className="mt-1.5 text-[12px] leading-snug text-muted lg:text-[13px]">
-                    {stat.label}
-                  </p>
-                </Spotlight>
-              </StaggerItem>
-            );
-          })}
-        </Stagger>
-      </Container>
-    </Section>
+    <>
+      <div className="md:hidden">
+        <CoverFlow games={games} label={label} />
+      </div>
+      <div className="hidden md:block">
+        <GameRail games={games} />
+      </div>
+    </>
   );
 }
 
-function GenreShowcase({ genres }: { genres: { id: number; slug: string; name: string }[] }) {
-  const featured = genres.slice(0, 10);
-  if (featured.length === 0) return null;
-
+function TodayFallback() {
   return (
-    <Section>
+    <section aria-hidden className="py-9 sm:py-12 lg:py-14">
       <Container>
-        <SectionHeading
-          eyebrow="Find your lane"
-          title="Browse by genre"
-          description="Jump straight into the kind of game you're after."
-          href="/genres"
-        />
-      </Container>
-
-      <Container className="mt-8">
-        <Stagger className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
-          {featured.map((genre) => {
-            const hue = hueFromString(genre.slug);
-            return (
-              <StaggerItem key={genre.id}>
-                <Link
-                  href={`/browse?genres=${genre.slug}`}
-                  className="hue-tile group relative flex h-28 items-end overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:border-line-strong lg:h-32"
-                  style={{ "--tile-hue": hue, "--tile-hue-2": (hue + 45) % 360 } as CSSProperties}
-                >
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 opacity-0 transition-opacity duration-500 fine:group-hover:opacity-100"
-                    style={{
-                      background: `radial-gradient(90% 70% at 30% 0%, hsl(${hue} 85% 60% / 0.4), transparent 65%)`,
-                    }}
-                  />
-                  <span className="relative font-display text-base font-bold leading-tight lg:text-lg">
-                    {genre.name}
-                  </span>
-                  <ArrowRight
-                    size={15}
-                    className="relative ml-auto shrink-0 text-white/60 transition-transform duration-500 group-hover:translate-x-1"
-                  />
-                </Link>
-              </StaggerItem>
-            );
-          })}
-        </Stagger>
-      </Container>
-
-      {/* Full-bleed ticker of the remaining genres. */}
-      {genres.length > 10 && (
-        <div className="mask-fade-x mt-4">
-          <Marquee speed={44}>
-            {genres.slice(10).map((genre) => (
-              <Link
-                key={genre.id}
-                href={`/browse?genres=${genre.slug}`}
-                className="rounded-full border border-line bg-fg/[0.03] px-5 py-2.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-text"
-              >
-                {genre.name}
-              </Link>
-            ))}
-          </Marquee>
+        <Skeleton className="h-4 w-36 rounded-full" />
+        <Skeleton className="mt-3 h-8 w-28" />
+        <div className="mt-6 sm:mt-7">
+          <TodayStoriesSkeleton />
         </div>
-      )}
-    </Section>
+      </Container>
+    </section>
   );
+}
+
+/**
+ * DEV PREVIEW ONLY: `/?preview=signed-in` renders "For you" as if signed in,
+ * with a library built from the live games already on this page (some
+ * playing, some followed and upcoming, some in the backlog). It returns
+ * undefined outside `next dev`, so no real visitor can ever see sample data.
+ */
+async function devPreview(searchParams: SearchParams, games: GameSummary[]): Promise<WatchlistEntry[] | undefined> {
+  if (process.env.NODE_ENV !== "development") return undefined;
+  const preview = (await searchParams).preview;
+  if (preview !== "signed-in" && preview !== "empty") return undefined;
+  if (preview === "empty") return [];
+
+  const now = Date.now();
+  const unique = [...new Map(games.map((game) => [game.id, game])).values()];
+  const upcomingGames = unique.filter((game) => game.released && game.released > new Date(now).toISOString().slice(0, 10));
+  const released = unique.filter((game) => !upcomingGames.includes(game));
+  const entry = (game: GameSummary, status: WatchlistEntry["status"], daysAgo: number): WatchlistEntry => ({
+    gameId: game.id,
+    slug: game.slug,
+    name: game.name,
+    image: game.image,
+    imageFallback: game.imageFallback,
+    released: game.released,
+    releaseWindow: game.releaseWindow,
+    tba: game.tba,
+    metacritic: game.metacritic,
+    following: status !== "played",
+    watchlisted: true,
+    metadataVersion: 3,
+    metadataUpdatedAt: now,
+    status,
+    platform: null,
+    startedAt: status === "playing" ? now - daysAgo * 86_400_000 : null,
+    finishedAt: status === "played" ? now - daysAgo * 86_400_000 : null,
+    genreIds: game.genres.map((genre) => genre.id),
+    platformSlugs: game.parentPlatforms.map((platform) => platform.slug),
+    ownedOn: status === "want" ? [] : ["steam"],
+    addedAt: now - daysAgo * 86_400_000,
+  } as WatchlistEntry);
+
+  return [
+    ...released.slice(0, 2).map((game, i) => entry(game, "playing", 3 + i * 9)),
+    ...upcomingGames.slice(0, 4).map((game, i) => entry(game, "none", 20 + i)),
+    ...released.slice(2, 5).map((game, i) => entry(game, "want", 40 + i)),
+    ...released.slice(5, 9).map((game, i) => entry(game, "played", 60 + i)),
+  ];
 }

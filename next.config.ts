@@ -19,6 +19,21 @@ const nextConfig: NextConfig = {
       "firebase/firestore": { browser: "./node_modules/firebase/firestore/dist/esm/index.esm.js", default: "./src/lib/firebase/server-stubs/firestore.ts" },
     },
   },
+  headers() {
+    return [
+      {
+        // The service worker must be revalidated on every check or updates
+        // stall behind the HTTP cache. On Cloudflare, /public files are served
+        // by the assets layer before Next runs, so public/_headers carries the
+        // same rules there; this entry covers `next start` and other hosts.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+    ];
+  },
   redirects() {
     return [
       { source: "/series", destination: "/franchises", permanent: true },

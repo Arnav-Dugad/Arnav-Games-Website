@@ -1,201 +1,112 @@
 "use client";
 
 /**
- * Play history, grouped by the platform the user actually played on.
+ * Recent activity on the profile: a short, dated feed of what actually
+ * happened — finished, started, added to the library, rated.
  *
- * Deliberately distinct from the watchlist: this answers "what have I played,
- * and where?" rather than "what am I waiting for". Only games marked played or
- * playing appear, most recently finished first, so the list reads as a record
- * rather than a backlog.
+ * Every event is a timestamp the app genuinely recorded (`finishedAt`,
+ * `startedAt`, `addedAt`, a review's `updatedAt`); nothing is inferred. Each
+ * game contributes only its latest event, so one busy evening with one game
+ * doesn't fill the feed.
  */
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { CircleDot, Gamepad2, Trophy } from "lucide-react";
-import { Monitor } from "lucide-react";
-import { BrandIcon } from "@/components/brand/BrandIcon";
-import { brandIcon } from "@/components/brand/brand-icons";
+import { BookmarkPlus, Library, Play, Star, Trophy } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
-import { ScorePill } from "@/components/ui/ScoreRing";
-import { Button } from "@/components/ui/Button";
-import { Reveal } from "@/components/motion/Reveal";
-import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { cn } from "@/lib/utils/cn";
-import type { WatchlistEntry } from "@/lib/firebase/db";
-import type { PlatformKey } from "@/lib/utils/format";
+import type { Review, WatchlistEntry } from "@/lib/firebase/db";
 
-const PLATFORM_LABELS: Record<string, string> = {
-  pc: "PC",
-  playstation: "PlayStation",
-  xbox: "Xbox",
-  nintendo: "Nintendo",
-  mac: "macOS",
-  linux: "Linux",
-  mobile: "Mobile",
-  web: "Browser",
-  unassigned: "Platform not set",
+type Kind = "finished" | "started" | "owned" | "saved" | "reviewed";
+
+interface ActivityEvent {
+  key: string;
+  kind: Kind;
+  at: number;
+  slug: string;
+  name: string;
+  image: string | null;
+  imageFallback: string | null;
+  rating?: number;
+}
+
+const KIND: Record<Kind, { label: string; icon: typeof Play; tone: string }> = {
+  finished: { label: "Finished", icon: Trophy, tone: "bg-gold/15 text-gold" },
+  started: { label: "Started playing", icon: Play, tone: "bg-mint/15 text-mint" },
+  owned: { label: "Added to library", icon: Library, tone: "bg-brand/15 text-brand-soft" },
+  saved: { label: "Saved", icon: BookmarkPlus, tone: "bg-fg/[0.08] text-muted" },
+  reviewed: { label: "Rated", icon: Star, tone: "bg-gold/15 text-gold" },
 };
 
-const DATE_FMT = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-interface Group {
-  key: string;
-  label: string;
-  entries: WatchlistEntry[];
+function relative(at: number, now: number): string {
+  const days = Math.floor((now - at) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 35) return `${Math.round(days / 7)} wk ago`;
+  return new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(at));
 }
 
-export function PlayHistory() {
-  const { entries, loading } = useWatchlist();
-
-  const groups = useMemo<Group[]>(() => {
-    const played = entries.filter(
-      (entry) => entry.status === "played" || entry.status === "playing",
-    );
-
-    const byPlatform = new Map<string, WatchlistEntry[]>();
-    for (const entry of played) {
-      const key = entry.platform ?? "unassigned";
-      const bucket = byPlatform.get(key);
-      if (bucket) bucket.push(entry);
-      else byPlatform.set(key, [entry]);
+export function PlayHistory({ entries, reviews, now, limit = 8 }: { entries: WatchlistEntry[]; reviews: Review[]; now: number; limit?: number }) {
+  const events = useMemo(() => {
+    const latest = new Map<string, ActivityEvent>();
+    const offer = (event: ActivityEvent) => {
+      const current = latest.get(event.slug);
+      if (!current || event.at > current.at) latest.set(event.slug, event);
+    };
+    for (const entry of entries) {
+      const base = { slug: entry.slug, name: entry.name, image: entry.image, imageFallback: entry.imageFallback };
+      if (entry.finishedAt) offer({ ...base, key: `f-${entry.gameId}`, kind: "finished", at: entry.finishedAt });
+      if (entry.startedAt && entry.status !== "played") offer({ ...base, key: `s-${entry.gameId}`, kind: "started", at: entry.startedAt });
+      if (entry.addedAt) offer({ ...base, key: `a-${entry.gameId}`, kind: (entry.ownedOn ?? []).length ? "owned" : "saved", at: entry.addedAt });
     }
+    for (const review of reviews) {
+      offer({ key: `r-${review.id}`, kind: "reviewed", at: review.updatedAt, slug: review.slug, name: review.gameName, image: null, imageFallback: null, rating: review.rating });
+    }
+    // A review has no art of its own; borrow the library's when the game is there.
+    const art = new Map(entries.map((entry) => [entry.slug, entry]));
+    return [...latest.values()]
+      .map((event) => (event.image || !art.has(event.slug) ? event : { ...event, image: art.get(event.slug)!.image, imageFallback: art.get(event.slug)!.imageFallback }))
+      .sort((a, b) => b.at - a.at)
+      .slice(0, limit);
+  }, [entries, reviews, limit]);
 
-    return [...byPlatform.entries()]
-      .map(([key, list]) => ({
-        key,
-        label: PLATFORM_LABELS[key] ?? key,
-        entries: list.sort(
-          (a, b) => (b.finishedAt ?? b.startedAt ?? b.addedAt) - (a.finishedAt ?? a.startedAt ?? a.addedAt),
-        ),
-      }))
-      // Biggest platform first; "unassigned" always sinks to the bottom.
-      .sort((a, b) => {
-        if (a.key === "unassigned") return 1;
-        if (b.key === "unassigned") return -1;
-        return b.entries.length - a.entries.length;
-      });
-  }, [entries]);
-
-  const finished = entries.filter((entry) => entry.status === "played").length;
-  const inProgress = entries.filter((entry) => entry.status === "playing").length;
-
-  if (loading) {
-    return <div className="shimmer-bg mt-6 h-40 rounded-3xl" />;
-  }
-
-  if (groups.length === 0) {
+  if (events.length === 0) {
     return (
-      <div className="mt-6 flex flex-col items-center rounded-3xl border border-dashed border-line py-16 text-center">
-        <Gamepad2 size={22} className="text-faint" />
-        <p className="mt-3 max-w-sm text-sm text-muted">
-          Nothing here yet. Mark a tracked game as <span className="text-text">playing</span> or{" "}
-          <span className="text-text">played</span> and set the platform, and it&rsquo;ll show up
-          in your history.
-        </p>
-        <Button href="/watchlist" variant="secondary" size="sm" className="mt-5">
-          Go to your watchlist
-        </Button>
-      </div>
+      <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-[14px] text-muted">
+        Nothing yet. Save, play or rate a game and it shows up here.
+      </p>
     );
   }
 
   return (
-    <div className="mt-6 space-y-8">
-      <div className="flex flex-wrap gap-3">
-        <Stat icon={<Trophy size={15} className="text-gold" />} value={finished} label="finished" />
-        <Stat
-          icon={<CircleDot size={15} className="text-brand-soft" />}
-          value={inProgress}
-          label="in progress"
-        />
-        <Stat
-          icon={<Gamepad2 size={15} className="text-neon" />}
-          value={groups.filter((group) => group.key !== "unassigned").length}
-          label="platforms"
-        />
-      </div>
-
-      {groups.map((group, index) => (
-        <Reveal key={group.key} delay={Math.min(index, 4) * 0.05} blur={false}>
-          <div className="mb-3 flex items-center gap-2.5">
-            <PlatformGlyph platform={group.key} />
-            <h3 className="font-display text-lg font-bold">{group.label}</h3>
-            <span className="rounded-full bg-fg/6 px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
-              {group.entries.length}
-            </span>
-          </div>
-
-          <ul className="grid gap-2.5 sm:grid-cols-2">
-            {group.entries.map((entry) => (
-              <li key={entry.gameId}>
-                <Link
-                  href={`/game/${entry.slug}`}
-                  className="flex items-center gap-3 rounded-2xl border border-line bg-panel/50 p-2.5 transition-colors fine:hover:border-line-strong"
-                >
-                  <span className="relative h-14 w-11 shrink-0 overflow-hidden rounded-lg">
-                    <GameCover
-                      name={entry.name}
-                      slug={entry.slug}
-                      image={entry.image}
-                      imageFallback={entry.imageFallback}
-                      width={160}
-                      sizes="44px"
-                    />
+    <ol className="overflow-hidden rounded-2xl border border-line bg-panel/55 light:bg-panel">
+      {events.map((event, index) => {
+        const kind = KIND[event.kind];
+        const Icon = kind.icon;
+        return (
+          <li key={event.key} className={cn(index > 0 && "border-t border-line")}>
+            <Link href={`/game/${event.slug}`} className="press flex items-center gap-3 px-3 py-2.5 transition-colors fine:hover:bg-fg/[0.04]">
+              <span className="relative h-12 w-9 shrink-0 overflow-hidden rounded-md ring-1 ring-inset ring-fg/10">
+                <GameCover name={event.name} slug={event.slug} image={event.image} imageFallback={event.imageFallback} width={96} sizes="36px" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[15px] font-medium">{event.name}</span>
+                <span className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted">
+                  <span aria-hidden className={cn("grid h-[18px] w-[18px] place-items-center rounded-full", kind.tone)}>
+                    <Icon size={10} />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{entry.name}</span>
-                    <span className="mt-0.5 block text-[11px] text-faint">
-                      {entry.status === "played"
-                        ? entry.finishedAt
-                          ? `Finished ${DATE_FMT.format(new Date(entry.finishedAt))}`
-                          : "Finished"
-                        : entry.startedAt
-                          ? `Playing since ${DATE_FMT.format(new Date(entry.startedAt))}`
-                          : "Playing"}
-                    </span>
-                  </span>
-                  <ScorePill score={entry.metacritic} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Reveal>
-      ))}
-    </div>
-  );
-}
-
-function Stat({
-  icon,
-  value,
-  label,
-}: {
-  icon: React.ReactNode;
-  value: number;
-  label: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2 text-sm">
-      {icon}
-      <span className="font-semibold tabular-nums">{value}</span>
-      <span className="text-muted">{label}</span>
-    </span>
-  );
-}
-
-function PlatformGlyph({ platform }: { platform: string }) {
-  const usable = platform !== "pc" && platform !== "unassigned" && brandIcon(platform);
-  return (
-    <span className={cn("grid h-8 w-8 place-items-center rounded-lg border border-line bg-fg/[0.04]")}>
-      {usable ? (
-        <BrandIcon name={platform as PlatformKey} size={15} tinted title={null} />
-      ) : (
-        <Monitor size={15} className="text-faint" aria-hidden />
-      )}
-    </span>
+                  {kind.label}
+                  {event.rating !== undefined && <span className="font-semibold tabular-nums text-text">{event.rating}/10</span>}
+                </span>
+              </span>
+              <time dateTime={new Date(event.at).toISOString()} className="shrink-0 text-[13px] tabular-nums text-faint">
+                {relative(event.at, now)}
+              </time>
+            </Link>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

@@ -1,14 +1,16 @@
 /**
  * Browser-side analytics.
  *
- * Cookieless and first-party: nothing is stored on the device, no identifier
- * is generated, and every event goes to our own `/api/track`. The only thing
- * describing the visitor is a coarse device class.
+ * Cookieless and first-party: no identifier is generated or stored, and every
+ * event goes to our own `/api/track`. The only things describing the visitor
+ * are a coarse device class and, once a day, the week they first came (see
+ * `visits.ts` — shared by everyone that week, so not an identifier).
  *
  * Every export is fire-and-forget and never throws — a failed beacon must
  * never break the click that caused it.
  */
 
+import { conversionSource } from "./attribution";
 import type { ClientEvent, ClientEventType, Device } from "./types";
 
 const ENDPOINT = "/api/track";
@@ -75,7 +77,8 @@ export function send(events: ClientEvent[]): void {
  * Records one event. `path` and `device` are filled in automatically.
  *
  * Intended for product code: `track("follow", { slug, value: 1 })`,
- * `track("own", { slug })`, `track("signup")`.
+ * `track("own", { slug })`, `track("signup")`. Conversions pick up the
+ * shelf that led to them (`attribution.ts`) unless `src` is given.
  */
 export function track(
   type: ClientEventType,
@@ -84,7 +87,8 @@ export function track(
   if (typeof window === "undefined") return;
   const path = data.path ?? window.location.pathname;
   if (isUntrackedPath(path)) return;
-  send([{ type, path, device: data.device ?? deviceClass(), ...withoutUndefined(data) }]);
+  const src = data.src ?? (type === "follow" || type === "own" || type === "signup" ? conversionSource() : null);
+  send([{ type, path, device: data.device ?? deviceClass(), ...withoutUndefined({ ...data, src: src ?? undefined }) }]);
 }
 
 function withoutUndefined(data: Omit<ClientEvent, "type">): Omit<ClientEvent, "type"> {

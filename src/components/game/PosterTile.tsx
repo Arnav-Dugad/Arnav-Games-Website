@@ -53,7 +53,7 @@ export function PosterTile({
       <div
         data-menu-preview
         className={cn(
-          "relative aspect-[3/4] w-full overflow-hidden rounded-xl border border-line bg-panel",
+          "relative aspect-[3/4] w-full overflow-hidden rounded-2xl border border-fg/[0.08] bg-panel shadow-[0_14px_34px_-20px_#000] light:shadow-[0_12px_28px_-18px_#00000066]",
           "transition-[border-color,box-shadow,transform] duration-500",
           "coarse:active:scale-[0.97] coarse:active:duration-100",
           "fine:group-hover/tile:border-line-strong fine:group-hover/tile:-translate-y-1",
@@ -94,13 +94,14 @@ export function PosterTile({
 
       <p
         className={cn(
-          "mt-2 line-clamp-2 font-display font-semibold leading-snug transition-colors fine:group-hover/tile:text-brand-soft",
-          size === "large" ? "text-sm" : "text-[12px]",
+          "mt-2 line-clamp-2 font-display font-semibold leading-snug tracking-[-0.01em] transition-colors fine:group-hover/tile:text-brand-soft",
+          size === "large" ? "text-[14px] lg:text-[15px]" : "text-[13px]",
         )}
       >
         {entry.name}
       </p>
-      {badge && <p className="mt-0.5 truncate text-[10px] uppercase tracking-[0.08em] text-faint">{badge}</p>}
+      {/* Sentence-case caption in the card family's style (was tiny caps). */}
+      {badge && <p className="mt-0.5 truncate text-[12px] text-muted">{badge}</p>}
     </Link>
   );
 }

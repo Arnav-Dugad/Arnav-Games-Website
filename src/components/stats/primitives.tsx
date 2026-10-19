@@ -259,13 +259,13 @@ export function StatCard({
             {icon && <span className="text-brand-soft" aria-hidden>{icon}</span>}
             {eyebrow}
           </p>
-          <h2 className="mt-1.5 font-display text-lg font-bold leading-tight sm:text-xl">{title}</h2>
+          <h3 className="mt-1.5 font-display text-[17px] font-bold leading-tight sm:text-xl">{title}</h3>
         </div>
         {action}
       </header>
       {summary && <p className="sr-only">{summary}</p>}
       <div className="mt-4 flex min-w-0 flex-1 flex-col">{children}</div>
-      {footnote && <p className="mt-4 border-t border-line pt-3 text-[11px] leading-relaxed text-faint">{footnote}</p>}
+      {footnote && <p className="mt-4 border-t border-line pt-3 text-[12px] leading-relaxed text-faint">{footnote}</p>}
     </section>
   );
 }

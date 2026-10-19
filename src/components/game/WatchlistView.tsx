@@ -11,11 +11,11 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
-import { BellRing, BookmarkX, CalendarClock, Check, CircleHelp, Library, PencilLine } from "lucide-react";
+import { useMemo, useState } from "react";
+import { BookmarkX, Check, PencilLine } from "lucide-react";
 import { FilterToolbar, SearchField, SegmentedControl, SortMenu, type FacetDef } from "@/components/filters";
 import { GameCover } from "./GameCover";
-import { CountdownInline } from "./Countdown";
+import { Countdown, CountdownInline } from "./Countdown";
 import { PlatformPicker } from "./PlatformPicker";
 import { PosterTile } from "./PosterTile";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
@@ -200,18 +200,22 @@ export function WatchlistView({
   }
 
   return (
-    <Container className="py-8 lg:py-12">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs leading-relaxed text-muted">Saving, alerts, ownership, access, and status remain independent.</p>
-        <button type="button" onClick={() => { setBatchMode((value) => !value); setSelected(new Set()); }} aria-pressed={batchMode} className={cn("inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors", batchMode ? "border-brand/45 bg-brand/15 text-text" : "border-fg/10 bg-fg/[0.06] text-text fine:hover:bg-fg/[0.1]")}><PencilLine size={15} />{batchMode ? "Exit batch edit" : "Batch edit"}</button>
+    <Container className="pb-8 lg:pb-12">
+      <NextUp saved={saved} alerts={saved.filter((entry) => entry.following).length} unknown={releaseCounts.unknown} />
+
+      <div className="mb-4 mt-10 flex items-end justify-between gap-3 sm:mt-12">
+        <h2 className="font-display text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">Everything you&apos;re tracking</h2>
+        <button
+          type="button"
+          onClick={() => { setBatchMode((value) => !value); setSelected(new Set()); }}
+          aria-pressed={batchMode}
+          className={cn("press inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[15px] font-medium transition-colors", batchMode ? "bg-brand/15 text-text" : "text-brand-soft fine:hover:bg-brand/10")}
+        >
+          <PencilLine size={15} aria-hidden />
+          {batchMode ? "Done" : "Select"}
+        </button>
       </div>
       {batchMode && <BatchEditPanel gameIds={[...selected]} onDone={() => setSelected(new Set())} onClose={() => { setBatchMode(false); setSelected(new Set()); }} />}
-      <div className="mb-5 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        <WatchMetric icon={<Library size={16} />} label="Saved games" value={saved.length} />
-        <WatchMetric icon={<CalendarClock size={16} />} label="Coming next" value={releaseCounts.upcoming} tone="brand" />
-        <WatchMetric icon={<BellRing size={16} />} label="Alerts on" value={saved.filter((entry) => entry.following).length} tone="mint" />
-        <WatchMetric icon={<CircleHelp size={16} />} label="Date unknown" value={releaseCounts.unknown} />
-      </div>
       {/*
         Collapsed controls: search, a status segmented control (the axis
         people switch most), then release state and ownership as facet pills.
@@ -293,7 +297,7 @@ export function WatchlistView({
           ))}
         </ul>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="overflow-hidden rounded-2xl border border-line bg-panel/55 light:bg-panel">
           <AnimatePresence initial={false}>
             {visible.map((entry) => (
               <motion.li
@@ -303,7 +307,7 @@ export function WatchlistView({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -20, transition: { duration: 0.2 } }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="group relative flex items-center gap-3 rounded-2xl border border-line bg-panel/50 p-2.5 transition-colors fine:hover:border-line-strong sm:gap-4 sm:p-3"
+                className="group relative flex items-center gap-3 border-line px-3 py-2.5 transition-colors fine:hover:bg-fg/[0.035] sm:gap-4 [&:not(:first-child)]:border-t"
               >
                 {batchMode && <SelectionToggle selected={selected.has(entry.gameId)} name={entry.name} onToggle={() => setSelected(toggleSelected(selected, entry.gameId))} />}
                 <Link
@@ -412,28 +416,53 @@ function SelectionToggle({ selected, name, onToggle }: { selected: boolean; name
   return <button type="button" onClick={onToggle} aria-label={`${selected ? "Deselect" : "Select"} ${name}`} aria-pressed={selected} className={cn("absolute inset-0 z-30 rounded-2xl p-2 text-left transition-shadow", selected && "ring-2 ring-inset ring-brand")}><span className={cn("grid h-10 w-10 place-items-center rounded-full border shadow-xl backdrop-blur-xl transition-colors", selected ? "border-brand/60 bg-brand text-white" : "border-white/20 bg-black/75 text-white hover:bg-black")}><Check size={16} className={cn(!selected && "opacity-0")} /></span></button>;
 }
 
-function WatchMetric({
-  icon,
-  label,
-  value,
-  tone = "neutral",
-}: {
-  icon: ReactNode;
-  label: string;
-  value: number;
-  tone?: "neutral" | "brand" | "mint";
-}) {
+const LONG_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+/**
+ * The page's one hero: the soonest dated release you're tracking, counting
+ * down — because "what's out next" is the question a watchlist exists for.
+ * With nothing dated ahead, it falls back to a calm summary instead.
+ */
+function NextUp({ saved, alerts, unknown }: { saved: WatchlistEntry[]; alerts: number; unknown: number }) {
+  const upcoming = saved
+    .filter((entry) => entry.released && releaseState(entry) === "upcoming")
+    .sort((a, b) => (a.released ?? "").localeCompare(b.released ?? ""));
+  const next = upcoming[0];
+  const summary = `${saved.length} saved · ${upcoming.length} dated and coming · alerts on for ${alerts}${unknown ? ` · ${unknown} without a date` : ""}`;
+
+  if (!next?.released) {
+    return (
+      <section aria-label="Your watchlist" className="glass rounded-3xl p-5 sm:p-7">
+        <p className="text-[13px] font-semibold text-muted">Nothing dated ahead</p>
+        <p className="mt-1 font-display text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">Every game you&apos;re tracking is out or undated.</p>
+        <p className="mt-2 text-[13px] text-faint">{summary}</p>
+      </section>
+    );
+  }
+
   return (
-    <div className="min-w-0 rounded-2xl border border-line bg-panel/45 p-3.5 sm:p-4">
-      <div className={cn(
-        "mb-3 grid h-8 w-8 place-items-center rounded-xl bg-fg/[0.05] text-muted",
-        tone === "brand" && "bg-brand/15 text-brand-soft",
-        tone === "mint" && "bg-mint/10 text-mint",
-      )}>
-        {icon}
+    <section aria-label="Next release" className="glass relative isolate overflow-hidden rounded-3xl p-5 sm:p-7">
+      <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 -z-10 h-72 w-72 rounded-full bg-brand/20 blur-3xl" />
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-7">
+        <Link href={`/game/${next.slug}`} className="relative h-[150px] w-[112px] shrink-0 overflow-hidden rounded-2xl shadow-[0_24px_50px_-24px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-fg/10 sm:h-[176px] sm:w-[132px]">
+          <GameCover name={next.name} slug={next.slug} image={next.image} imageFallback={next.imageFallback} width={300} sizes="132px" priority />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold text-brand-soft">Next up</p>
+          <Link href={`/game/${next.slug}`} className="mt-1 block font-display text-[26px] font-bold leading-tight tracking-[-0.02em] fine:hover:text-brand-soft sm:text-[34px]">
+            {next.name}
+          </Link>
+          <p className="mt-1 text-[15px] text-muted">{LONG_DATE.format(new Date(`${next.released}T00:00:00Z`))}</p>
+          <Countdown date={next.released} size="sm" className="mt-4" />
+          {upcoming.length > 1 && (
+            <p className="mt-4 truncate text-[13px] text-muted">
+              Then {upcoming.slice(1, 3).map((entry) => entry.name).join(", ")}
+              {upcoming.length > 3 ? ` and ${upcoming.length - 3} more` : ""}
+            </p>
+          )}
+        </div>
       </div>
-      <p className="font-display text-2xl font-bold tabular-nums sm:text-3xl">{value}</p>
-      <p className="mt-0.5 truncate text-[11px] uppercase tracking-[0.06em] text-faint">{label}</p>
-    </div>
+      <p className="mt-5 border-t border-line pt-4 text-[13px] text-faint">{summary}</p>
+    </section>
   );
 }

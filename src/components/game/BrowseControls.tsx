@@ -84,6 +84,8 @@ interface BrowseControlsProps {
    * nothing.
    */
   showScore?: boolean;
+  /** Off where the list order is fixed by the view (calendar week/month grids). */
+  showSort?: boolean;
 }
 
 export function BrowseControls({
@@ -95,6 +97,7 @@ export function BrowseControls({
   noun = "game",
   showDatePresets = true,
   showScore = true,
+  showSort = true,
 }: BrowseControlsProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -243,7 +246,7 @@ export function BrowseControls({
           <span className="font-semibold tabular-nums text-text">{formatted}</span> {plural}
         </p>
       }
-      actions={
+      actions={showSort &&
         <SortMenu
           options={sorts}
           value={activeSort}

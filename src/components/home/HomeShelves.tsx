@@ -1,99 +1,94 @@
 /**
- * Home shelves fed by the newer data sources: the hype-ranked calendar and
- * the Game Pass catalogue.
+ * Homepage shelves that wait on slower sources: the hype index (Today and
+ * Top charts) and the Game Pass catalogue.
  *
- * Each is an async server component meant to sit behind its own <Suspense>.
- * Both are cached, but a cold Game Pass match costs several upstream calls
- * (Microsoft's catalogue, then joining BigIds back to IGDB), and the rest of
- * the homepage shouldn't wait on it — so these stream in after the page shell
- * instead of holding up the hero.
+ * Each is an async server component meant to sit behind its own <Suspense>,
+ * so the hero and the shelves fed by the main query render first and these
+ * stream in. The hype ranking is shared by two shelves, so it is fetched once
+ * per request (`cache`).
  *
- * Every shelf renders nothing when its list is empty or unavailable: an
+ * Every shelf renders nothing when its data is empty or unavailable: an
  * absent shelf is honest, a shelf of placeholders is not.
  */
 
-import { BrandIcon } from "@/components/brand/BrandIcon";
-import { GameRail } from "@/components/game/GameRail";
-import { Container, Section, SectionHeading } from "@/components/ui/SectionHeading";
+import { cache } from "react";
 import { getGamePassLeavingSoon, getGamePassRecentlyAdded, getMostAnticipated } from "@/lib/games/source";
-import { AnticipatedRail } from "./AnticipatedRail";
+import type { GameSummary } from "@/lib/games/types";
+import { Container } from "@/components/ui/SectionHeading";
+import { GamePassSwitcher } from "./GamePassSwitcher";
+import { HomeSection } from "./HomeSection";
+import { buildStories } from "./stories";
+import { TodayStories } from "./TodayStories";
+import { TopCharts, type Chart } from "./TopCharts";
 
-export async function AnticipatedShelf() {
-  const anticipated = await getMostAnticipated(14);
-  if (anticipated.data.length < 3) return null;
+const anticipatedOnce = cache(() => getMostAnticipated(12));
+
+const TODAY = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+
+export async function TodayShelf({
+  upcoming,
+  trending,
+  newReleases,
+  topRated,
+  exclude,
+}: {
+  upcoming: GameSummary[];
+  trending: GameSummary[];
+  newReleases: GameSummary[];
+  topRated: GameSummary[];
+  exclude: number[];
+}) {
+  const anticipated = await anticipatedOnce();
+  const stories = buildStories({
+    anticipated: anticipated.data,
+    upcoming,
+    trending,
+    newReleases,
+    topRated,
+    exclude,
+  });
+  if (stories.length === 0) return null;
 
   return (
-    <Section className="py-8 sm:py-11">
+    <HomeSection id="today" eyebrow={TODAY.format(new Date())} title="Today">
+      {/* The bento sits in the text column; the phone shelf bleeds out of it itself. */}
       <Container>
-        <SectionHeading
-          eyebrow="Hype index"
-          title="Most anticipated"
-          description="Upcoming games ranked by follows, want-to-play lists and attention on IGDB."
-          href="/upcoming?ordering=-hypes"
-        />
+        <TodayStories stories={stories} />
       </Container>
-      <div className="mt-7">
-        <AnticipatedRail items={anticipated.data} />
-      </div>
-    </Section>
+    </HomeSection>
   );
 }
 
-export async function GamePassShelves() {
+export async function ChartsShelf({ trending, topRated }: { trending: GameSummary[]; topRated: GameSummary[] }) {
+  const anticipated = await anticipatedOnce();
+  const charts: Chart[] = [
+    {
+      id: "trending",
+      label: "Trending",
+      description: "What players worldwide are playing right now, from IGDB’s live signal.",
+      href: "/browse?ordering=-added",
+      rows: trending.map((game) => ({ game })),
+    },
+    {
+      id: "anticipated",
+      label: "Most anticipated",
+      description: "Upcoming games ranked by follows, want-to-play lists and attention on IGDB.",
+      href: "/upcoming?ordering=-hypes",
+      rows: anticipated.data.map(({ game, hype }) => ({ game, hype })),
+    },
+    {
+      id: "top",
+      label: "Top rated",
+      description: "The highest critic scores in the database.",
+      href: "/browse?ordering=-metacritic",
+      rows: topRated.map((game) => ({ game })),
+    },
+  ];
+  return <TopCharts charts={charts} />;
+}
+
+export async function GamePassShelf() {
   const [added, leaving] = await Promise.all([getGamePassRecentlyAdded(), getGamePassLeavingSoon()]);
   if (added.data.length === 0 && leaving.data.length === 0) return null;
-
-  return (
-    <>
-      {added.data.length > 0 && (
-        <Section className="py-8 sm:py-11">
-          <Container>
-            <SectionHeading
-              eyebrow="Xbox Game Pass"
-              title={<GamePassTitle>New on Game Pass</GamePassTitle>}
-              description="Recently added to the console and PC library."
-            />
-          </Container>
-          <div className="mt-7">
-            <GameRail games={added.data.slice(0, 16)} />
-          </div>
-        </Section>
-      )}
-
-      {leaving.data.length > 0 && (
-        <Section className="py-8 sm:py-11">
-          <Container>
-            <SectionHeading
-              eyebrow="Last chance"
-              title={<GamePassTitle>Leaving Game Pass soon</GamePassTitle>}
-              description="Play these on your subscription before they rotate out."
-            />
-          </Container>
-          <div className="mt-7">
-            <GameRail games={leaving.data.slice(0, 16)} />
-          </div>
-        </Section>
-      )}
-    </>
-  );
-}
-
-function GamePassTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      {children}
-      <GamePassBadge />
-    </span>
-  );
-}
-
-/** Xbox green, so the shelf reads as a subscription catalogue at a glance. */
-function GamePassBadge() {
-  return (
-    // Decorative: the heading text already says "Game Pass".
-    <span aria-hidden className="inline-flex translate-y-px items-center gap-1 rounded-[7px] bg-[#107c10] px-2 py-1 align-middle font-sans text-[11px] font-bold uppercase leading-none tracking-[0.06em] text-white shadow-[inset_0_1px_0_#ffffff33]">
-      <BrandIcon name="xbox" size={12} title={null} />
-      Game Pass
-    </span>
-  );
+  return <GamePassSwitcher added={added.data} leaving={leaving.data} />;
 }

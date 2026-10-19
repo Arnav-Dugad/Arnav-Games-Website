@@ -29,6 +29,21 @@ import { paletteFromPixels, logoToneFromPixels } from "../src/lib/games/palette-
 import { decodePng } from "../src/lib/games/image-decode";
 import { changesFromObservations, isDelay, releaseUpperBound, releaseValue } from "../src/lib/games/release-value";
 import { normaliseStoreTitle } from "../src/lib/games/providers/igdb-extras";
+import {
+  choosePlayerSamples,
+  convertMinor,
+  currencyDigits,
+  planPriceRequests,
+  rotatingSlice,
+  deckStatusFromCategory,
+  downsamplePlayers,
+  priceVerdict,
+  rarityBands,
+  reliabilityFromObservations,
+  steamToMinor,
+} from "../src/lib/games/market-rules";
+import { microsoftPriceOf } from "../src/lib/games/ms-store";
+import type { PricePoint } from "../src/lib/games/types";
 import type { ReleaseEvent } from "../src/lib/games/types";
 
 let failures = 0;
@@ -569,6 +584,228 @@ check(
 check("list markers survive", stripHtml("<ul><li>One</li><li>Two</li></ul>"), "• One\n• Two");
 check("apostrophes decode", stripHtml("Baldur&#39;s Gate"), "Baldur's Gate");
 check("slugify", slugify("Hack and slash/Beat 'em up"), "hack-and-slash-beat-em-up");
+
+console.log("\nMoney & FX");
+check("Steam ×100 → cents", steamToMinor(5999, "USD"), 5999);
+check("Steam ×100 → whole yen", steamToMinor(902000, "JPY"), 9020);
+check("Steam ×100 → fils (KWD has 3 digits)", steamToMinor(1990, "KWD"), 19900);
+check("rupiah prices have no decimals", currencyDigits("IDR"), 0);
+check("same currency is not converted", convertMinor(5999, "USD", "USD", 0.5), 5999);
+// ₹3,599 at 94.96 INR per USD → $37.90.
+check("INR → USD rounds to the cent", convertMinor(359900, "INR", "USD", 94.96), 3790);
+// ¥9,020 at 158.03 JPY per USD → $57.08.
+check("JPY (0 digits) → USD (2 digits)", convertMinor(9020, "JPY", "USD", 158.03), 5708);
+check("USD → JPY rounds to whole yen", convertMinor(5999, "USD", "JPY", 1 / 158.03), 9480);
+check("no rate → null, never a guess", convertMinor(5999, "USD", "ARS", Number.NaN), null);
+
+console.log("\nPrice verdict");
+{
+  const today = "2026-10-19";
+  const days = (n: number, price: number, initial = 5999, from = "2026-08-01"): PricePoint[] =>
+    Array.from({ length: n }, (_, i) => ({
+      date: new Date(Date.parse(from) + i * 86_400_000).toISOString().slice(0, 10),
+      store: "steam" as const,
+      price,
+      initial,
+    }));
+  const full = { price: 5999, initial: 5999, discount: 0, currency: "USD" };
+  check("no price → unknown", priceVerdict({ current: null, history: [], today }).kind, "unknown");
+  check(
+    "free → fair",
+    priceVerdict({ current: { price: 0, initial: 0, discount: 0, currency: "XXX" }, history: [], today }).kind,
+    "fair",
+  );
+  check(
+    "≥60% off → buy even with no history",
+    priceVerdict({ current: { price: 2399, initial: 5999, discount: 60, currency: "USD" }, history: [], today }).kind,
+    "buy",
+  );
+  check(
+    "discounted at our lowest with 14+ days → buy",
+    priceVerdict({
+      current: { price: 3599, initial: 5999, discount: 40, currency: "USD" },
+      history: [...days(20, 5999), { date: today, store: "steam", price: 3599, initial: 5999 }],
+      today,
+    }),
+    { kind: "buy", reason: "Lowest price we've seen since Aug." },
+  );
+  check(
+    "within 2% of the low still counts as the low",
+    priceVerdict({
+      current: { price: 3660, initial: 5999, discount: 39, currency: "USD" },
+      history: [...days(20, 5999), { date: "2026-09-01", store: "steam", price: 3599, initial: 5999 }],
+      today,
+    }).kind,
+    "buy",
+  );
+  check(
+    "discounted but pricier than our low → fair",
+    priceVerdict({
+      current: { price: 4799, initial: 5999, discount: 20, currency: "USD" },
+      history: [...days(20, 5999), { date: "2026-09-01", store: "steam", price: 2999, initial: 5999 }],
+      today,
+    }).kind,
+    "fair",
+  );
+  check(
+    "discounted with a thin history → fair, never a fake low",
+    priceVerdict({ current: { price: 4799, initial: 5999, discount: 20, currency: "USD" }, history: days(3, 5999), today }).kind,
+    "fair",
+  );
+  check(
+    "full price after a recent 25%+ sale → wait",
+    priceVerdict({
+      current: full,
+      history: [...days(5, 5999), { date: "2026-09-10", store: "steam", price: 2999, initial: 5999 }],
+      today,
+    }),
+    { kind: "wait", reason: "It was 50% off in Sep — sales come round." },
+  );
+  check(
+    "a sale older than 120 days doesn't trigger wait",
+    priceVerdict({
+      current: full,
+      history: [...days(20, 5999), { date: "2026-05-01", store: "steam", price: 2999, initial: 5999 }],
+      today,
+    }).kind,
+    "fair",
+  );
+  check("full price, < 14 days → unknown", priceVerdict({ current: full, history: days(5, 5999), today }).kind, "unknown");
+  check("full price, long flat history → fair", priceVerdict({ current: full, history: days(30, 5999), today }).kind, "fair");
+}
+
+console.log("\nPlayer history downsampling");
+{
+  const H = 3600;
+  const now = 1_800_000_000 - (1_800_000_000 % H);
+  const samples = [
+    // 8–9 days ago: one 6-hour bucket's worth, averaged.
+    { hour: now - 9 * 24 * H - ((now - 9 * 24 * H) % (6 * H)), players: 100 },
+    { hour: now - 9 * 24 * H - ((now - 9 * 24 * H) % (6 * H)) + H, players: 200 },
+    // Within 7 days: kept hourly.
+    { hour: now - 2 * 24 * H, players: 900 },
+    { hour: now - 2 * H, players: 300 },
+    { hour: now - H, players: 400 },
+  ];
+  const result = downsamplePlayers(samples, now);
+  check("old samples merge into one 6-hour mean", result.points[0].players, 150);
+  check("recent samples stay hourly", result.points.slice(1).map((p) => p.players), [900, 300, 400]);
+  check("oldest first", result.points.every((p, i, a) => i === 0 || a[i - 1].t < p.t), true);
+  check("peak24h from raw samples", result.peak24h, 400);
+  check("peakTracked from raw samples", result.peakTracked, 900);
+  check("nothing recorded → nulls, not zeros", downsamplePlayers([], now), {
+    points: [],
+    peak24h: null,
+    peakTracked: null,
+    since: null,
+  });
+}
+
+console.log("\nSteam Deck & achievements");
+check("deck 3 → verified", deckStatusFromCategory(3), "verified");
+check("deck 2 → playable", deckStatusFromCategory(2), "playable");
+check("deck 1 → unsupported", deckStatusFromCategory(1), "unsupported");
+check("deck 0 → unknown", deckStatusFromCategory(0), "unknown");
+check("deck missing → null", deckStatusFromCategory(undefined), null);
+check("rarity bands", rarityBands([0.4, 0.99, 1, 9.9, 10, 49.9, 50, 74.9]), {
+  rarity: { ultraRare: 2, rare: 2, uncommon: 2, common: 2 },
+  rarest: 0.4,
+  mostCommon: 74.9,
+});
+check("no percentages → null extremes", rarityBands([]).rarest, null);
+
+console.log("\nMicrosoft Store offer selection");
+{
+  const offer = (list: number, msrp: number, extra: object = {}) => ({
+    Actions: ["Details", "Purchase"],
+    Conditions: { StartDate: "2026-01-01T00:00:00Z", EndDate: "2799-01-01T00:00:00Z" },
+    OrderManagementData: { Price: { CurrencyCode: "USD", ListPrice: list, MSRP: msrp } },
+    ...extra,
+  });
+  const now = Date.parse("2026-10-19T00:00:00Z");
+  check(
+    "Game Pass member offer is ignored",
+    microsoftPriceOf(
+      { DisplaySkuAvailabilities: [{ Availabilities: [offer(59.99, 59.99), offer(0, 0, { RemediationRequired: true })] }] },
+      now,
+    ),
+    { currency: "USD", price: 5999, initial: 5999, discount: 0 },
+  );
+  check(
+    "live sale offer wins, discount from MSRP",
+    microsoftPriceOf({ DisplaySkuAvailabilities: [{ Availabilities: [offer(59.99, 59.99), offer(29.99, 59.99)] }] }, now),
+    { currency: "USD", price: 2999, initial: 5999, discount: 50 },
+  );
+  check(
+    "expired sale is ignored",
+    microsoftPriceOf(
+      {
+        DisplaySkuAvailabilities: [
+          { Availabilities: [offer(59.99, 59.99), offer(9.99, 59.99, { Conditions: { EndDate: "2026-01-01T00:00:00Z" } })] },
+        ],
+      },
+      now,
+    )?.price,
+    5999,
+  );
+  check(
+    "trial SKU is skipped",
+    microsoftPriceOf(
+      { DisplaySkuAvailabilities: [{ Sku: { Properties: { IsTrial: true } }, Availabilities: [offer(0, 0)] }] },
+      now,
+    ),
+    null,
+  );
+}
+
+console.log("\nCron request budgets");
+{
+  const plan = (steamItems: number, microsoftItems: number, countries: number) =>
+    planPriceRequests({ steamItems, microsoftItems, countries, budget: 45, steamBatch: 100, microsoftBatch: 20 });
+  check("small set fits whole", plan(111, 48, 6), { steam: 2, microsoft: 3 });
+  const big = plan(300, 200, 6);
+  check("big set stays within 45 across 6 countries", (big.steam + big.microsoft) * 6 <= 45, true);
+  check("big set still prices both stores", big.steam > 0 && big.microsoft > 0, true);
+  const solo = plan(5000, 5000, 1);
+  check("one country may use the whole budget", solo.steam + solo.microsoft, 45);
+  check("nothing to price → no requests", plan(0, 0, 6), { steam: 0, microsoft: 0 });
+
+  const ids = [1, 2, 3, 4, 5, 6, 7];
+  check("slice covers everything when it fits", rotatingSlice(ids, 10, 3), ids);
+  check("slice rotates by turn", [0, 1, 2].map((turn) => rotatingSlice(ids, 3, turn)), [[1, 2, 3], [4, 5, 6], [7, 1, 2]]);
+
+  const pick = (due: number[], quiet: number[], run: number) =>
+    choosePlayerSamples({ due, quiet, run, runsPerHour: 6, limit: 40, reserve: 8 });
+  const many = Array.from({ length: 100 }, (_, i) => i + 1);
+  const quiet = Array.from({ length: 60 }, (_, i) => 1000 + i);
+  check("never more than 40 per run", pick(many, quiet, 0).length, 40);
+  check("quiet apps keep their reserved slots", pick(many, quiet, 0).filter((id) => id >= 1000).length, 8);
+  check("unused reserve goes to due apps", pick(many, [], 0).length, 40);
+  const hour = [0, 1, 2, 3, 4, 5].flatMap((run) => pick([], quiet, run));
+  check("each quiet app is tried once an hour", hour.length === quiet.length && new Set(hour).size === quiet.length, true);
+}
+
+console.log("\nStudio reliability");
+check(
+  "nothing observed → honest empty",
+  reliabilityFromObservations([]),
+  { tracked: 0, delayed: 0, avgDaysLate: null, since: null },
+);
+check(
+  "delays are measured between upper bounds",
+  reliabilityFromObservations([
+    { gameId: 1, value: "2026-03-01", observedAt: Date.parse("2026-01-01T00:00:00Z") / 1000 },
+    { gameId: 1, value: "2026-03-31", observedAt: Date.parse("2026-02-01T00:00:00Z") / 1000 },
+    { gameId: 2, value: "Q4 2026", observedAt: Date.parse("2026-01-05T00:00:00Z") / 1000 },
+    { gameId: 2, value: "2026-11-15", observedAt: Date.parse("2026-03-01T00:00:00Z") / 1000 },
+    { gameId: 3, value: "2026-06-01", observedAt: Date.parse("2026-01-02T00:00:00Z") / 1000 },
+    { gameId: 3, value: "2026-07-01", observedAt: Date.parse("2026-02-02T00:00:00Z") / 1000 },
+    { gameId: 3, value: "Q4 2026", observedAt: Date.parse("2026-03-02T00:00:00Z") / 1000 },
+  ]),
+  // Game 1: +30 days. Game 2: narrowed inside its window, no delay.
+  // Game 3: +30 then Jul 1 → Dec 31 (+183) = 213. Mean of 30 and 213 → 122.
+  { tracked: 3, delayed: 2, avgDaysLate: 122, since: "2026-01-01" },
+);
 
 /**
  * A 2×1 RGBA PNG (one opaque red, one transparent pixel), built by hand with

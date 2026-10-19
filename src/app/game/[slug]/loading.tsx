@@ -37,10 +37,10 @@ export default function GameLoading() {
           <img src={image} alt="" aria-hidden className="absolute inset-0 -z-10 h-full w-full scale-110 object-cover opacity-30 blur-3xl" />
         )}
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-bg via-bg/80 to-bg/40" />
-        <Container className="flex min-h-[680px] flex-col justify-end pb-9 pt-24 sm:min-h-[740px] lg:min-h-[800px] lg:pb-14 lg:pt-32">
-          <Skeleton className="mb-7 h-9 w-24 rounded-full" />
+        <Container className="flex min-h-[600px] flex-col justify-end pb-8 pt-24 sm:min-h-[680px] lg:min-h-[760px] lg:pb-12 lg:pt-32">
+          <Skeleton className="mb-6 h-9 w-24 rounded-full sm:mb-8" />
           <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:gap-9 lg:gap-12">
-            <div className="relative w-36 shrink-0 sm:w-48 lg:w-64">
+            <div className="relative w-28 shrink-0 sm:w-44 lg:w-56">
               <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/20 bg-panel shadow-[0_35px_90px_-30px_rgba(0,0,0,0.95)]">
                 {slug && (
                   <CoverTransition slug={slug} role="target">
@@ -55,23 +55,24 @@ export default function GameLoading() {
               </div>
             </div>
             <div className="min-w-0 flex-1 space-y-4">
-              <div className="flex gap-2">
-                <Skeleton className="h-9 w-28 rounded-full" />
-                <Skeleton className="h-9 w-24 rounded-full" />
-              </div>
+              <Skeleton className="h-4 w-56 max-w-full rounded-full" />
               <Skeleton className="h-16 w-4/5 max-w-lg rounded-2xl sm:h-24" />
-              <Skeleton className="h-4 w-56 rounded-full" />
-              <Skeleton className="h-4 w-72 max-w-full rounded-full" />
+              <Skeleton className="h-5 w-80 max-w-full rounded-full" />
             </div>
           </div>
-          <div className="mt-7 grid grid-cols-2 gap-2.5 sm:flex sm:gap-3">
-            {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className="h-12 w-full rounded-full sm:w-36" />
-            ))}
+          <div className="mt-7 space-y-2.5 sm:mt-8 sm:space-y-3">
+            <div className="grid grid-cols-2 gap-2.5 sm:flex sm:gap-3">
+              {Array.from({ length: 3 }, (_, index) => (
+                <Skeleton key={index} className={index === 2 ? "hidden h-12 w-32 rounded-full sm:block" : "h-12 w-full rounded-full sm:w-36"} />
+              ))}
+            </div>
+            <Skeleton className="h-12 w-full rounded-full sm:w-[22rem]" />
           </div>
         </Container>
       </header>
-      <Container className="grid grid-cols-2 gap-3 pt-8 sm:gap-4 lg:grid-cols-4">
+      {/* The sticky section bar, so the bento below doesn't jump when it arrives. */}
+      <div className="h-14 border-b border-line" />
+      <Container className="grid grid-cols-2 gap-3 pt-6 sm:gap-4 sm:pt-8 lg:grid-cols-4">
         <Skeleton className="col-span-2 h-[148px] rounded-3xl" />
         <Skeleton className="h-[148px] rounded-3xl" />
         <Skeleton className="h-[148px] rounded-3xl" />

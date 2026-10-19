@@ -76,15 +76,15 @@ export function ReviewWatch({
     <section
       id="review-watch"
       aria-labelledby="review-watch-title"
-      className="relative isolate scroll-mt-32 overflow-hidden rounded-3xl border border-[color-mix(in_oklab,var(--game-accent)_30%,transparent)] bg-[linear-gradient(135deg,color-mix(in_oklab,var(--game-accent)_14%,transparent),transparent_60%)] p-5 sm:p-7"
+      className="relative isolate scroll-mt-36 overflow-hidden rounded-3xl border border-[color-mix(in_oklab,var(--game-accent)_30%,transparent)] bg-[linear-gradient(135deg,color-mix(in_oklab,var(--game-accent)_14%,transparent),transparent_60%)] p-5 sm:p-7"
     >
       <span aria-hidden className="pointer-events-none absolute -left-20 -top-24 -z-10 h-64 w-64 rounded-full bg-[var(--game-glow)] blur-3xl" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--game-accent)]">
-            <Eye size={13} /> Review watch
+          <p className="flex items-center gap-1.5 text-[13px] font-semibold text-[color-mix(in_oklab,var(--game-accent,var(--color-brand-soft))_72%,var(--color-text))]">
+            <Eye size={14} /> Review watch
           </p>
-          <h2 id="review-watch-title" className="mt-1.5 text-2xl font-black sm:text-3xl">
+          <h2 id="review-watch-title" className="mt-1 text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">
             {launched ? "The verdicts are coming in" : "Reviews are on the way"}
           </h2>
         </div>

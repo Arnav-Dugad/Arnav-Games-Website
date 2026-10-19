@@ -12,23 +12,23 @@ const COLUMNS = [
       { label: "Upcoming releases", href: "/upcoming" },
       { label: "Browse all", href: "/browse" },
       { label: "Top rated", href: "/browse?ordering=-metacritic" },
-      { label: "Newest first", href: "/browse?ordering=-released" },
+      { label: "Search", href: "/search" },
     ],
   },
   {
     title: "Categories",
     links: [
-      { label: "All genres", href: "/genres" },
-      { label: "All platforms", href: "/platforms" },
-      { label: "Action", href: "/browse?genres=action" },
-      { label: "RPG", href: "/browse?genres=role-playing-games-rpg" },
+      { label: "Genres", href: "/genres" },
+      { label: "Platforms", href: "/platforms" },
+      { label: "Studios", href: "/studios" },
+      { label: "Franchises", href: "/franchises" },
     ],
   },
 ];
 
 export function Footer() {
   return (
-    <footer className="relative mt-8 overflow-hidden border-t border-line">
+    <footer data-track-src="footer" className="relative mt-8 overflow-hidden border-t border-line">
       {/* Oversized wordmark bleeding off the bottom edge. */}
       <div
         aria-hidden

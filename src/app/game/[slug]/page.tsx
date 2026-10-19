@@ -7,10 +7,12 @@ import {
   CalendarDays,
   Clapperboard,
   Cpu,
+  ExternalLink,
   Eye,
   Flame,
   Gamepad2,
   Gauge,
+  Globe,
   Images,
   Languages,
   Layers,
@@ -40,13 +42,16 @@ import { sizedImage } from "@/lib/games/image";
 import { GameCollectionShowcase } from "@/components/game/GameCollectionShowcase";
 import { GameEditorialOverview } from "@/components/game/GameDetailEditorial";
 import { GameDetailDock, type DetailSectionLink } from "@/components/game/GameDetailDock";
+import { DetailSection } from "@/components/game/detail/DetailSection";
+import { PriceSection } from "@/components/game/detail/PriceSection";
+import { StatsSection } from "@/components/game/detail/StatsSection";
 import { GameHero } from "@/components/game/detail/GameHero";
 import { GameBento, type BentoData } from "@/components/game/detail/GameBento";
 import { GameLiveProvider } from "@/components/game/detail/live";
 import { LatestNews, LiveNowStrip } from "@/components/game/detail/LiveSections";
 import { ReleaseDates } from "@/components/game/detail/ReleaseDates";
 import { ReviewWatch } from "@/components/game/detail/ReviewWatch";
-import { Elsewhere, elsewhereLinks } from "@/components/game/detail/Elsewhere";
+import { Elsewhere } from "@/components/game/detail/Elsewhere";
 import { GAME_THEME_CLASS, gameTheme, gameThemeStyle } from "@/components/game/detail/theme";
 import { delayCount, localRelease, visitorRegion } from "@/components/game/detail/release";
 import {
@@ -166,18 +171,38 @@ export default async function GamePage({ params, searchParams }: { params: Param
   );
   const changes = game.releaseChanges ?? [];
   const hasReleaseDates = game.releases.length > 1 || changes.length > 0;
-  const hasElsewhere = elsewhereLinks(game).length > 0 || game.websites.some((site) => site.kind !== "official");
+  const hasAddOns = Boolean(
+    game.parentGame || game.dlcs.length || game.expansions.length || game.standaloneExpansions.length ||
+    game.editions.length || game.bundles.length || game.remakes.length || game.remasters.length || game.ports.length,
+  );
+  const hasMedia = game.trailers.length > 0 || media.length > 0;
+  // Local prices come from Steam and the Microsoft Store; without a listing
+  // on either there is nothing honest to show, so the section isn't offered.
+  const marketIds = hasSteam || game.externalIds?.microsoft
+    ? { id: game.id, steam: game.steamAppId, microsoft: game.externalIds?.microsoft ?? null }
+    : null;
+  // Player counts and Deck/Proton/achievements are Steam data about a game
+  // people can already play.
+  const hasStats = hasSteam && !upcoming;
 
   const sections: DetailSectionLink[] = [
-    { id: "glance", label: "At a glance" },
-    ...(game.description ? [{ id: "overview", label: "Overview" }] : []),
-    ...(game.trailers.length || media.length ? [{ id: "media-archive", label: "Media" }] : []),
+    { id: "overview", label: "Overview" },
+    ...(hasMedia ? [{ id: "media", label: "Media" }] : []),
+    ...(marketIds ? [{ id: "prices", label: "Prices" }] : []),
+    ...(hasStats ? [{ id: "stats", label: "Stats" }] : []),
     ...(hasReleaseDates ? [{ id: "release-dates", label: "Release dates" }] : []),
-    ...(hasCollection ? [{ id: "collection", label: "Universe & content" }] : []),
-    ...(hasDetails ? [{ id: "details", label: "Game details" }] : []),
-    ...(hasElsewhere ? [{ id: "elsewhere", label: "Elsewhere" }] : []),
+    ...(hasCollection ? [{ id: "collection", label: hasAddOns ? "DLC & more" : "Series" }] : []),
+    ...(hasDetails ? [{ id: "details", label: "Details" }] : []),
     { id: "reviews", label: "Reviews" },
+    ...(related.length > 0 ? [{ id: "related", label: "Related" }] : []),
   ];
+
+  const compareSuggestions = related.slice(0, 8).map((item) => ({
+    slug: item.slug,
+    name: item.name,
+    image: item.image,
+    year: item.released?.slice(0, 4) ?? item.releaseWindow ?? null,
+  }));
 
   const bento: BentoData = {
     name: game.name,
@@ -206,6 +231,8 @@ export default async function GamePage({ params, searchParams }: { params: Param
       upcoming,
     },
     stores: game.stores,
+    market: marketIds,
+    hasStats,
   };
 
   const jsonLd = videoGameJsonLd(game);
@@ -225,16 +252,23 @@ export default async function GamePage({ params, searchParams }: { params: Param
           name: game.name,
         }}
       >
-        <GameHero game={game} local={local} delays={delays} showCountdown={showCountdown} criticLabel={criticLabel} />
+        <GameHero
+          game={game}
+          local={local}
+          delays={delays}
+          showCountdown={showCountdown}
+          criticLabel={criticLabel}
+          compareSuggestions={compareSuggestions}
+        />
 
-        <GameDetailDock gameName={game.name} sections={sections} />
+        <GameDetailDock game={game} sections={sections} compareSuggestions={compareSuggestions} />
 
         <div className="relative">
           {/* The cover's colour carries on past the hero as a faint ambient wash. */}
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(ellipse_at_50%_0%,var(--game-glow),transparent_70%)] opacity-40" />
           <Container className="space-y-3 pt-6 sm:pt-8">
-            <section id="glance" aria-label="At a glance" className="scroll-mt-32">
-              <h2 className="sr-only">At a glance</h2>
+            <section id="overview" aria-labelledby="overview-title" className="scroll-mt-36">
+              <h2 id="overview-title" className="sr-only">At a glance</h2>
               <GameBento data={bento} />
             </section>
             <DataSourceNotice source={source} degraded={isDegraded(source)} />
@@ -242,8 +276,12 @@ export default async function GamePage({ params, searchParams }: { params: Param
           </Container>
         </div>
 
-        <Container className="grid gap-10 pb-8 pt-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-14 lg:pb-12 lg:pt-10">
-          <div className="min-w-0 space-y-14">
+        {/* Two columns on desktop: the story and the deep data on the left,
+            the fact sheet riding along on the right. On phones the fact sheet
+            lands straight after the overview, where people look for "who
+            made it", rather than after the reviews at the very end. */}
+        <Container className="grid gap-x-14 gap-y-16 pb-12 pt-10 sm:gap-y-20 lg:grid-cols-[minmax(0,1fr)_320px] lg:pt-14">
+          <div className="min-w-0 space-y-16 empty:hidden sm:space-y-20 lg:col-start-1">
             {reviewWatch && local.date && (
               <ReviewWatch
                 launchDate={local.date}
@@ -252,37 +290,49 @@ export default async function GamePage({ params, searchParams }: { params: Param
                 hasSteam={hasSteam}
               />
             )}
-
             {game.description && <GameEditorialOverview game={game} />}
-
             <LiveNowStrip />
+          </div>
 
-            {(game.trailers.length > 0 || media.length > 0) && (
-              <section id="media-archive" className="space-y-12 scroll-mt-32">
-                <Reveal className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                  <div>
-                    <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--game-accent)]"><Clapperboard size={13} /> Cinematic archive</p>
-                    <h2 className="text-3xl font-black sm:text-4xl">See the world in motion</h2>
-                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-[15px]">Official footage, in-game captures, and production artwork—collected into one immersive gallery.</p>
-                  </div>
-                  <span className="inline-flex w-fit items-center gap-2 rounded-full border border-line bg-fg/[0.03] px-3 py-1.5 text-xs text-faint"><Images size={13} /> {game.trailers.length + media.length} assets</span>
-                </Reveal>
+          <GameSidebar game={game} />
 
-                {game.trailers.length > 0 && (
-                  <div id="trailers">
-                    <Reveal><h3 className="mb-5 text-xl font-bold sm:text-2xl">Official trailers</h3></Reveal>
-                    <MediaGallery items={game.trailers.map((trailer) => ({ kind: "trailer" as const, trailer }))} gameName={game.name} />
-                  </div>
-                )}
-
-                {media.length > 0 && (
-                  <div id="media">
-                    <Reveal><h3 className="mb-5 text-xl font-bold sm:text-2xl">{game.artworks.length > 0 ? "Screenshots & key art" : "Screenshots"}</h3></Reveal>
-                    <MediaGallery items={media.map((src) => ({ kind: "image" as const, src }))} gameName={game.name} variant="cinematic" />
-                  </div>
-                )}
-              </section>
+          <div className="min-w-0 space-y-16 sm:space-y-20 lg:col-start-1">
+            {hasMedia && (
+              <DetailSection
+                id="media"
+                eyebrow="Media"
+                icon={<Clapperboard size={14} />}
+                title={game.trailers.length > 0 ? "Trailers and screenshots" : "Screenshots"}
+                aside={
+                  <span className="inline-flex w-fit items-center gap-2 rounded-full border border-line bg-fg/[0.03] px-3 py-1.5 text-xs text-muted">
+                    <Images size={13} /> {game.trailers.length + media.length} items
+                  </span>
+                }
+              >
+                <div className="space-y-10">
+                  {game.trailers.length > 0 && (
+                    <div id="trailers">
+                      <h3 className="mb-4 text-[17px] font-semibold text-text">Trailers</h3>
+                      <MediaGallery items={game.trailers.map((trailer) => ({ kind: "trailer" as const, trailer }))} gameName={game.name} />
+                    </div>
+                  )}
+                  {media.length > 0 && (
+                    <div id="screenshots">
+                      {game.trailers.length > 0 && (
+                        <h3 className="mb-4 text-[17px] font-semibold text-text">
+                          {game.artworks.length > 0 ? "Screenshots and key art" : "Screenshots"}
+                        </h3>
+                      )}
+                      <MediaGallery items={media.map((src) => ({ kind: "image" as const, src }))} gameName={game.name} variant="cinematic" />
+                    </div>
+                  )}
+                </div>
+              </DetailSection>
             )}
+
+            {marketIds && <PriceSection ids={marketIds} name={game.name} upcoming={upcoming} />}
+
+            {hasStats && <StatsSection ids={{ id: game.id, steam: game.steamAppId }} />}
 
             <ReleaseDates releases={game.releases} changes={changes} visitorRegion={region} countryName={local.countryName} />
 
@@ -290,82 +340,96 @@ export default async function GamePage({ params, searchParams }: { params: Param
 
             <LatestNews expected={hasSteam} />
 
-            {hasDetails && <section id="details" className="space-y-14 scroll-mt-32">
-              <Reveal>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--game-accent)]">Production dossier</p>
-                <h2 className="text-3xl font-black sm:text-4xl">The complete game record</h2>
-                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-[15px]">Cast, creators, hardware, and the details that define how this game plays.</p>
-              </Reveal>
+            {hasDetails && (
+              <DetailSection id="details" eyebrow="Details" icon={<Layers size={14} />} title="Credits, platforms and tags">
+                <div className="space-y-10">
+                  {game.characters.length > 0 && (
+                    <div>
+                      <h3 className="mb-4 text-[17px] font-semibold text-text">Characters</h3>
+                      <CharacterRail characters={game.characters} />
+                    </div>
+                  )}
 
-              {game.characters.length > 0 && <div><Reveal><h3 className="mb-5 text-2xl font-bold sm:text-3xl">Characters</h3></Reveal><CharacterRail characters={game.characters} /></div>}
+                  {game.companies.length > 0 && (
+                    <div>
+                      <h3 className="mb-4 text-[17px] font-semibold text-text">Who made it</h3>
+                      <CompanyGrid companies={game.companies} />
+                      {game.engines.length > 0 && (
+                        <div className="mt-5">
+                          <h4 className="mb-3 text-[13px] font-semibold text-muted">Built with</h4>
+                          <EngineRow engines={game.engines} />
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-              {game.companies.length > 0 && <Reveal><h3 className="mb-5 text-2xl font-bold sm:text-3xl">Who made it</h3><CompanyGrid companies={game.companies} />{game.engines.length > 0 && <div className="mt-5"><h4 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">Built with</h4><EngineRow engines={game.engines} /></div>}</Reveal>}
+                  {game.platformDetails.length > 0 && (
+                    <div>
+                      <h3 className="mb-4 text-[17px] font-semibold text-text">Platforms</h3>
+                      <PlatformGrid platforms={game.platformDetails} />
+                    </div>
+                  )}
 
-              {game.platformDetails.length > 0 && <Reveal><h3 className="mb-5 text-2xl font-bold sm:text-3xl">Platforms</h3><PlatformGrid platforms={game.platformDetails} /></Reveal>}
+                  {/* Gated on what this block actually renders: themes and
+                      modes lead, tags are the fallback, keywords get their own
+                      list. Any one of them is enough. */}
+                  {hasThemeContent && (
+                    <div>
+                      <h3 className="mb-4 text-[17px] font-semibold text-text">Themes and modes</h3>
+                      {(game.themes.length > 0 || game.gameModes.length > 0 || game.tags.length > 0) && (
+                        <div className="flex flex-wrap gap-2">
+                          {game.themes.map((theme) => (
+                            <Badge key={`theme-${theme.id}`} tone="brand">
+                              {theme.name}
+                            </Badge>
+                          ))}
+                          {game.gameModes.map((mode) => (
+                            <Badge key={`mode-${mode.id}`}>{mode.name}</Badge>
+                          ))}
+                          {game.themes.length === 0 &&
+                            game.gameModes.length === 0 &&
+                            game.tags.map((tag) => <Badge key={tag.id}>{tag.name}</Badge>)}
+                        </div>
+                      )}
 
-              {/* Gated on what this block actually renders. It previously tested
-                  `tags`/`keywords` while rendering `themes`/`gameModes`, so a game
-                  with themes but no tags showed nothing, and a game with only
-                  keywords rendered an empty row above the tag list. */}
-              {hasThemeContent && <Reveal><h3 className="mb-4 text-2xl font-bold sm:text-3xl">Themes & modes</h3>
-                {(game.themes.length > 0 || game.gameModes.length > 0 || game.tags.length > 0) && (
-                  <div className="flex flex-wrap gap-2">
-                    {game.themes.map((theme) => (
-                      <Badge key={`theme-${theme.id}`} tone="brand">
-                        {theme.name}
-                      </Badge>
-                    ))}
-                    {game.gameModes.map((mode) => (
-                      <Badge key={`mode-${mode.id}`}>{mode.name}</Badge>
-                    ))}
-                    {game.themes.length === 0 &&
-                      game.gameModes.length === 0 &&
-                      game.tags.map((tag) => <Badge key={tag.id}>{tag.name}</Badge>)}
-                  </div>
-                )}
+                      {game.keywords.length > 0 && (
+                        <div className="mt-5">
+                          <h4 className="mb-3 text-[13px] font-semibold text-muted">Tags</h4>
+                          <ul className="flex flex-wrap gap-2">
+                            {game.keywords.map((keyword) => (
+                              <li key={keyword.id}>
+                                <Chip href={`/browse?search=${encodeURIComponent(keyword.name)}`}>{keyword.name}</Chip>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                {game.keywords.length > 0 && (
-                  <div className="mt-5">
-                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-                      Tags
-                    </h3>
-                    <ul className="flex flex-wrap gap-2">
-                      {game.keywords.map((keyword) => (
-                        <li key={keyword.id}>
-                          <Chip href={`/browse?search=${encodeURIComponent(keyword.name)}`}>
-                            {keyword.name}
-                          </Chip>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </Reveal>}
-
-              {/* Bulky, and relevant to a minority of readers — so it sits at the
-                  end of the article, closed, rather than between the media and the
-                  conversation about the game. */}
-              {game.requirements.length > 0 && <Requirements game={game} />}
-            </section>}
+                  {/* Bulky, and relevant to a minority of readers, so it sits
+                      at the end, closed. */}
+                  {game.requirements.length > 0 && <Requirements game={game} />}
+                </div>
+              </DetailSection>
+            )}
 
             <Elsewhere game={game} />
 
-            <section id="reviews" className="scroll-mt-32">
+            <section id="reviews" className="scroll-mt-36">
               <ReviewSection game={game} />
             </section>
           </div>
-
-          <GameSidebar game={game} />
         </Container>
 
         {related.length > 0 && (
-          <Section className="border-t border-line pt-12">
+          <Section id="related" className="scroll-mt-36 border-t border-line pt-12">
             <Container>
               <SectionHeading
                 eyebrow="More like this"
                 title="Related games"
                 // Without genres the link would be a bare `?genres=`, which browses
-                // nothing — so the CTA is dropped rather than pointing at an empty
+                // nothing, so the CTA is dropped rather than pointing at an empty
                 // filter.
                 href={
                   game.genres.length > 0
@@ -403,6 +467,14 @@ function StudioLinks({ studios }: { studios: GameDetail["developers"] }) {
       ))}
     </span>
   );
+}
+
+function hostname(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "Official site";
+  }
 }
 
 /** Turns IGDB's multiplayer booleans into a phrase worth reading. */
@@ -533,6 +605,24 @@ function GameSidebar({ game }: { game: GameDetail }) {
     ...(game.ageRatings.length === 0 && game.esrb
       ? [{ label: "Age rating", value: game.esrb, icon: <ShieldCheck size={14} /> }]
       : []),
+    ...(game.website
+      ? [
+          {
+            label: "Website",
+            value: (
+              <a
+                href={game.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 underline decoration-line-strong underline-offset-2 transition-colors hover:text-[var(--game-accent)]"
+              >
+                {hostname(game.website)} <ExternalLink size={11} aria-hidden />
+              </a>
+            ),
+            icon: <Globe size={14} />,
+          },
+        ]
+      : []),
     ...(game.languages.length
       ? [
           {
@@ -577,7 +667,7 @@ function GameSidebar({ game }: { game: GameDetail }) {
   ];
 
   return (
-    <aside className="space-y-5 lg:sticky lg:top-32 lg:self-start">
+    <aside className="min-w-0 space-y-4 lg:sticky lg:top-36 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
       <Reveal className="glass rounded-3xl p-5">
         <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
           Details

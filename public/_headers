@@ -1,0 +1,21 @@
+# Cloudflare Workers static-asset headers (this file is read by the assets
+# layer, not served). Static files are answered before the Next worker runs,
+# so next.config.ts `headers()` never reaches them in production.
+
+# https://developers.cloudflare.com/workers/static-assets/headers
+# https://opennext.js.org/cloudflare/caching#static-assets-caching
+
+# Content-hashed build output (OpenNext's recommended rule).
+/_next/static/*
+  Cache-Control: public,max-age=31536000,immutable
+
+# Service worker: always revalidate so updates are picked up promptly.
+/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /
+
+# Icons and launch images change only when regenerated; a week is plenty.
+/icons/*
+  Cache-Control: public, max-age=604800
+/splash/*
+  Cache-Control: public, max-age=604800

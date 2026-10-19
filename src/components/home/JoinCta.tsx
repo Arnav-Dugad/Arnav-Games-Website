@@ -1,91 +1,69 @@
 "use client";
 
 /**
- * Closing call-to-action.
+ * Closing call-to-action, for signed-out visitors only.
  *
- * Auth-aware: pitching "create your account" to someone already signed in is
- * the clearest possible signal that a site isn't paying attention, so signed-in
- * visitors get a route back into their own library instead.
- *
- * While auth is still resolving it renders the neutral half of the copy rather
- * than flashing the wrong message and correcting itself a moment later.
+ * A signed-in reader already has "For you" at the top of the page, which is
+ * a far better welcome back than a banner at the bottom, so this renders
+ * nothing for them. While auth is still resolving it also renders nothing —
+ * it sits at the very end of the page, so appearing a beat late shifts
+ * nothing above it, whereas pitching sign-up to someone signed in is the
+ * clearest possible signal that a site isn't paying attention.
  */
 
-import { ArrowRight, Bookmark, Compass, Sparkles } from "lucide-react";
+import { ArrowRight, Bell, Library, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/firebase/AuthProvider";
-import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { Button } from "@/components/ui/Button";
-import { Container, Section } from "@/components/ui/SectionHeading";
+import { Container } from "@/components/ui/SectionHeading";
 import { Reveal } from "@/components/motion/Reveal";
-import { Aurora, GridLines } from "@/components/motion/Aurora";
+
+const POINTS = [
+  { icon: Bell, label: "Release and delay alerts for games you follow" },
+  { icon: Library, label: "A library of what you own, play and finish" },
+  { icon: Sparkles, label: "Picks that explain why they were picked" },
+];
 
 export function JoinCta() {
   const { user, loading, enabled } = useAuth();
-  const { entries } = useWatchlist();
-
-  const signedIn = Boolean(user);
-  const firstName = user?.displayName?.trim().split(/\s+/)[0];
-
-  const eyebrow = signedIn ? "Your library" : "Free, forever";
-
-  const heading = signedIn
-    ? firstName
-      ? `Welcome back, ${firstName}`
-      : "Pick up where you left off"
-    : "Never miss a release you’ve been waiting for";
-
-  const body = signedIn
-    ? entries.length > 0
-      ? `You're tracking ${entries.length} ${entries.length === 1 ? "game" : "games"}. Check what's landing next, or keep exploring.`
-      : "Your watchlist is empty. Find something worth waiting for."
-    : "Create an account to build a watchlist, track what you’re playing and rate the games you finish.";
+  if (loading || user) return null;
 
   return (
-    <Section>
+    <section data-track-src="home:join" aria-labelledby="home-join-title" className="py-9 sm:py-12 lg:py-16">
       <Container>
         <Reveal>
-          <div className="noise relative isolate overflow-hidden rounded-[28px] border border-line px-6 py-14 text-center sm:px-12 lg:py-20">
-            <Aurora intensity="normal" className="-z-10" />
-            <GridLines className="-z-10 opacity-50" />
-
-            <p className="flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">
-              <Sparkles size={13} />
-              {eyebrow}
-            </p>
-            <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-black leading-[1.05] sm:text-4xl lg:text-5xl">
-              {heading}
-            </h2>
-            <p className="mx-auto mt-4 max-w-lg text-[15px] leading-relaxed text-muted">{body}</p>
-
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              {signedIn ? (
-                <>
-                  <Button href="/watchlist" size="lg" icon={<Bookmark size={17} />}>
-                    Your watchlist
-                  </Button>
-                  <Button href="/upcoming" size="lg" variant="secondary" icon={<Compass size={17} />}>
-                    What&rsquo;s coming next
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    href={enabled ? "/signup" : "/browse"}
-                    size="lg"
-                    loading={loading}
-                    iconRight={<ArrowRight size={17} />}
-                  >
-                    {enabled ? "Create your account" : "Start exploring"}
-                  </Button>
-                  <Button href="/browse" size="lg" variant="secondary">
-                    Explore the database
-                  </Button>
-                </>
+          <div className="glass relative isolate overflow-hidden rounded-[28px] px-6 py-10 sm:px-12 sm:py-14 lg:flex lg:items-center lg:justify-between lg:gap-12 lg:px-14">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_80%_at_0%_0%,color-mix(in_oklab,var(--color-brand)_22%,transparent),transparent_60%),radial-gradient(50%_70%_at_100%_100%,color-mix(in_oklab,var(--color-neon)_12%,transparent),transparent_60%)]"
+            />
+            <div className="max-w-xl">
+              <h2 id="home-join-title" className="text-[28px] font-bold leading-[1.08] tracking-[-0.03em] sm:text-[36px]">
+                Never miss the game you’re waiting for.
+              </h2>
+              <ul className="mt-5 space-y-2.5">
+                {POINTS.map(({ icon: Icon, label }) => (
+                  <li key={label} className="flex items-center gap-3 text-[15px] text-muted">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand/12 text-brand-soft">
+                      <Icon size={15} aria-hidden />
+                    </span>
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="mt-8 flex flex-wrap gap-3 lg:mt-0 lg:shrink-0 lg:flex-col lg:items-stretch">
+              <Button href={enabled ? "/signup" : "/browse"} size="lg" iconRight={<ArrowRight size={17} />}>
+                {enabled ? "Create a free account" : "Start exploring"}
+              </Button>
+              {enabled && (
+                <Button href="/login" size="lg" variant="secondary">
+                  Sign in
+                </Button>
               )}
             </div>
           </div>
         </Reveal>
       </Container>
-    </Section>
+    </section>
   );
 }

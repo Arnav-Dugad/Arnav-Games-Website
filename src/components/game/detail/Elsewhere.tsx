@@ -4,6 +4,7 @@ import { BrandIcon } from "@/components/brand/BrandIcon";
 import { CommunityLinks } from "@/components/game/StoreLinks";
 import { Reveal } from "@/components/motion/Reveal";
 import type { GameDetail } from "@/lib/games/types";
+import { DetailHeading } from "./DetailSection";
 
 /**
  * Reference sites for the game, as quiet link chips. Every link is one the
@@ -28,15 +29,10 @@ export function Elsewhere({ game }: { game: GameDetail }) {
   if (links.length === 0 && !hasCommunity) return null;
 
   return (
-    <section id="elsewhere" className="scroll-mt-32">
-      <Reveal>
-        <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--game-accent)]">
-          <BookOpen size={13} /> Elsewhere
-        </p>
-        <h2 className="text-3xl font-black sm:text-4xl">Read more about it</h2>
-      </Reveal>
+    <section id="elsewhere" aria-labelledby="elsewhere-title" className="scroll-mt-36">
+      <DetailHeading titleId="elsewhere-title" eyebrow="Elsewhere" icon={<BookOpen size={14} />} title="Read more about it" />
       {links.length > 0 && (
-        <Reveal as="div" className="mt-6">
+        <Reveal as="div" className="mt-5 sm:mt-6">
           <ul className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2 sm:grid-cols-3">
             {links.map((link) => (
               <li key={link.label}>

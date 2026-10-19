@@ -17,6 +17,7 @@ import { notFound } from "next/navigation";
 import { StatsDashboard, type HoursStatus } from "@/components/stats/StatsDashboard";
 import { SAMPLE_BENCHMARK, sampleLibrary } from "@/components/stats/preview-sample";
 import { Container } from "@/components/ui/SectionHeading";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { buildPersonalAnalytics } from "@/lib/games/stats";
 
 export const metadata: Metadata = {
@@ -41,16 +42,15 @@ export default async function StatsPreviewPage({
   const analytics = buildPersonalAnalytics(entries, { timeToBeat: hoursStatus === "ready" ? timeToBeat : null });
 
   return (
-    // No PageHeader here, so clear the fixed header capsule ourselves.
-    <Container className="pb-8 pt-24 lg:pb-12 lg:pt-28">
-      <p className="mb-5 rounded-2xl border border-gold/30 bg-gold/[0.06] px-4 py-3 text-xs leading-relaxed text-muted">
-        <span className="font-semibold text-text">Dev preview.</span> Sample library of {entries.length} games, rendered through the real analytics pipeline. This route 404s outside <code>next dev</code>.
-      </p>
-      <StatsDashboard
-        analytics={analytics}
-        benchmark={single("benchmark") === "off" ? null : SAMPLE_BENCHMARK}
-        hoursStatus={hoursStatus}
-      />
-    </Container>
+    <>
+      <PageHeader eyebrow={`Dev preview · sample library of ${entries.length} games`} title="Your stats" />
+      <Container className="pb-8 lg:pb-12">
+        <StatsDashboard
+          analytics={analytics}
+          benchmark={single("benchmark") === "off" ? null : SAMPLE_BENCHMARK}
+          hoursStatus={hoursStatus}
+        />
+      </Container>
+    </>
   );
 }

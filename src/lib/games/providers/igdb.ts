@@ -727,7 +727,15 @@ async function detailFields(): Promise<string> {
  * Filters on `parent_game` / `version_parent`, whose names have been stable
  * across revisions, rather than the `category` enum which has not.
  */
-const MAIN_GAMES = "parent_game = null & version_parent = null";
+/**
+ * IGDB theme 42 is "Erotic". Excluded from every list and search: about 10k
+ * adult titles otherwise surface in ordinary queries ("cyberpunk" returned
+ * seven). `themes != (42)` keeps games with no themes at all (verified: it
+ * removes exactly the erotic count from the total).
+ */
+const SAFE_GAMES = "themes != (42)";
+
+const MAIN_GAMES = `parent_game = null & version_parent = null & ${SAFE_GAMES}`;
 
 /**
  * Keeps collection ids from colliding with franchise ids in search results.
@@ -739,7 +747,7 @@ const MAIN_GAMES = "parent_game = null & version_parent = null";
  */
 const SERIES_ID_OFFSET = 1_000_000_000;
 /** Search includes DLC and expansions; alternate editions remain separate. */
-const SEARCHABLE_GAMES = "version_parent = null";
+const SEARCHABLE_GAMES = `version_parent = null & ${SAFE_GAMES}`;
 
 /* ---------------------------------------------------------------------------
  * Payload shapes

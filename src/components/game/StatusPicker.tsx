@@ -111,6 +111,10 @@ export function StatusPicker({
             type="button"
             onClick={() => choose(option.value)}
             aria-pressed={active}
+            // Labels are visual-only below `sm` (icons carry the row there), so
+            // the name has to live on the button or phones get four unnamed buttons.
+            aria-label={option.label}
+            title={option.label}
             disabled={busy !== null}
             className={cn(
               "press relative isolate inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition-colors duration-300 sm:flex-none coarse:min-h-11",

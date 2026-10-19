@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { CalendarCheck2, ChevronLeft, History } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { EntityGameExplorer } from "@/components/game/EntityGameExplorer";
 import { CareerStats } from "@/components/charts/CareerStats";
@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils/cn";
 import { isIgdbImage } from "@/lib/games/image";
 import { summarizeCareer, toTimelineGames } from "@/lib/games/timeline";
 import type { IgdbEntity } from "@/lib/games/providers/igdb";
-import type { GameSummary } from "@/lib/games/types";
+import { studioReliability } from "@/lib/games/reliability";
+import type { GameSummary, StudioReliability } from "@/lib/games/types";
 
 type EntityKind = "company" | "character" | "franchise";
 
@@ -45,7 +46,7 @@ const COPY: Record<
   },
 };
 
-export function EntityPage({
+export async function EntityPage({
   entity,
   kind,
   eyebrow,
@@ -67,6 +68,11 @@ export function EntityPage({
   const firstYear = summary.firstRelease?.released?.slice(0, 4) ?? null;
   const latestYear = summary.latestRelease?.released?.slice(0, 4) ?? null;
   const backdrop = backdropFor(entity, kind);
+  // Studios only: our own delay history for their games. Enrichment — an
+  // unavailable D1 resolves to an empty record, never a failed page.
+  const reliability = kind === "company"
+    ? await studioReliability(entity.games.map((game) => game.id)).catch(() => null)
+    : null;
 
   return (
     <>
@@ -179,6 +185,13 @@ export function EntityPage({
           </section>
         )}
 
+        {reliability && entity.games.length > 0 && (
+          <section aria-label="Shipping reliability">
+            <SectionHeading eyebrow="Release dates" title="Shipping reliability" className="mb-5 sm:mb-7" />
+            <ReliabilityCard data={reliability} studio={entity.name} now={now} />
+          </section>
+        )}
+
         {timeline.length >= MIN_TIMELINE_GAMES && (
           <section aria-label="Release timeline">
             <SectionHeading
@@ -261,5 +274,86 @@ function FranchisePosterStack({ games }: { games: GameSummary[] }) {
         </div>
       ))}
     </Reveal>
+  );
+}
+
+const TRACKING_SINCE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+/**
+ * Below this many watched games, or this many days of watching, a percentage
+ * would be noise dressed as a fact: a date can only slip while we're looking.
+ */
+const MIN_TRACKED_FOR_RATE = 3;
+const MIN_DAYS_FOR_RATE = 30;
+
+/**
+ * How often this studio's announced dates have held, from Arnav Games' own
+ * delay tracker. Only what we have observed counts, so the card always says
+ * how many games and since when — and while that history is young it says
+ * so instead of printing a confident-looking 100%.
+ */
+function ReliabilityCard({ data, studio, now }: { data: StudioReliability; studio: string; now: Date }) {
+  const since = data.since ? TRACKING_SINCE.format(new Date(`${data.since}T00:00:00Z`)) : null;
+  const watchedDays = data.since ? (now.getTime() - Date.parse(`${data.since}T00:00:00Z`)) / 86_400_000 : 0;
+
+  if (data.tracked < MIN_TRACKED_FOR_RATE || watchedDays < MIN_DAYS_FOR_RATE) {
+    return (
+      <div className="flex flex-col gap-4 rounded-3xl border border-dashed border-line px-5 py-6 sm:flex-row sm:items-center sm:px-7">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-fg/[0.05] text-faint">
+          <History size={22} aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[17px] font-semibold">Too early to call</p>
+          <p className="mt-1 max-w-2xl text-[15px] leading-relaxed text-muted">
+            {data.tracked === 0
+              ? `We haven't watched any ${studio} release dates long enough to judge yet. Every date we show is recorded, so this fills in as their games appear on the calendar.`
+              : `We've watched ${data.tracked} ${data.tracked === 1 ? "game" : "games"} from ${studio}${since ? ` since ${since}` : ""} — not long enough for a fair rate yet. ${data.delayed ? `${data.delayed} ${data.delayed === 1 ? "has" : "have"} already moved later.` : "None has moved later so far."} A reliability score appears after a month of history.`}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const onTime = Math.round(((data.tracked - data.delayed) / data.tracked) * 100);
+  const tone = onTime >= 85 ? "text-mint" : onTime >= 60 ? "text-gold" : "text-flare";
+  return (
+    <div className="glass overflow-hidden rounded-3xl p-5 sm:p-7">
+      <div className="grid gap-6 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-10">
+        <div>
+          <p className="flex items-baseline gap-1">
+            <span className={cn("font-display text-[64px] font-bold leading-none tracking-[-0.04em] tabular-nums", tone)}>{onTime}</span>
+            <span className={cn("font-display text-[28px] font-bold", tone)}>%</span>
+          </p>
+          <p className="mt-2 text-[15px] text-muted">kept their announced date</p>
+        </div>
+        <dl className="grid grid-cols-3 gap-2">
+          <ReliabilityTile icon={<CalendarCheck2 size={14} />} label="Watched" value={String(data.tracked)} note={data.tracked === 1 ? "game" : "games"} />
+          <ReliabilityTile icon={<History size={14} />} label="Delayed" value={String(data.delayed)} note={data.delayed === 1 ? "game slipped" : "games slipped"} />
+          <ReliabilityTile
+            label="Avg. slip"
+            value={data.avgDaysLate === null ? "—" : String(data.avgDaysLate)}
+            note={data.avgDaysLate === null ? (data.delayed ? "not measurable" : "no delays") : data.avgDaysLate === 1 ? "day late" : "days late"}
+          />
+        </dl>
+      </div>
+      <p className="mt-5 border-t border-line pt-4 text-[13px] leading-relaxed text-faint">
+        From Arnav Games&apos; own release-date history{since ? `, tracking since ${since}` : ""}. A game counts as delayed when its date or window moved later while we were watching; games we&apos;ve only seen once can&apos;t have slipped yet, so young histories read kinder than they may be.
+      </p>
+    </div>
+  );
+}
+
+function ReliabilityTile({ icon, label, value, note }: { icon?: React.ReactNode; label: string; value: string; note: string }) {
+  return (
+    <div className="min-w-0 rounded-2xl bg-fg/[0.045] p-3">
+      <dt className="flex items-center gap-1 truncate text-[12px] font-medium text-muted">
+        {icon && <span aria-hidden className="text-faint">{icon}</span>}
+        {label}
+      </dt>
+      <dd className="mt-1">
+        <span className="font-display text-[24px] font-bold leading-none tabular-nums">{value}</span>
+        <span className="mt-0.5 block truncate text-[11px] text-faint">{note}</span>
+      </dd>
+    </div>
   );
 }

@@ -406,6 +406,7 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
       ref={sectionRef}
       aria-roledescription="carousel"
       aria-label="Featured games"
+      data-track-src="home:hero"
       onKeyDown={onKeyDown}
       onFocusCapture={(event) => {
         if ((event.target as Element).matches?.(":focus-visible")) setKeyboardFocus(true);
@@ -542,6 +543,9 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
                     priority={index === 0}
                     // The stage stays dark in the light theme too.
                     surface="dark"
+                    // Each slide's mark arrives in slices (once per slide;
+                    // a plain fade under reduced motion).
+                    reveal
                     className="object-[0%_100%]!"
                   />
                 </motion.div>
@@ -760,7 +764,7 @@ function CardCorners({ scale }: { scale: MotionValue<number> }) {
 /** No spotlight data: an honest, still-useful front door rather than an empty stage. */
 function HeroEmpty() {
   return (
-    <section className="noise relative isolate flex min-h-[62svh] items-end overflow-hidden border-b border-line">
+    <section data-track-src="home:hero" className="noise relative isolate flex min-h-[62svh] items-end overflow-hidden border-b border-line">
       <div
         aria-hidden
         className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_24%,rgba(124,92,255,0.24),transparent_36%),radial-gradient(circle_at_82%_12%,rgba(34,211,238,0.12),transparent_32%)]"
