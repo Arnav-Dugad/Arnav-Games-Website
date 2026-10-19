@@ -6,6 +6,10 @@
  *
  * Search-open state lives here because three separate surfaces trigger it — the
  * header button, the mobile Search tab, and the ⌘K shortcut.
+ *
+ * It also hosts the app-wide interaction layer, each mounted exactly once: the
+ * game context menu (one set of document listeners for every card), touch
+ * pull-to-refresh, and the inline SVG filter behind the liquid-glass lenses.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -13,6 +17,9 @@ import { Header } from "./Header";
 import { MobileTabBar } from "./MobileTabBar";
 import { SearchOverlay } from "./SearchOverlay";
 import { ScrollProgress } from "@/components/motion/ScrollProgress";
+import { ContextMenuHost } from "@/components/interactions/ContextMenu";
+import { LiquidGlassFilter } from "@/components/interactions/LiquidGlassFilter";
+import { PullToRefresh } from "@/components/interactions/PullToRefresh";
 
 export function SiteChrome() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -50,6 +57,9 @@ export function SiteChrome() {
       <Header onOpenSearch={openSearch} />
       <MobileTabBar onOpenSearch={openSearch} />
       <SearchOverlay open={searchOpen} onClose={closeSearch} />
+      <ContextMenuHost />
+      <PullToRefresh />
+      <LiquidGlassFilter />
     </>
   );
 }

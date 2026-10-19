@@ -9,7 +9,8 @@
  * preference, persisted per device so it survives a reload.
  */
 
-import { useCallback } from "react";
+import { useCallback, useId } from "react";
+import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import { LayoutGrid, Rows3, StretchHorizontal } from "lucide-react";
 import { usePreferences } from "@/lib/preferences/PreferencesProvider";
 import { cn } from "@/lib/utils/cn";
@@ -68,34 +69,48 @@ export function PosterSizeToggle({
   onChange: (size: PosterSize) => void;
   className?: string;
 }) {
+  const reduced = useReducedMotion();
+  const groupId = useId();
   return (
-    <div
-      role="group"
-      aria-label="Poster size"
-      className={cn(
-        "flex items-center gap-1 rounded-full border border-line bg-white/[0.04] p-1",
-        className,
-      )}
-    >
-      {OPTIONS.map((option) => {
-        const Icon = option.icon;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            aria-label={option.label}
-            aria-pressed={size === option.value}
-            title={option.label}
-            className={cn(
-              "grid h-8 w-8 place-items-center rounded-full transition-colors",
-              size === option.value ? "bg-white/10 text-text" : "text-faint hover:text-text",
-            )}
-          >
-            <Icon size={15} />
-          </button>
-        );
-      })}
-    </div>
+    <LayoutGroup id={groupId}>
+      <div
+        role="group"
+        aria-label="Poster size"
+        className={cn(
+          // Same track as the segmented controls, so the toolbar reads as one set.
+          "flex items-center gap-0.5 rounded-full border border-fg/[0.08] bg-fg/[0.06] p-0.5 shadow-[inset_0_1px_2px_#00000040]",
+          className,
+        )}
+      >
+        {OPTIONS.map((option) => {
+          const Icon = option.icon;
+          const selected = size === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              aria-label={option.label}
+              aria-pressed={selected}
+              title={option.label}
+              className={cn(
+                "press relative grid h-8 w-8 place-items-center rounded-full transition-colors coarse:h-10 coarse:w-10",
+                selected ? "text-text" : "text-faint fine:hover:text-text",
+              )}
+            >
+              {selected && (
+                <motion.span
+                  layoutId="poster-size-thumb"
+                  aria-hidden
+                  transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 42, mass: 0.8 }}
+                  className="absolute inset-0 rounded-full border border-fg/[0.1] bg-fg/[0.16] shadow-[0_3px_10px_-2px_#00000080]"
+                />
+              )}
+              <Icon size={15} className="relative" />
+            </button>
+          );
+        })}
+      </div>
+    </LayoutGroup>
   );
 }

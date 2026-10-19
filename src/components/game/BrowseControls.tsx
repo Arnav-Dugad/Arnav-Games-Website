@@ -1,23 +1,23 @@
 "use client";
 
 /**
- * Filter and sort controls.
+ * Filter and sort controls for the catalogue pages (/browse, /upcoming).
  *
  * State lives entirely in the URL — filters are shareable, survive a refresh
  * and give the back button real meaning. Nothing is mirrored into component
  * state, which removes the usual class of desync bugs between the two.
  *
- * Presentation splits by pointer type: desktop shows every control inline,
- * touch collapses them behind a single Filters button that opens a bottom
- * sheet, because a wrapped row of forty chips is unusable on a phone.
+ * Presentation is the shared collapsed toolbar: a result count and sort menu,
+ * then one pill per facet that opens a popover (desktop) or sheet (touch),
+ * plus an "All filters" sheet. The previous design showed every genre and
+ * platform as an always-expanded wall of chips on desktop, which pushed the
+ * actual results below the fold before anyone had chosen anything.
  */
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { ArrowUpDown, CalendarDays, Check, Gauge, Loader2, SlidersHorizontal, X } from "lucide-react";
-import { Sheet } from "@/components/ui/Sheet";
-import { Chip } from "@/components/ui/Badge";
-import { cn } from "@/lib/utils/cn";
+import { CalendarDays, Gamepad2, Gauge, Shapes } from "lucide-react";
+import { FilterToolbar, SortMenu, type ActiveFilterPill, type FacetDef } from "@/components/filters";
 import type { Ref, SortKey } from "@/lib/games/types";
 
 export interface SortOption {
@@ -51,19 +51,22 @@ export const UPCOMING_SORTS: SortOption[] = [
 ];
 
 const SCORE_PRESETS = [
-  { value: "90,100", label: "90+ essential" },
-  { value: "80,100", label: "80+ acclaimed" },
-  { value: "70,100", label: "70+ recommended" },
+  { value: "90,100", label: "90+ essential", short: "90+" },
+  { value: "80,100", label: "80+ acclaimed", short: "80+" },
+  { value: "70,100", label: "70+ recommended", short: "70+" },
 ];
 
 const YEAR = new Date().getUTCFullYear();
 const DATE_PRESETS = [
-  { value: `${YEAR}-01-01,${YEAR}-12-31`, label: `${YEAR} releases` },
-  { value: "2020-01-01,2025-12-31", label: "2020–2025" },
+  { value: `${YEAR}-01-01,${YEAR}-12-31`, label: `${YEAR} releases`, short: String(YEAR) },
+  { value: `2020-01-01,${YEAR - 1}-12-31`, label: `2020–${YEAR - 1}`, short: `2020–${String(YEAR - 1).slice(2)}` },
   { value: "2010-01-01,2019-12-31", label: "2010s" },
   { value: "2000-01-01,2009-12-31", label: "2000s" },
-  { value: "1970-01-01,1999-12-31", label: "Classics" },
+  { value: "1970-01-01,1999-12-31", label: "Classics (pre-2000)", short: "Classics" },
 ];
+
+/** The params this control owns. Everything else in the URL is left alone. */
+const FILTER_KEYS = ["genres", "platforms", "metacritic", "dates"] as const;
 
 interface BrowseControlsProps {
   genres: Ref[];
@@ -75,6 +78,12 @@ interface BrowseControlsProps {
   /** Noun used in the result count, e.g. "release". */
   noun?: string;
   showDatePresets?: boolean;
+  /**
+   * The critic-score facet. Off where the page can't honour it — unreleased
+   * games have no reviews, so on /upcoming it would be a control that does
+   * nothing.
+   */
+  showScore?: boolean;
 }
 
 export function BrowseControls({
@@ -85,33 +94,41 @@ export function BrowseControls({
   defaultSort = "-added",
   noun = "game",
   showDatePresets = true,
+  showScore = true,
 }: BrowseControlsProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const params = useSearchParams();
+  const urlParams = useSearchParams();
   const [pending, startTransition] = useTransition();
-  const [sheetOpen, setSheetOpen] = useState(false);
 
-  const activeGenres = useMemo(
-    () => new Set((params.get("genres") ?? "").split(",").filter(Boolean)),
-    [params],
-  );
-  const activePlatforms = useMemo(
-    () => new Set((params.get("platforms") ?? "").split(",").filter(Boolean)),
-    [params],
-  );
+  /*
+   * Optimistic query string.
+   *
+   * Every change is a navigation that takes a server render to land. Reading
+   * `useSearchParams()` alone meant two quick toggles in an open facet both
+   * started from the same stale URL, so the second silently undid the first,
+   * and checkmarks lagged the tap by the length of the render. Changes are
+   * applied to this copy immediately; it's dropped as soon as the real URL
+   * catches up (adjusted during render, so nothing paints the stale state).
+   */
+  const urlQs = urlParams.toString();
+  const [optimisticQs, setOptimisticQs] = useState<string | null>(null);
+  const [lastUrlQs, setLastUrlQs] = useState(urlQs);
+  if (urlQs !== lastUrlQs) {
+    setLastUrlQs(urlQs);
+    setOptimisticQs(null);
+  }
+  const params = useMemo(() => new URLSearchParams(optimisticQs ?? urlQs), [optimisticQs, urlQs]);
+
   const activeSort = (params.get("ordering") as SortKey | null) ?? defaultSort;
   const search = params.get("search") ?? "";
-  const score = params.get("metacritic") ?? "";
-  const dates = showDatePresets ? params.get("dates") ?? "" : "";
-
-  const filterCount = activeGenres.size + activePlatforms.size + (search ? 1 : 0) + (score ? 1 : 0) + (dates ? 1 : 0);
 
   const push = useCallback(
     (next: URLSearchParams) => {
       // Any filter change invalidates the current page offset.
       next.delete("page");
       const qs = next.toString();
+      setOptimisticQs(qs);
       startTransition(() => {
         router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
       });
@@ -119,14 +136,10 @@ export function BrowseControls({
     [router, pathname],
   );
 
-  const toggleMulti = useCallback(
-    (key: "genres" | "platforms", slug: string) => {
+  const setParam = useCallback(
+    (key: string, value: string | null) => {
       const next = new URLSearchParams(params.toString());
-      const current = new Set((next.get(key) ?? "").split(",").filter(Boolean));
-      if (current.has(slug)) current.delete(slug);
-      else current.add(slug);
-
-      if (current.size > 0) next.set(key, [...current].join(","));
+      if (value) next.set(key, value);
       else next.delete(key);
       push(next);
     },
@@ -135,282 +148,115 @@ export function BrowseControls({
 
   const setSort = useCallback(
     (value: SortKey) => {
-      const next = new URLSearchParams(params.toString());
       // The default lives implicitly in the absence of the param, so URLs stay
       // clean and "reset" has exactly one meaning.
-      if (value === defaultSort) next.delete("ordering");
-      else next.set("ordering", value);
-      push(next);
+      setParam("ordering", value === defaultSort ? null : value);
     },
-    [params, push, defaultSort],
-  );
-
-  const setSingle = useCallback(
-    (key: "metacritic" | "dates", value: string) => {
-      const next = new URLSearchParams(params.toString());
-      if (next.get(key) === value) next.delete(key);
-      else next.set(key, value);
-      push(next);
-    },
-    [params, push],
+    [setParam, defaultSort],
   );
 
   const clearAll = useCallback(() => {
-    const next = new URLSearchParams();
-    // A search term is the user's own words — never silently discard it.
-    if (search) next.set("search", search);
+    const next = new URLSearchParams(params.toString());
+    // Only filters go. A search term is the user's own words, and page-level
+    // params (the /upcoming horizon, the sort) aren't filters — wiping them
+    // made "Clear all" on the calendar silently jump back to the default
+    // window.
+    for (const key of FILTER_KEYS) next.delete(key);
     push(next);
-  }, [search, push]);
+  }, [params, push]);
 
-  const filterPanel = (
-    <div className="space-y-7">
-      <FilterGroup
-        title="Genres"
-        items={genres}
-        active={activeGenres}
-        onToggle={(slug) => toggleMulti("genres", slug)}
-      />
-      <div className="grid gap-6 border-t border-line pt-6 lg:grid-cols-2">
-        <PresetGroup title="Critic threshold" icon={<Gauge size={14} />} items={SCORE_PRESETS} active={score} onChoose={(value) => setSingle("metacritic", value)} />
-        {showDatePresets && <PresetGroup title="Release era" icon={<CalendarDays size={14} />} items={DATE_PRESETS} active={dates} onChoose={(value) => setSingle("dates", value)} />}
-      </div>
-      <FilterGroup
-        title="Platforms"
-        items={platforms}
-        active={activePlatforms}
-        onToggle={(slug) => toggleMulti("platforms", slug)}
-      />
-    </div>
-  );
+  const facets = useMemo<FacetDef[]>(() => {
+    const listParam = (key: string) => (params.get(key) ?? "").split(",").filter(Boolean);
+    const multi = (key: string) => (values: string[]) =>
+      setParam(key, values.length > 0 ? values.join(",") : null);
+    const single = (key: string) => (values: string[]) => setParam(key, values[0] ?? null);
+
+    const list: FacetDef[] = [];
+    if (genres.length > 0) {
+      list.push({
+        id: "genres",
+        label: "Genre",
+        icon: <Shapes size={15} />,
+        mode: "multi",
+        options: genres.map((genre) => ({ value: genre.slug, label: genre.name })),
+        selected: listParam("genres"),
+        onChange: multi("genres"),
+      });
+    }
+    if (platforms.length > 0) {
+      list.push({
+        id: "platforms",
+        label: "Platform",
+        icon: <Gamepad2 size={15} />,
+        mode: "multi",
+        options: platforms.map((platform) => ({ value: platform.slug, label: platform.name })),
+        selected: listParam("platforms"),
+        onChange: multi("platforms"),
+      });
+    }
+    if (showScore) {
+      const score = params.get("metacritic");
+      list.push({
+        id: "metacritic",
+        label: "Critic score",
+        icon: <Gauge size={15} />,
+        mode: "single",
+        anyLabel: "Any score",
+        // A hand-written URL with a custom range still shows as selected.
+        options: score && !SCORE_PRESETS.some((item) => item.value === score)
+          ? [...SCORE_PRESETS, { value: score, label: `Score ${score.replace(",", "–")}` }]
+          : SCORE_PRESETS,
+        selected: score ? [score] : [],
+        onChange: single("metacritic"),
+      });
+    }
+    if (showDatePresets) {
+      const dates = params.get("dates");
+      list.push({
+        id: "dates",
+        label: "Release era",
+        icon: <CalendarDays size={15} />,
+        mode: "single",
+        anyLabel: "Any year",
+        options: dates && !DATE_PRESETS.some((item) => item.value === dates)
+          ? [...DATE_PRESETS, { value: dates, label: "Custom release window", short: "Custom" }]
+          : DATE_PRESETS,
+        selected: dates ? [dates] : [],
+        onChange: single("dates"),
+      });
+    }
+    return list;
+  }, [genres, platforms, params, setParam, showScore, showDatePresets]);
+
+  const extraPills: ActiveFilterPill[] = search
+    ? [{ key: "search", label: `“${search}”`, onRemove: () => setParam("search", null) }]
+    : [];
+
+  const plural = totalCount === 1 ? noun : `${noun}s`;
+  const formatted = totalCount.toLocaleString("en-US");
 
   return (
-    <div className="space-y-4">
-      {/* Summary row — identical on both targets. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm text-muted">
-          <span className="font-semibold text-text tabular-nums">
-            {totalCount.toLocaleString("en-US")}
-          </span>
-          {totalCount === 1 ? noun : `${noun}s`}
-          {pending && <Loader2 size={13} className="animate-spin text-faint" />}
+    <FilterToolbar
+      pending={pending}
+      summary={
+        <p>
+          <span className="font-semibold tabular-nums text-text">{formatted}</span> {plural}
         </p>
-
-        <div className="flex w-full min-w-0 items-center gap-2 min-[380px]:w-auto">
-          {/* Touch: one button, sheet behind it. */}
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            className={cn(
-              "press inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors fine:hidden min-[380px]:flex-none min-[380px]:px-4",
-              filterCount > 0
-                ? "border-brand/50 bg-brand/15 text-white"
-                : "border-white/[0.09] bg-white/[0.06] text-text",
-            )}
-          >
-            <SlidersHorizontal size={15} />
-            Filters
-            {filterCount > 0 && (
-              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-bold text-white tabular-nums">
-                {filterCount}
-              </span>
-            )}
-          </button>
-
-          <SortSelect value={activeSort} onChange={setSort} options={sorts} />
-        </div>
-      </div>
-
-      {/* Active filter pills, both targets. */}
-      {filterCount > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          {search && (
-            <ActivePill label={`“${search}”`} onRemove={() => {
-              const next = new URLSearchParams(params.toString());
-              next.delete("search");
-              push(next);
-            }} />
-          )}
-          {[...activeGenres].map((slug) => (
-            <ActivePill
-              key={`g-${slug}`}
-              label={genres.find((g) => g.slug === slug)?.name ?? slug}
-              onRemove={() => toggleMulti("genres", slug)}
-            />
-          ))}
-          {[...activePlatforms].map((slug) => (
-            <ActivePill
-              key={`p-${slug}`}
-              label={platforms.find((p) => p.slug === slug)?.name ?? slug}
-              onRemove={() => toggleMulti("platforms", slug)}
-            />
-          ))}
-          {score && <ActivePill label={SCORE_PRESETS.find((item) => item.value === score)?.label ?? `Score ${score}`} onRemove={() => setSingle("metacritic", score)} />}
-          {dates && <ActivePill label={DATE_PRESETS.find((item) => item.value === dates)?.label ?? "Release window"} onRemove={() => setSingle("dates", dates)} />}
-          <button
-            type="button"
-            onClick={clearAll}
-            className="text-xs font-medium text-faint underline underline-offset-2 transition-colors hover:text-text"
-          >
-            Clear all
-          </button>
-        </div>
-      )}
-
-      {/* Desktop: filters inline, always visible. */}
-      <div className="glass hidden rounded-3xl p-6 fine:block">
-        {filterPanel}
-      </div>
-
-      <Sheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        title="Filters"
-        description={`${totalCount.toLocaleString("en-US")} games match`}
-      >
-        {filterPanel}
-        <div className="mt-7 flex gap-3">
-          <button
-            type="button"
-            onClick={clearAll}
-            className="press min-h-12 flex-1 rounded-full bg-white/[0.08] text-[15px] font-medium text-text"
-          >
-            Clear all
-          </button>
-          <button
-            type="button"
-            onClick={() => setSheetOpen(false)}
-            className="press min-h-12 flex-[2] rounded-full bg-brand text-[15px] font-semibold text-white shadow-[inset_0_1px_0_#ffffff40]"
-          >
-            Show results
-          </button>
-        </div>
-      </Sheet>
-    </div>
-  );
-}
-
-function FilterGroup({
-  title,
-  items,
-  active,
-  onToggle,
-}: {
-  title: string;
-  items: Ref[];
-  active: Set<string>;
-  onToggle: (slug: string) => void;
-}) {
-  if (items.length === 0) return null;
-  return (
-    <div>
-      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-        {title}
-      </h3>
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <Chip
-            key={item.id}
-            active={active.has(item.slug)}
-            onClick={() => onToggle(item.slug)}
-          >
-            {item.name}
-            {active.has(item.slug) && <Check size={12} />}
-          </Chip>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PresetGroup({
-  title,
-  icon,
-  items,
-  active,
-  onChoose,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  items: Array<{ value: string; label: string }>;
-  active: string;
-  onChoose: (value: string) => void;
-}) {
-  return (
-    <div>
-      <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">{icon}{title}</h3>
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => onChoose(item.value)}
-            aria-pressed={active === item.value}
-            className={cn(
-              "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-              active === item.value
-                ? "border-brand/50 bg-brand/25 text-white"
-                : "border-white/[0.09] bg-white/[0.06] text-muted hover:bg-white/[0.1] hover:text-text",
-            )}
-          >
-            {item.label}{active === item.value && <Check size={11} />}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ActivePill({ label, onRemove }: { label: string; onRemove: () => void }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/40 bg-brand/15 py-1.5 pl-3 pr-1.5 text-xs text-white">
-      <span className="max-w-[160px] truncate">{label}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${label} filter`}
-        className="grid h-5 w-5 place-items-center rounded-full transition-colors hover:bg-white/20"
-      >
-        <X size={11} />
-      </button>
-    </span>
-  );
-}
-
-function SortSelect({
-  value,
-  onChange,
-  options,
-}: {
-  value: SortKey;
-  onChange: (value: SortKey) => void;
-  options: SortOption[];
-}) {
-  return (
-    <div className="relative min-w-0 flex-1 min-[380px]:flex-none">
-      <ArrowUpDown
-        size={14}
-        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint"
-      />
-      {/* A native select is the right control here: it gets the platform's own
-          picker on iOS and Android, which beats any custom dropdown on touch. */}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as SortKey)}
-        aria-label="Sort games"
-        className="min-h-11 w-full min-w-0 appearance-none rounded-full border border-white/[0.09] bg-white/[0.06] py-2 pl-9 pr-8 text-sm text-text outline-none transition-colors hover:bg-white/[0.1] focus-visible:border-brand min-[380px]:w-auto min-[380px]:pr-9"
-      >
-        {options.map((sort) => (
-          <option key={sort.value} value={sort.value} className="bg-panel text-text">
-            {sort.label}
-          </option>
-        ))}
-      </select>
-      <span
-        aria-hidden
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-faint min-[380px]:right-4"
-      >
-        ▾
-      </span>
-    </div>
+      }
+      actions={
+        <SortMenu
+          options={sorts}
+          value={activeSort}
+          onChange={setSort}
+          label={`Sort ${noun}s`}
+          className="max-w-[11.5rem] sm:max-w-none"
+        />
+      }
+      facets={facets}
+      extraPills={extraPills}
+      onClearAll={clearAll}
+      resultLabel={`Show ${formatted} ${plural}`}
+      sheetDescription={`${formatted} ${plural} match`}
+    />
   );
 }

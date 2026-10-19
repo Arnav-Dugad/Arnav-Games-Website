@@ -4,6 +4,10 @@ import "./globals.css";
 import { Providers } from "@/components/layout/Providers";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { Footer } from "@/components/layout/Footer";
+import { PageTransition } from "@/components/interactions/PageTransition";
+import { Suspense } from "react";
+import { AnalyticsTracker } from "@/components/admin/AnalyticsTracker";
+import { THEME_BOOT_SCRIPT } from "@/lib/preferences/theme-script";
 
 /**
  * SF Pro is used directly on Apple devices (see `--font-sans` in globals.css);
@@ -52,7 +56,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#000000",
-  colorScheme: "dark",
+  colorScheme: "dark light",
   width: "device-width",
   initialScale: 1,
   // Never block pinch-zoom — capping it fails WCAG 1.4.4.
@@ -63,7 +67,11 @@ export const viewport: Viewport = {
 /* Deliberately static so catalogue pages keep prerendering and ISR. */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={inter.variable} data-theme="dark" suppressHydrationWarning>
+      <head>
+        {/* Resolves the saved/OS appearance before first paint (no flash). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-dvh-safe bg-bg text-text antialiased">
         <a
           href="#main"
@@ -74,9 +82,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <Providers>
           <SiteChrome />
-          <main id="main">{children}</main>
+          {/* Route-change view transition; see PageTransition. */}
+          <main id="main"><PageTransition>{children}</PageTransition></main>
           <Footer />
         </Providers>
+        {/* Cookieless first-party analytics. Suspense keeps its useSearchParams
+            from opting static routes out of prerendering. */}
+        <Suspense fallback={null}>
+          <AnalyticsTracker />
+        </Suspense>
       </body>
     </html>
   );

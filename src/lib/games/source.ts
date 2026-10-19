@@ -33,15 +33,25 @@ import {
   type SteamChart,
 } from "./providers/igdb";
 import { enrichWithSteam, steamProvider } from "./providers/steam";
-import type { GameProvider } from "./providers/types";
+import { externalIdsFor, hypeIndexFor, summariesFor, timeToBeatFor } from "./providers/igdb-extras";
+import { TTL, type GameProvider } from "./providers/types";
+import { cache } from "react";
+import { runAfterResponse } from "@/lib/cloudflare/db";
+import { gamePassShelf } from "./gamepass";
+import { paletteFor } from "./palette";
+import { getReleaseChanges, recordReleaseObservations } from "./release-history";
+import { steamLogoFor } from "./steam-logo";
+import { wikidataFor } from "./wikidata";
 import type {
   BrowseFilters,
   DataSource,
   GameDetail,
   GameSummary,
   Page,
+  RankedGame,
   Ref,
   Sourced,
+  SpotlightGame,
 } from "./types";
 
 /**
@@ -153,6 +163,11 @@ export async function getUpcoming(
   const result = await resolve("upcoming", (provider) =>
     provider.upcoming(pageSize, page, filters),
   );
+  // The calendar is where dates move, so every view of it feeds the delay
+  // tracker. IGDB only: Steam ids are appids and would collide.
+  if (result?.source === "igdb" && result.data.results.length > 0) {
+    void runAfterResponse(recordReleaseObservations(result.data.results));
+  }
   return result ?? { data: emptyPage(page), source: UNAVAILABLE };
 }
 
@@ -165,11 +180,72 @@ export async function getUpcoming(
  * static PC capsules. An empty hero is the honest outcome, and the page below
  * it still fills from the chain as usual.
  */
-export async function getSpotlight(limit = 6): Promise<Sourced<GameSummary[]>> {
+export async function getSpotlight(limit = 6): Promise<Sourced<SpotlightGame[]>> {
   const data = await igdbSpotlight(limit);
-  return data && data.length > 0
-    ? { data, source: "igdb" }
-    : { data: [], source: UNAVAILABLE };
+  if (!data || data.length === 0) return { data: [], source: UNAVAILABLE };
+
+  /*
+   * The stage dresses itself from two extras, fetched in parallel and both
+   * cached: a palette sampled from the exact image the hero shows (so the
+   * scrims and progress tint match the art rather than the box cover), and
+   * one batched summary query for the tagline. Either failing leaves its
+   * field null and the hero falls back to neutral scrims / no tagline.
+   */
+  const [palettes, summaries] = await Promise.all([
+    Promise.all(data.map((game) => paletteFor(game.screenshots[0] ?? game.image))),
+    summariesFor(data.map((game) => game.id)),
+  ]);
+
+  return {
+    data: data.map((game, i) => ({
+      ...game,
+      palette: palettes[i] ?? null,
+      tagline: heroTagline(summaries.get(game.id)),
+    })),
+    source: "igdb",
+  };
+}
+
+/**
+ * The first sentence of a summary, as hero copy.
+ *
+ * IGDB summaries are store-page paragraphs; the opening sentence is almost
+ * always the pitch. Anything still too long for two lines is cut at a word
+ * boundary — the text is the publisher's own, only shortened, never rewritten.
+ */
+function heroTagline(summary: string | undefined): string | null {
+  const text = summary?.replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  const first = text.match(/^.+?[.!?](?=\s+[A-Z"“'‘(]|$)/)?.[0] ?? text;
+  const MAX = 160;
+  if (first.length <= MAX) return first;
+  const cut = first.slice(0, MAX);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 80)).replace(/[,;:\s]+$/, "")}…`;
+}
+
+/**
+ * Upcoming games ranked by the composite hype index.
+ *
+ * Candidates come from the notable calendar pre-sorted by IGDB's raw `hypes`
+ * (so the pool is already the most-followed slice), then re-ranked by the
+ * hype index, which also weighs want-to-play and page visits. Games with no
+ * signal at all are dropped rather than shown with a fabricated zero.
+ */
+export async function getMostAnticipated(limit = 14): Promise<Sourced<RankedGame[]>> {
+  const pool = await getUpcoming(Math.max(limit * 2, 24), 1, {
+    notableOnly: true,
+    ordering: "-hypes",
+  });
+  if (pool.source !== "igdb" || pool.data.results.length === 0) {
+    return { data: [], source: pool.source };
+  }
+  const hype = await hypeIndexFor(pool.data.results.map((game) => game.id));
+  const ranked = pool.data.results
+    .map((game) => ({ game, hype: hype.get(game.id)?.score ?? 0 }))
+    .filter((entry) => entry.hype > 0)
+    .sort((a, b) => b.hype - a.hype)
+    .slice(0, limit);
+  return { data: ranked, source: pool.source };
 }
 
 /**
@@ -209,27 +285,88 @@ export async function getNewReleases(pageSize = 12): Promise<Sourced<GameSummary
  * Slugs are provider-specific — IGDB uses its own, Steam encodes an appid — so
  * a miss in the active provider legitimately falls through to the next. That
  * also keeps older bookmarked URLs working after credentials are added.
+ *
+ * Wrapped in React's per-request `cache` because the game page asks twice
+ * (metadata and body); the enrichment below should run once per render.
  */
-export async function getGame(slug: string): Promise<Sourced<GameDetail> | null> {
+export const getGame = cache(async (slug: string): Promise<Sourced<GameDetail> | null> => {
   const result = await resolve("detail", (provider) => provider.detail(slug));
   if (!result) return null;
 
-  // Providers are merged, not just chained. IGDB knows every platform and has
-  // the better artwork and critic scores; Steam supplies system requirements.
-  // When IGDB tells us a title has a Steam listing, both
-  // are worth having.
-  if (result.source === "igdb" && result.data.steamAppId) {
-    try {
-      return { ...result, data: await enrichWithSteam(result.data) };
-    } catch (err) {
-      console.warn(
-        "[source] steam enrichment failed:",
-        err instanceof Error ? err.message : err,
-      );
-    }
+  if (result.source === "igdb") {
+    return { ...result, data: await enrichIgdbDetail(result.data) };
   }
 
-  return result;
+  // Steam-only titles: the provider already attached Steam's own logo, and
+  // the cover palette is the one IGDB-independent extra worth having.
+  // Steam's portrait capsule is missing for some apps, hence the header fallback.
+  const palette =
+    (await paletteFor(result.data.image)) ?? (await paletteFor(result.data.imageFallback));
+  return { ...result, data: { ...result.data, palette } };
+});
+
+/**
+ * Everything an IGDB detail record gains beyond the core query, fetched in
+ * parallel. Each piece is cached and independently failure-tolerant — a dead
+ * source leaves its field null (or the original value) and the page renders.
+ *
+ * Providers are merged, not just chained. IGDB knows every platform and has
+ * the better artwork and critic scores; Steam supplies system requirements.
+ * The Steam appid comes from IGDB's store links or, failing those, from its
+ * `external_games` record — whichever answers, `steamAppId` and
+ * `externalIds.steam` always agree.
+ */
+async function enrichIgdbDetail(detail: GameDetail): Promise<GameDetail> {
+  const externalIds = externalIdsFor([detail.id]).then((ids) => {
+    const found = ids.get(detail.id);
+    const steam = detail.steamAppId ?? found?.steam ?? null;
+    return found || steam
+      ? { steam, twitch: found?.twitch ?? null, gog: found?.gog ?? null, microsoft: found?.microsoft ?? null, epic: found?.epic ?? null }
+      : null;
+  });
+
+  const merged = externalIds.then(async (ids) => {
+    const base = { ...detail, steamAppId: ids?.steam ?? detail.steamAppId };
+    if (!base.steamAppId) return base;
+    try {
+      return await enrichWithSteam(base);
+    } catch (err) {
+      console.warn("[source] steam enrichment failed:", err instanceof Error ? err.message : err);
+      return base;
+    }
+  });
+
+  const [enriched, ids, timeToBeat, hype, palette, wiki, releaseChanges] = await Promise.all([
+    merged,
+    externalIds,
+    timeToBeatFor([detail.id]),
+    // The detail page's own daily window — see `fetchPopScores` in igdb.ts.
+    hypeIndexFor([detail.id], TTL.detail),
+    paletteFor(detail.image ?? detail.imageFallback),
+    wikidataFor(detail.slug),
+    getReleaseChanges(detail.id),
+  ]);
+
+  // IGDB's wordmark first; then Steam's library logo; Wikidata/Commons last,
+  // since its marks are the least consistent in framing.
+  const logo =
+    detail.logo ??
+    (await steamLogoFor(enriched.steamAppId)) ??
+    wiki?.logo ??
+    null;
+
+  void runAfterResponse(recordReleaseObservations([detail]));
+
+  return {
+    ...enriched,
+    logo,
+    externalIds: ids,
+    timeToBeat: timeToBeat.get(detail.id) ?? null,
+    hypeIndex: hype.get(detail.id) ?? null,
+    palette,
+    links: wiki?.links ?? null,
+    releaseChanges,
+  };
 }
 
 /**
@@ -329,6 +466,32 @@ export async function popularSlugs(limit = 60): Promise<string[]> {
   ];
 
   return [...new Set(slugs)].slice(0, limit);
+}
+
+/**
+ * Game Pass shelves, from Microsoft's public catalogue joined to IGDB games.
+ *
+ * IGDB is the only source that can join a BigId to a game, so these are IGDB
+ * or nothing: "unavailable" when the catalogue can't be reached or IGDB isn't
+ * configured, an empty "igdb" list when it answered but nothing matched.
+ */
+async function gamePassShelfSourced(list: "leavingSoon" | "recentlyAdded"): Promise<Sourced<GameSummary[]>> {
+  if (!igdbProvider.isConfigured()) return { data: [], source: UNAVAILABLE };
+  try {
+    const games = await gamePassShelf(list);
+    return games ? { data: games, source: "igdb" } : { data: [], source: UNAVAILABLE };
+  } catch (err) {
+    console.warn(`[source] gamePass.${list} failed:`, err instanceof Error ? err.message : err);
+    return { data: [], source: UNAVAILABLE };
+  }
+}
+
+export function getGamePassLeavingSoon(): Promise<Sourced<GameSummary[]>> {
+  return gamePassShelfSourced("leavingSoon");
+}
+
+export function getGamePassRecentlyAdded(): Promise<Sourced<GameSummary[]>> {
+  return gamePassShelfSourced("recentlyAdded");
 }
 
 /** ISO `YYYY-MM-DD` for today, in UTC. */

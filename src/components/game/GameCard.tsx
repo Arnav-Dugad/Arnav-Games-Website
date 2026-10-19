@@ -20,11 +20,17 @@
  *    on hover
  *  - coarse pointers: no tilt, the controls permanently visible as glass
  *    chips on the poster (44px hit areas), and press feedback via `active:scale`
+ *
+ * Both get the game context menu (long-press / right-click, handled once by
+ * `ContextMenuHost` — the card only registers itself) and the shared-element
+ * cover morph into the game page (`CoverTransition`).
  */
 
 import Link from "next/link";
 import { CalendarClock } from "lucide-react";
 import { TiltCard } from "@/components/motion/TiltCard";
+import { CoverTransition, useSharedCover } from "@/components/interactions/CoverTransition";
+import { useGameMenuTarget } from "@/components/interactions/game-menu-targets";
 import { GameCover } from "./GameCover";
 import { OwnedBadge } from "./OwnedBadge";
 import { OwnershipPicker } from "./OwnershipPicker";
@@ -57,37 +63,43 @@ export function GameCard({
   size = "default",
 }: GameCardProps) {
   const upcoming = isUnreleased(game);
+  const cover = useSharedCover(game.slug, game.image);
+  const menuRef = useGameMenuTarget(game, cover.claim);
 
   return (
-    <div className={cn("group/card", className)}>
+    <div ref={menuRef} data-game-menu className={cn("group/card press-menu-target", className)}>
       <div className="relative">
       <TiltCard className="rounded-2xl" intensity={7} scale={1.03}>
         <Link
           href={`/game/${game.slug}`}
           aria-label={game.name}
+          onClick={cover.claim}
+          data-menu-preview
           className={cn(
-            "group relative block w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-panel shadow-[0_14px_34px_-18px_#000]",
+            "group relative block w-full overflow-hidden rounded-2xl border border-fg/[0.08] bg-panel shadow-[0_14px_34px_-18px_#000]",
             "transition-[border-color,box-shadow] duration-500",
-            "fine:hover:border-white/20 fine:hover:shadow-[0_28px_60px_-24px_rgba(138,114,255,0.5)]",
+            "fine:hover:border-fg/20 fine:hover:shadow-[0_28px_60px_-24px_rgba(138,114,255,0.5)]",
             "coarse:transition-transform coarse:duration-300 coarse:active:scale-[0.97] coarse:active:duration-100",
             shape === "poster" ? "aspect-[3/4]" : "aspect-[16/9]",
           )}
         >
-          <GameCover
-            name={game.name}
-            slug={game.slug}
-            image={game.image}
-            imageFallback={game.imageFallback}
-            width={shape === "poster" ? 480 : 640}
-            priority={priority}
-            sizes={
-              sizes ??
-              (shape === "poster"
-                ? "(max-width: 640px) 46vw, (max-width: 1024px) 30vw, 260px"
-                : "(max-width: 640px) 86vw, (max-width: 1024px) 46vw, 420px")
-            }
-            className="transition-transform duration-[900ms] ease-[cubic-bezier(0.16,1,0.3,1)] fine:group-hover:scale-[1.07]"
-          />
+          <CoverTransition slug={game.slug} active={cover.active}>
+            <GameCover
+              name={game.name}
+              slug={game.slug}
+              image={game.image}
+              imageFallback={game.imageFallback}
+              width={shape === "poster" ? 480 : 640}
+              priority={priority}
+              sizes={
+                sizes ??
+                (shape === "poster"
+                  ? "(max-width: 640px) 46vw, (max-width: 1024px) 30vw, 260px"
+                  : "(max-width: 640px) 86vw, (max-width: 1024px) 46vw, 420px")
+              }
+              className="transition-transform duration-[900ms] ease-[cubic-bezier(0.16,1,0.3,1)] fine:group-hover:scale-[1.07]"
+            />
+          </CoverTransition>
 
           {/* A light top-down wash only — just enough to seat the badges. The
               heavy bottom scrim went away with the caption it existed for. */}
@@ -120,7 +132,7 @@ export function GameCard({
           {/* Hover-only inner glow ring. */}
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-2xl shadow-[inset_0_1px_0_#ffffff1f] ring-1 ring-inset ring-white/0 transition-[box-shadow] duration-500 fine:group-hover:ring-white/15"
+            className="pointer-events-none absolute inset-0 rounded-2xl shadow-[inset_0_1px_0_#ffffff1f] ring-1 ring-inset ring-fg/0 transition-[box-shadow] duration-500 fine:group-hover:ring-fg/15"
           />
         </Link>
       </TiltCard>
@@ -136,6 +148,7 @@ export function GameCard({
       <div className="mt-2.5 flex items-start gap-2">
         <Link
           href={`/game/${game.slug}`}
+          onClick={cover.claim}
           className={cn(
             "min-w-0 flex-1 font-display font-semibold leading-snug tracking-[-0.01em] text-text transition-colors",
             "line-clamp-2 fine:group-hover/card:text-brand-soft",

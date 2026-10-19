@@ -6,21 +6,23 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Layers,
   LoaderCircle,
-  Search,
-  SlidersHorizontal,
-  X,
 } from "lucide-react";
+import { SearchField, SortMenu } from "@/components/filters";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { hueFromString } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
 import type { DirectoryRef } from "@/lib/games/types";
 import { isIgdbImage } from "@/lib/games/image";
+
+const DIRECTORY_SORTS: { value: "name" | "-name"; label: string }[] = [
+  { value: "name", label: "Name A–Z" },
+  { value: "-name", label: "Name Z–A" },
+];
 
 export function EntityDirectory({
   items,
@@ -86,65 +88,41 @@ export function EntityDirectory({
 
   return (
     <div className="space-y-7" aria-busy={isPending}>
-      <div className="glass relative overflow-hidden rounded-3xl p-3 sm:p-4">
-        <div aria-hidden className="absolute -right-20 -top-28 h-56 w-56 rounded-full bg-brand/10 blur-3xl" />
-        <form
-          action={basePath}
-          onSubmit={(event) => {
-            event.preventDefault();
-            updateQuery(draft);
-          }}
-          className="relative flex flex-col gap-3 sm:flex-row sm:items-center"
-        >
-          <label className="relative block min-w-0 flex-1">
-            <Search
-              aria-hidden
-              size={17}
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint"
-            />
-            <span className="sr-only">Search {isStudio ? "studios" : "franchises"}</span>
-            <input
-              type="search"
+      {/* Collapsed toolbar: a search well and a sort menu, nothing else. */}
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-2">
+          <form
+            action={basePath}
+            role="search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              updateQuery(draft);
+            }}
+            className="min-w-0 flex-1 sm:max-w-md"
+          >
+            <SearchField
               name="q"
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={isStudio ? "Search every studio…" : "Search every franchise…"}
-              className="h-12 w-full rounded-xl border border-line bg-bg/55 py-2 pl-11 pr-11 text-sm text-text outline-none transition-colors placeholder:text-faint hover:border-line-strong focus:border-brand"
+              onChange={(value) => (value ? setDraft(value) : updateQuery(""))}
+              placeholder={isStudio ? "Search every studio" : "Search every franchise"}
+              label={`Search ${isStudio ? "studios" : "franchises"}`}
             />
-            {draft && (
-              <button
-                type="button"
-                onClick={() => updateQuery("")}
-                aria-label="Clear search"
-                className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-faint transition-colors hover:bg-white/[0.06] hover:text-text"
-              >
-                <X size={15} />
-              </button>
-            )}
-          </label>
-
-          <label className="relative shrink-0">
-            <span className="sr-only">Sort directory</span>
-            <SlidersHorizontal aria-hidden size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
-            <ChevronDown aria-hidden size={14} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-faint" />
-            <select
-              name="sort"
+          </form>
+          <div className="ml-auto shrink-0">
+            <SortMenu
+              options={DIRECTORY_SORTS}
               value={order}
-              onChange={(event) => {
-                const nextOrder = event.target.value === "-name" ? "-name" : "name";
+              label={`Sort ${isStudio ? "studios" : "franchises"}`}
+              onChange={(nextOrder) => {
                 startTransition(() => {
                   router.replace(directoryHref(basePath, draft.trim(), nextOrder, 1), { scroll: false });
                 });
               }}
-              className="h-12 min-w-40 appearance-none rounded-xl border border-line bg-bg/55 pl-10 pr-9 text-sm font-medium text-text outline-none transition-colors hover:border-line-strong focus:border-brand"
-            >
-              <option value="name">Name: A–Z</option>
-              <option value="-name">Name: Z–A</option>
-            </select>
-          </label>
-        </form>
+            />
+          </div>
+        </div>
 
-        <div className="relative mt-3 flex min-h-7 flex-wrap items-center justify-between gap-2 px-2 text-xs text-muted">
+        <div className="flex min-h-6 items-center gap-2 px-1 text-[13px] text-muted">
           <p aria-live="polite">
             {count !== null ? (
               <>
@@ -158,9 +136,11 @@ export function EntityDirectory({
               </>
             )}
           </p>
-          <span className={cn("inline-flex items-center gap-1.5 text-brand-soft transition-opacity", isPending ? "opacity-100" : "opacity-0")}>
-            <LoaderCircle size={13} className="animate-spin" /> Updating
-          </span>
+          <LoaderCircle
+            aria-hidden
+            size={13}
+            className={cn("shrink-0 animate-spin text-faint transition-opacity", isPending ? "opacity-100" : "opacity-0")}
+          />
         </div>
       </div>
 
@@ -207,7 +187,7 @@ export function EntityDirectory({
           <Link
             href={directoryHref(basePath, query, order, page - 1)}
             scroll={false}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-white/[0.03] px-4 text-sm font-semibold text-muted transition-colors hover:border-line-strong hover:text-text"
+            className="press inline-flex min-h-11 items-center gap-2 rounded-full border border-fg/10 bg-fg/[0.06] px-4 text-sm font-semibold text-text transition-colors fine:hover:bg-fg/[0.1]"
           >
             <ChevronLeft size={16} /> Previous
           </Link>
@@ -221,7 +201,7 @@ export function EntityDirectory({
           <Link
             href={directoryHref(basePath, query, order, page + 1)}
             scroll={false}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-4 text-sm font-bold text-[#090910] transition-transform hover:-translate-y-0.5"
+            className="press inline-flex min-h-11 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-white shadow-[inset_0_1px_0_#ffffff40] transition-[filter] fine:hover:brightness-110"
           >
             Next <ChevronRight size={16} />
           </Link>
@@ -263,7 +243,7 @@ function StudioCard({ studio, priority }: { studio: DirectoryRef; priority: bool
           />
         </span>
       ) : (
-        <span className="grid h-16 w-full place-items-center rounded-xl bg-white/[0.04] font-display text-xl font-black text-muted">
+        <span className="grid h-16 w-full place-items-center rounded-xl bg-fg/[0.04] font-display text-xl font-black text-muted">
           {studio.name.charAt(0)}
         </span>
       )}

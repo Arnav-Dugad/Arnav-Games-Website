@@ -75,10 +75,22 @@ export function Reveal({
 
   // Reduced motion still gets a fade so content doesn't pop in abruptly, but
   // nothing moves and nothing blurs.
+  //
+  // `visible` resets transform and filter explicitly. The server can't know
+  // the reader's motion setting, so it renders the full-motion `hidden` style
+  // (offset + blur) inline; if this variant only animated opacity, that
+  // server-rendered blur would never be cleared and the content would stay
+  // smeared for exactly the readers who asked for less motion.
   const variants: Variants = reduced
     ? {
         hidden: { opacity: 0 },
-        visible: { opacity: 1, transition: { duration: 0.25, delay } },
+        visible: {
+          opacity: 1,
+          x: 0,
+          y: 0,
+          filter: "blur(0px)",
+          transition: { duration: 0.25, delay, x: { duration: 0 }, y: { duration: 0 }, filter: { duration: 0 } },
+        },
       }
     : {
         hidden: {
@@ -204,9 +216,15 @@ export const staggerItemVariants: Variants = {
   },
 };
 
+// Resets offset and blur explicitly for the same SSR reason as `Reveal`.
 const staggerItemReduced: Variants = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.25 } },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.25, y: { duration: 0 }, filter: { duration: 0 } },
+  },
 };
 
 export function StaggerItem({

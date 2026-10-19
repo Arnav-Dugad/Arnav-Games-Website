@@ -46,7 +46,7 @@ function Mark({ src, alt, size = 40 }: { src: string; alt: string; size?: number
 function Initial({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-xl border border-line bg-white/[0.04] font-display text-sm font-bold text-muted"
+      className="grid shrink-0 place-items-center rounded-xl border border-line bg-fg/[0.04] font-display text-sm font-bold text-muted"
       style={{ width: size, height: size }}
       aria-hidden
     >
@@ -97,7 +97,7 @@ export function CompanyGrid({ companies }: { companies: CompanyRef[] }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`${company.name} website`}
-                className="shrink-0 rounded-lg p-2 text-faint transition-colors hover:bg-white/6 hover:text-text"
+                className="shrink-0 rounded-lg p-2 text-faint transition-colors hover:bg-fg/[0.06] hover:text-text"
               >
                 <Globe2 size={15} />
               </a>
@@ -120,12 +120,12 @@ export function EngineRow({ engines }: { engines: LogoRef[] }) {
       {engines.map((engine) => (
         <li
           key={engine.id}
-          className="inline-flex items-center gap-2.5 rounded-full border border-line bg-white/[0.04] py-1.5 pl-1.5 pr-4 text-sm text-muted"
+          className="inline-flex items-center gap-2.5 rounded-full border border-line bg-fg/[0.04] py-1.5 pl-1.5 pr-4 text-sm text-muted"
         >
           {engine.logo ? (
             <Mark src={engine.logo} alt={`${engine.name} logo`} size={28} />
           ) : (
-            <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/5 text-faint">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-fg/5 text-faint">
               <Cpu size={14} />
             </span>
           )}
@@ -158,7 +158,7 @@ export function PlatformGrid({ platforms }: { platforms: PlatformRef[] }) {
           {platform.logo ? (
             <Mark src={platform.logo} alt={`${platform.name} logo`} size={32} />
           ) : platform.family ? (
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-fg/5">
               <PlatformIcons platforms={[{ slug: platform.family }]} size={16} max={1} tinted />
             </span>
           ) : (
@@ -282,7 +282,7 @@ export function AgeRatingPanel({ ratings }: { ratings: AgeRating[] }) {
           className="rounded-2xl border border-line bg-panel/40 p-3.5"
         >
           <div className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line-strong bg-white/[0.06] font-display text-xs font-bold">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line-strong bg-fg/[0.06] font-display text-xs font-bold">
               {rating.rating}
             </span>
             <div className="min-w-0">

@@ -253,6 +253,24 @@ export interface GameSummary {
   logo?: GameLogo | null;
 }
 
+/**
+ * A homepage hero slide: the summary plus what the stage needs to dress
+ * itself. Both extras are optional in spirit — null simply means the hero
+ * falls back to its neutral scrims and shows no tagline.
+ */
+export interface SpotlightGame extends GameSummary {
+  /** Sampled from the slide's own backdrop, so the scrims match the art. */
+  palette: CoverPalette | null;
+  /** The opening sentence of IGDB's summary, trimmed for a hero line. */
+  tagline: string | null;
+}
+
+/** A game with its 0–100 hype score, for anticipation-ranked shelves. */
+export interface RankedGame {
+  game: GameSummary;
+  hype: number;
+}
+
 export interface GameDetail extends GameSummary {
   description: string;
   /** Narrative premise, kept separate from the marketing summary. */

@@ -16,12 +16,12 @@
 
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
-import { ArrowUpDown, CalendarClock, Check, Layers3, Library, PackageOpen, PencilLine, Search, Trophy, X } from "lucide-react";
+import { CalendarClock, Check, Layers3, Library, PackageOpen, PencilLine, Trophy } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { GameCover } from "@/components/game/GameCover";
 import { ScorePill } from "@/components/ui/ScoreRing";
 import { Button } from "@/components/ui/Button";
-import { Chip } from "@/components/ui/Badge";
+import { FilterToolbar, SearchField, SegmentedControl, SortMenu, type FacetDef } from "@/components/filters";
 import { Reveal } from "@/components/motion/Reveal";
 import {
   PosterSizeToggle,
@@ -50,17 +50,32 @@ const SORTS: { value: SortKey; label: string }[] = [
   { value: "released", label: "Newest release" },
 ];
 
+// Ordered the way a backlog flows, with the unsorted pile last.
 const STATUS_FILTERS: { value: WatchStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "none", label: "No status" },
   { value: "want", label: "Want to play" },
   { value: "playing", label: "Playing" },
   { value: "played", label: "Played" },
+  { value: "none", label: "No status" },
 ];
 
-export function LibraryView() {
-  const { user } = useAuth();
-  const { entries, loading } = useWatchlist();
+const RELEASE_OPTIONS: { value: ReleaseState; label: string; short?: string }[] = [
+  { value: "released", label: "Released" },
+  { value: "upcoming", label: "Not released yet", short: "Upcoming" },
+  { value: "unknown", label: "Date unknown" },
+];
+
+export function LibraryView({
+  previewEntries,
+}: {
+  /** Dev-only sample data for `/library/preview`; bypasses auth. */
+  previewEntries?: WatchlistEntry[];
+} = {}) {
+  const { user: authUser } = useAuth();
+  const live = useWatchlist();
+  const entries = previewEntries ?? live.entries;
+  const loading = previewEntries ? false : live.loading;
+  const user = previewEntries ? true : authUser;
 
   const [store, setStore] = useState<string | "all">("all");
   const [status, setStatus] = useState<WatchStatus | "all">("all");
@@ -121,6 +136,44 @@ export function LibraryView() {
   }, [owned, store, status, release, query, sort]);
 
   const activeFilters = (store !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (release !== "all" ? 1 : 0) + (query ? 1 : 0);
+  const statusCounts = useMemo(() => {
+    const counts: Record<WatchStatus | "all", number> = { all: owned.length, none: 0, want: 0, playing: 0, played: 0 };
+    for (const entry of owned) counts[entry.status]++;
+    return counts;
+  }, [owned]);
+
+  const releaseCounts = useMemo(() => {
+    const counts: Record<ReleaseState, number> = { released: 0, upcoming: 0, unknown: 0 };
+    for (const entry of owned) counts[releaseState(entry)]++;
+    return counts;
+  }, [owned]);
+
+  const facets = useMemo<FacetDef[]>(() => [
+    {
+      id: "store",
+      label: "Store",
+      mode: "single",
+      anyLabel: "All stores",
+      options: stores.map((option) => ({
+        value: option.slug,
+        label: option.name,
+        count: option.count,
+        icon: option.icon ? <BrandIcon name={option.icon} size={14} title={null} /> : undefined,
+      })),
+      selected: store === "all" ? [] : [store],
+      onChange: (next) => setStore(next[0] ?? "all"),
+    },
+    {
+      id: "release",
+      label: "Release",
+      mode: "single",
+      anyLabel: "Any release state",
+      options: RELEASE_OPTIONS.map((option) => ({ ...option, count: releaseCounts[option.value] })),
+      selected: release === "all" ? [] : [release],
+      onChange: (next) => setRelease((next[0] as ReleaseState | undefined) ?? "all"),
+    },
+  ], [stores, store, release, releaseCounts]);
+
   const collection = useMemo(() => ({
     copies: owned.reduce((sum, entry) => sum + new Set(entry.ownedOn ?? []).size, 0),
     completed: owned.filter((entry) => entry.status === "played").length,
@@ -161,7 +214,7 @@ export function LibraryView() {
     <div className="mt-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs leading-relaxed text-muted">Manage unique games while preserving every owned copy.</p>
-        <button type="button" onClick={() => { setBatchMode((value) => !value); setSelected(new Set()); }} aria-pressed={batchMode} className={cn("inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors", batchMode ? "border-brand/45 bg-brand/15 text-white" : "border-line bg-white/[0.035] text-muted hover:text-text")}><PencilLine size={15} />{batchMode ? "Exit batch edit" : "Batch edit"}</button>
+        <button type="button" onClick={() => { setBatchMode((value) => !value); setSelected(new Set()); }} aria-pressed={batchMode} className={cn("inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors", batchMode ? "border-brand/45 bg-brand/15 text-text" : "border-fg/10 bg-fg/[0.06] text-text fine:hover:bg-fg/[0.1]")}><PencilLine size={15} />{batchMode ? "Exit batch edit" : "Batch edit"}</button>
       </div>
 
       {batchMode && (
@@ -180,128 +233,61 @@ export function LibraryView() {
         <LibraryMetric icon={<CalendarClock size={16} />} label="Not released yet" value={collection.upcoming} tone="brand" />
       </div>
 
-      {/* Controls */}
-      <div className="space-y-4 rounded-2xl border border-line bg-panel/40 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-0 flex-1">
-            <Search
-              size={15}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint"
-            />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search your library…"
-              aria-label="Search your library"
-              className="min-h-11 w-full rounded-full border border-line bg-white/[0.04] pl-10 pr-9 text-sm outline-none transition-colors focus-visible:border-brand"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="Clear search"
-                className="absolute right-3 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-faint transition-colors hover:bg-white/10 hover:text-text"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
+      {/*
+        Controls, collapsed. Status is the axis people switch most, so it gets
+        a segmented control; store and release state fold into facet pills.
+      */}
+      <div className="space-y-3">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search your library"
+          label="Search your library"
+          className="sm:max-w-md"
+        />
 
-          <div className="relative">
-            <ArrowUpDown
-              size={14}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint"
-            />
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
-              aria-label="Sort library"
-              className="min-h-11 appearance-none rounded-full border border-line bg-white/[0.04] py-2 pl-9 pr-9 text-sm outline-none transition-colors hover:border-line-strong focus-visible:border-brand"
-            >
-              {SORTS.map((option) => (
-                <option key={option.value} value={option.value} className="bg-panel text-text">
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <span
-              aria-hidden
-              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-faint"
-            >
-              ▾
-            </span>
-          </div>
+        <SegmentedControl
+          label="Play status"
+          value={status}
+          onChange={setStatus}
+          fill={false}
+          className="max-w-full sm:w-fit"
+          segments={STATUS_FILTERS.map((option) => ({
+            value: option.value,
+            label: option.label,
+            count: statusCounts[option.value],
+          }))}
+        />
 
-          <PosterSizeToggle size={posterSize} onChange={setPosterSize} />
-        </div>
-
-        <div>
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-            Store
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            <Chip active={store === "all"} onClick={() => setStore("all")}>
-              All stores
-            </Chip>
-            {stores.map((option) => (
-              <Chip
-                key={option.slug}
-                active={store === option.slug}
-                onClick={() => setStore(option.slug)}
-              >
-                {option.icon && <BrandIcon name={option.icon} size={12} title={null} />}
-                {option.name}
-                <span className="tabular-nums opacity-60">{option.count}</span>
-              </Chip>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-            Release state
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {([
-              ["all", "Any release"],
-              ["released", "Released"],
-              ["upcoming", "Upcoming"],
-              ["unknown", "Date unknown"],
-            ] as const).map(([value, label]) => (
-              <Chip key={value} active={release === value} onClick={() => setRelease(value)}>
-                {label}
-              </Chip>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-            Status
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {STATUS_FILTERS.map((option) => (
-              <Chip
-                key={option.value}
-                active={status === option.value}
-                onClick={() => setStatus(option.value)}
-              >
-                {option.label}
-              </Chip>
-            ))}
-          </div>
-        </div>
-
-        {activeFilters > 0 && (
-          <p className="border-t border-line pt-3 text-xs text-muted">
-            Showing <span className="font-semibold text-text tabular-nums">{visible.length}</span> of {owned.length} unique games
-          </p>
-        )}
+        <FilterToolbar
+          summary={
+            <p>
+              {activeFilters > 0 ? (
+                <>
+                  <span className="font-semibold tabular-nums text-text">{visible.length}</span> of {owned.length} games
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold tabular-nums text-text">{owned.length}</span> {owned.length === 1 ? "game" : "games"}
+                </>
+              )}
+            </p>
+          }
+          actions={<SortMenu options={SORTS} value={sort} onChange={setSort} label="Sort library" />}
+          facets={facets}
+          onClearAll={() => {
+            setStore("all");
+            setRelease("all");
+          }}
+          resultLabel={`Show ${visible.length} ${visible.length === 1 ? "game" : "games"}`}
+          railLabel="Library filters"
+          railTrailing={<PosterSizeToggle size={posterSize} onChange={setPosterSize} />}
+        />
 
         {batchMode && (
-          <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4 text-xs">
-            <button type="button" onClick={() => setSelected(new Set(visible.map((entry) => entry.gameId)))} className="font-semibold text-brand-soft hover:text-white">Select all {visible.length} visible</button>
-            <button type="button" onClick={() => setSelected(new Set())} className="font-semibold text-faint hover:text-text">Clear selection</button>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-fg/[0.03] px-4 py-3 text-xs">
+            <button type="button" onClick={() => setSelected(new Set(visible.map((entry) => entry.gameId)))} className="min-h-9 font-semibold text-brand-soft hover:text-text">Select all {visible.length} visible</button>
+            <button type="button" onClick={() => setSelected(new Set())} className="min-h-9 font-semibold text-faint hover:text-text">Clear selection</button>
             <span className="ml-auto tabular-nums text-muted">{selected.size} selected</span>
           </div>
         )}
@@ -459,7 +445,7 @@ function LibraryMetric({
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-panel/45 p-3.5 sm:p-4">
       <div className={cn(
-        "mb-3 grid h-8 w-8 place-items-center rounded-xl bg-white/[0.05] text-muted",
+        "mb-3 grid h-8 w-8 place-items-center rounded-xl bg-fg/[0.05] text-muted",
         tone === "brand" && "bg-brand/15 text-brand-soft",
         tone === "mint" && "bg-mint/10 text-mint",
         tone === "gold" && "bg-amber-400/10 text-amber-300",

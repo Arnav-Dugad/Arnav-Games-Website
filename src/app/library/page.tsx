@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BacklogRoulette } from "@/components/library/BacklogRoulette";
 import { LibraryView } from "@/components/library/LibraryView";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Container } from "@/components/ui/SectionHeading";
@@ -16,9 +17,11 @@ export default function LibraryPage() {
       <PageHeader
         eyebrow="Your collection"
         title="Games you own"
-        description="Everything you've marked as owned, across every storefront — filter by store or status, and sort it however you think about your collection."
+        description="Everything you've marked as owned, across every storefront. Can't decide what to play? Let the backlog roulette choose."
       />
       <Container className="py-8 lg:py-12">
+        {/* Renders nothing while signed out or empty; LibraryView owns those states. */}
+        <BacklogRoulette />
         <LibraryView />
       </Container>
     </>

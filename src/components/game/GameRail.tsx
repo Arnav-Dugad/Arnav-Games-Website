@@ -3,8 +3,10 @@
 /**
  * Horizontal game rail.
  *
- * Touch: a native scroll-snap rail — momentum, rubber-banding and snap points
- * all come from the platform, which no JS carousel matches for feel.
+ * Touch: a native scroll-snap rail — momentum and snap points come from the
+ * platform, which no JS carousel matches for feel. iOS also rubber-bands at
+ * the ends natively; `useRubberBand` adds the same elastic edge on Android,
+ * where the platform would otherwise stop dead or draw a stretch glow.
  * Desktop: the same rail plus arrow controls, since users without a horizontal
  * scroll gesture have no good way to page through it.
  */
@@ -13,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { GameCard } from "./GameCard";
 import { Reveal } from "@/components/motion/Reveal";
+import { useRubberBand } from "@/components/interactions/useRubberBand";
 import { cn } from "@/lib/utils/cn";
 import type { GameSummary } from "@/lib/games/types";
 
@@ -27,6 +30,7 @@ export function GameRail({ games, className, shape = "poster", priorityCount = 0
   const railRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
+  useRubberBand(railRef);
 
   const syncEdges = useCallback(() => {
     const el = railRef.current;

@@ -6,6 +6,7 @@ import { BrandIcon } from "@/components/brand/BrandIcon";
 import { useRouter } from "next/navigation";
 import { Popover } from "@/components/ui/Popover";
 import { useToast } from "@/components/ui/Toast";
+import { haptic } from "@/lib/haptics";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import type { SubscriptionAccess } from "@/lib/firebase/db";
@@ -91,8 +92,10 @@ export function SubscriptionAccessPicker({
     try {
       await ensure(game);
       await setAccess(game.id, next);
+      haptic("success");
       toast("Subscription play history updated", "success");
     } catch (error) {
+      haptic("warning");
       setPending(null);
       toast(error instanceof Error ? error.message : "Couldn't save that access.", "error");
     } finally {
@@ -127,8 +130,8 @@ export function SubscriptionAccessPicker({
         className={cn(
           "inline-flex min-h-12 items-center gap-2 rounded-full border px-5 text-sm font-semibold press transition-[background-color,border-color,color]",
           access.length
-            ? "border-neon/40 bg-neon/10 text-white"
-            : "border-white/15 bg-white/[0.08] text-text backdrop-blur-xl hover:bg-white/[0.14]",
+            ? "border-neon/40 bg-neon/10 text-text"
+            : "border-fg/15 bg-fg/[0.08] text-text backdrop-blur-xl fine:hover:bg-fg/[0.14]",
           busy && "opacity-60",
         )}
       >
@@ -152,14 +155,14 @@ export function SubscriptionAccessPicker({
         {access.length > 0 && (
           <ul className="space-y-1 border-b border-line p-2">
             {access.map((item) => (
-              <li key={`${item.service}:${item.platform}`} className="flex items-center gap-2 rounded-xl bg-white/[0.045] px-3 py-2.5 text-sm">
+              <li key={`${item.service}:${item.platform}`} className="flex items-center gap-2 rounded-xl bg-fg/[0.045] px-3 py-2.5 text-sm">
                 {subscriptionServiceIcon(item.service)
                   ? <BrandIcon name={subscriptionServiceIcon(item.service)!} size={15} title={null} tinted />
                   : item.platform === "cloud"
                     ? <Cloud size={14} className="text-neon" />
                     : <Gamepad2 size={14} className="text-brand-soft" />}
                 <span className="min-w-0 flex-1 truncate"><strong>{subscriptionServiceName(item.service)}</strong><span className="text-faint"> · {PLATFORM_LABELS[item.platform] ?? item.platform}</span></span>
-                <button type="button" onClick={() => remove(item)} disabled={busy} aria-label={`Remove ${subscriptionServiceName(item.service)} on ${PLATFORM_LABELS[item.platform] ?? item.platform}`} className="grid h-8 w-8 place-items-center rounded-full text-faint transition-colors hover:bg-white/10 hover:text-text"><X size={13} /></button>
+                <button type="button" onClick={() => remove(item)} disabled={busy} aria-label={`Remove ${subscriptionServiceName(item.service)} on ${PLATFORM_LABELS[item.platform] ?? item.platform}`} className="grid h-8 w-8 place-items-center rounded-full text-faint transition-colors hover:bg-fg/10 hover:text-text"><X size={13} /></button>
               </li>
             ))}
           </ul>
@@ -170,8 +173,8 @@ export function SubscriptionAccessPicker({
             <ul className="space-y-1">
               {SUBSCRIPTION_SERVICES.map((item) => (
                 <li key={item.slug}>
-                  <button type="button" onClick={() => setService(item)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-muted transition-colors hover:bg-white/6 hover:text-text">
-                    <span className="grid h-8 w-8 place-items-center rounded-xl border border-white/8 bg-black/25"><BrandIcon name={item.icon} size={16} title={null} tinted /></span>
+                  <button type="button" onClick={() => setService(item)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-muted transition-colors hover:bg-fg/[0.06] hover:text-text">
+                    <span className="grid h-8 w-8 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.05]"><BrandIcon name={item.icon} size={16} title={null} tinted /></span>
                     <span className="flex-1 font-medium">{item.name}</span>
                     <ChevronRight size={14} className="text-faint" />
                   </button>
@@ -185,7 +188,7 @@ export function SubscriptionAccessPicker({
               <ul className="space-y-1">
                 {service.platforms.map((platform) => {
                   const active = access.some((item) => item.service === service.slug && item.platform === platform);
-                  return <li key={platform}><button type="button" onClick={() => choosePlatform(platform)} disabled={busy} className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors", active ? "bg-neon/10 text-text" : "text-muted hover:bg-white/6 hover:text-text")}><Gamepad2 size={14} /><span className="flex-1">{PLATFORM_LABELS[platform] ?? platform}</span>{active && <Check size={14} className="text-neon" />}</button></li>;
+                  return <li key={platform}><button type="button" onClick={() => choosePlatform(platform)} disabled={busy} className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors", active ? "bg-neon/10 text-text" : "text-muted hover:bg-fg/[0.06] hover:text-text")}><Gamepad2 size={14} /><span className="flex-1">{PLATFORM_LABELS[platform] ?? platform}</span>{active && <Check size={14} className="text-neon" />}</button></li>;
                 })}
               </ul>
             </div>

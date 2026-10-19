@@ -41,6 +41,7 @@ import {
   type WatchlistEntry,
 } from "./db";
 import type { GameSummary } from "@/lib/games/types";
+import { track } from "@/lib/analytics/client";
 
 interface WatchlistContextValue {
   entries: WatchlistEntry[];
@@ -191,6 +192,8 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
       setPendingFollowing((prev) => new Map(prev).set(game.id, next));
       try {
         await setGameFollowing(user.uid, game, next, exists);
+        // Anonymous: slug and direction only, after the write succeeded.
+        track("follow", { slug: game.slug, value: next ? 1 : 0 });
         return next;
       } catch (err) {
         setPendingFollowing((prev) => {
@@ -217,9 +220,14 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
   const setOwnership = useCallback(
     async (gameId: number, ownedOn: string[]) => {
       if (!user) throw new Error("Sign in to track what you own.");
+      const entry = activeEntries.find((item) => item.gameId === gameId);
       await setOwnedOn(user.uid, gameId, ownedOn);
+      // Counted when a game *becomes* owned, not on every platform tweak.
+      if (entry?.slug && (entry.ownedOn?.length ?? 0) === 0 && ownedOn.length > 0) {
+        track("own", { slug: entry.slug });
+      }
     },
-    [user],
+    [user, activeEntries],
   );
 
   const ownershipOf = useCallback(

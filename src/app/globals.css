@@ -64,6 +64,35 @@
   --animate-fade-up: fade-up 0.6s var(--ease-out-expo) both;
 }
 
+/*
+  Light appearance.
+
+  Every surface reads its colour from the tokens above, so the light theme is
+  a token swap rather than a parallel stylesheet. `data-theme` is set on
+  <html> before first paint by the inline script in the root layout, from the
+  saved preference or the OS setting. Accents are darkened so they keep AA
+  contrast on white.
+*/
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f5f5f7;
+  --color-bg-elev: #ffffff;
+  --color-panel: #ffffff;
+  --color-panel-2: #f2f2f7;
+  --color-fg: #000000;
+  --color-line: #0000001a;
+  --color-line-strong: #0000002e;
+  --color-text: #1d1d1f;
+  --color-muted: #5f5f64;
+  --color-faint: #737378;
+  --color-brand: #6a4dff;
+  --color-brand-soft: #5638e8;
+  --color-neon: #00799e;
+  --color-flare: #d1003f;
+  --color-gold: #a05a00;
+  --color-mint: #1f7f38;
+}
+
 /* Pointer-aware variants. The single most important tool for treating mobile
    and desktop as genuinely different targets rather than one scaled layout:
    `fine:` only fires for real mouse pointers, `coarse:` only for touch. */
@@ -295,6 +324,28 @@
     .material-thin { background: #2c2c2ee6; }
   }
 
+  /* Light appearance: white glass with soft, low shadows, as on iOS. */
+  :root[data-theme="light"] .glass {
+    background: linear-gradient(180deg, #ffffffeb, #ffffffd1);
+    border-color: #00000012;
+    box-shadow:
+      inset 0 1px 0 0 #ffffff,
+      0 1px 2px 0 #0000000f,
+      0 14px 34px -22px #00000040;
+  }
+  :root[data-theme="light"] .material {
+    background: color-mix(in oklab, #ffffff 72%, transparent);
+    border-color: #00000014;
+    box-shadow:
+      inset 0 1px 0 0 #ffffffcc,
+      0 18px 44px -20px #00000040;
+  }
+  :root[data-theme="light"] .material-thin {
+    background: #ffffffa6;
+    border-color: #0000001a;
+    box-shadow: inset 0 1px 0 0 #ffffff;
+  }
+
   /* Apple's pressed state: a quick, slightly springy shrink. */
   .press {
     transition: transform 0.35s var(--ease-apple);
@@ -435,4 +486,209 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+}
+
+/* ============================================================================
+   Interactions — gesture, transition and loading utilities.
+   Owned by the interaction layer (components/interactions/*). Additive only.
+   ========================================================================= */
+
+@layer utilities {
+  /*
+    Glass skeleton: a faint foreground tint with a sheen that sweeps across via
+    `transform` (compositor-only), instead of animating background-position,
+    which repaints every placeholder on every frame.
+  */
+  .skeleton-glass {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: color-mix(in oklab, var(--color-fg) 6%, transparent);
+    box-shadow: inset 0 1px 0 0 color-mix(in oklab, var(--color-fg) 6%, transparent);
+  }
+  .skeleton-glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      color-mix(in oklab, var(--color-fg) 9%, transparent) 50%,
+      transparent 80%
+    );
+    animation: skeleton-sheen 1.7s var(--ease-apple) infinite;
+  }
+
+  /*
+    Cover skeleton-to-content morph (see GameCover). The overlay holds a
+    blurred thumbnail of the same art plus the sheen; when the full image has
+    decoded it dissolves while the thumbnail settles from a slight zoom, which
+    reads as the cover coming into focus rather than swapping.
+  */
+  .cover-placeholder {
+    background: color-mix(in oklab, var(--color-fg) 6%, var(--color-panel));
+    transition: opacity 0.55s var(--ease-out-quart);
+  }
+  .cover-placeholder::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(100deg, transparent 25%, color-mix(in oklab, var(--color-fg) 10%, transparent) 50%, transparent 75%);
+    animation: skeleton-sheen 1.7s var(--ease-apple) infinite;
+  }
+  .cover-placeholder-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(14px) saturate(130%);
+    transform: scale(1.18);
+    transition: transform 0.7s var(--ease-out-expo);
+  }
+  .cover-placeholder[data-state="revealed"] {
+    opacity: 0;
+  }
+  .cover-placeholder[data-state="revealed"]::after {
+    animation: none;
+    opacity: 0;
+  }
+  .cover-placeholder[data-state="revealed"] .cover-placeholder-image {
+    transform: scale(1.04);
+  }
+  .cover-placeholder[data-state="done"] {
+    display: none;
+  }
+
+  /*
+    Long-press targets (cards with a context menu). iOS would otherwise raise
+    its own link preview / callout and start a text selection under the
+    finger. Touch only — on desktop, titles stay selectable.
+  */
+  @media (hover: none) and (pointer: coarse) {
+    .press-menu-target {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+  }
+
+  /*
+    Cover-flow floor reflection. `-webkit-box-reflect` is native in WebKit and
+    Blink (every phone browser that matters here) and costs one extra draw of
+    an already-rasterised layer; Firefox simply shows no reflection.
+  */
+  .cover-flow-reflect {
+    -webkit-box-reflect: below 3px linear-gradient(transparent 72%, #ffffff2e);
+  }
+
+  /* Lifted context-menu preview: iOS's raised, deeply shadowed card. */
+  .menu-lift-shadow {
+    box-shadow:
+      0 0 0 1px #ffffff1f,
+      0 30px 80px -20px #000000e6,
+      0 12px 30px -12px #000000b3;
+  }
+
+  /*
+    Liquid-glass refraction for the active lens (tab bar) and active nav pill
+    (header). Gated by `data-liquid-glass`, which LiquidGlassFilter sets only
+    in Chromium — the one engine that renders SVG filter references inside
+    `backdrop-filter`. Everywhere else these elements keep the plain tint.
+    The filter value goes through the custom property for the same Lightning
+    CSS reason documented on `.material`.
+  */
+  :root[data-liquid-glass="true"] .liquid-lens {
+    --material-filter: url(#liquid-glass) blur(1.5px) saturate(165%) brightness(1.08);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
+  }
+
+  /* A stacking surface that hosts `.liquid-lens` must not itself be a
+     backdrop root, or the lens would only "see" the bar's own tint. The blur
+     moves onto this underlay instead (see MobileTabBar / Header). */
+  .material-underlay {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+}
+
+@keyframes skeleton-sheen {
+  to { transform: translateX(100%); }
+}
+
+/* ============================================================================
+   View transitions (React <ViewTransition> + Next App Router navigations).
+   Classes are applied by components/interactions/{PageTransition,
+   CoverTransition}.tsx.
+   ========================================================================= */
+
+/* The overlay must never eat taps meant for the incoming page. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* Default navigation: outgoing page fades out fast, incoming rises in gently. */
+::view-transition-old(.page-exit) {
+  animation: vt-fade-out 150ms var(--ease-out-quart) both;
+}
+::view-transition-new(.page-enter) {
+  animation: vt-rise-in 320ms var(--ease-out-expo) 60ms both;
+}
+
+/* Card cover → game page cover. */
+::view-transition-group(.cover-morph) {
+  z-index: 50;
+  animation-duration: 460ms;
+  animation-timing-function: var(--ease-apple);
+}
+::view-transition-image-pair(.cover-morph) {
+  animation: vt-morph-soften 460ms var(--ease-apple) both;
+}
+::view-transition-old(.cover-morph),
+::view-transition-new(.cover-morph) {
+  /* Covers keep their aspect while the box morphs, instead of stretching. */
+  height: 100%;
+  object-fit: cover;
+  animation-duration: 460ms;
+}
+
+/* The page cover when no pair could form (destination streamed in late). */
+::view-transition-new(.cover-reveal) {
+  animation: vt-cover-reveal 520ms var(--ease-out-expo) both;
+}
+
+@keyframes vt-fade-out {
+  to { opacity: 0; }
+}
+@keyframes vt-rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+}
+@keyframes vt-morph-soften {
+  35% { filter: blur(2px); }
+}
+@keyframes vt-cover-reveal {
+  from { opacity: 0; transform: scale(0.94); filter: blur(6px); }
+}
+
+/* Reduced motion — OS setting or the in-app switch: swap instantly. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-image-pair(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+:root[data-reduce-motion="true"]::view-transition-group(*),
+:root[data-reduce-motion="true"]::view-transition-old(*),
+:root[data-reduce-motion="true"]::view-transition-new(*),
+:root[data-reduce-motion="true"]::view-transition-image-pair(*) {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
 }

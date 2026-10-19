@@ -13,12 +13,15 @@
  * history stored alongside it.
  */
 
-import { useState } from "react";
+import { useId, useState } from "react";
+import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { Bookmark, Check, CircleOff, Gamepad2, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { useToast } from "@/components/ui/Toast";
+import { useCalmMotion } from "@/components/interactions/motion-prefs";
+import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import type { WatchStatus } from "@/lib/firebase/db";
 import type { GameSummary } from "@/lib/games/types";
@@ -44,7 +47,11 @@ export function StatusPicker({
   const router = useRouter();
 
   const [busy, setBusy] = useState<WatchStatus | null>(null);
-  const current = statusOf(game.id);
+  // Shown as selected the instant it is tapped; the store catches up.
+  const [optimistic, setOptimistic] = useState<WatchStatus | null>(null);
+  const current = optimistic ?? statusOf(game.id);
+  const calm = useCalmMotion();
+  const pillId = useId();
   const options = isUnreleased(game)
     ? OPTIONS.filter((option) => option.value === "none" || option.value === "want")
     : OPTIONS;
@@ -64,10 +71,13 @@ export function StatusPicker({
     // doing nothing.
     if (current === value) return;
 
+    haptic("selection");
     setBusy(value);
+    setOptimistic(value);
     try {
       await ensure(game);
       await setStatus(game.id, value);
+      haptic("success");
       toast(
         value === "none"
           ? "Play status cleared"
@@ -75,9 +85,11 @@ export function StatusPicker({
         "success",
       );
     } catch (err) {
+      haptic("warning");
       toast(err instanceof Error ? err.message : "Couldn't save that.", "error");
     } finally {
       setBusy(null);
+      setOptimistic(null);
     }
   };
 
@@ -86,7 +98,7 @@ export function StatusPicker({
       role="group"
       aria-label="Your status with this game"
       className={cn(
-        "flex items-center gap-1 rounded-full border border-white/[0.09] bg-white/[0.06] p-1 sm:inline-flex",
+        "flex items-center gap-1 rounded-full border border-fg/[0.09] bg-fg/[0.06] p-1 sm:inline-flex",
         className,
       )}
     >
@@ -101,13 +113,23 @@ export function StatusPicker({
             aria-pressed={active}
             disabled={busy !== null}
             className={cn(
-              "press inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-300 sm:flex-none",
-              "disabled:opacity-60",
+              "press relative isolate inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition-colors duration-300 sm:flex-none coarse:min-h-11",
+              busy !== null && busy !== option.value && "opacity-60",
               active
-                ? "bg-brand text-white shadow-[inset_0_1px_0_#ffffff40,0_6px_18px_-6px_rgba(138,114,255,0.7)]"
-                : "text-muted fine:hover:bg-white/8 fine:hover:text-text",
+                ? "text-[var(--game-on-accent,#fff)]"
+                : "text-muted fine:hover:bg-fg/[0.08] fine:hover:text-text",
             )}
           >
+            {/* One pill that glides between segments, like iOS's segmented
+                control, tinted with the page's cover accent when there is one. */}
+            {active && (
+              <motion.span
+                layoutId={pillId}
+                aria-hidden
+                transition={calm ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 38 }}
+                className="absolute inset-0 -z-10 rounded-full bg-[var(--game-accent,var(--color-brand))] shadow-[inset_0_1px_0_#ffffff40,0_6px_18px_-6px_var(--game-glow,rgba(138,114,255,0.7))]"
+              />
+            )}
             <Icon size={14} className={cn(busy === option.value && "animate-spin")} />
             <span className={cn(option.value === "none" ? "sr-only sm:not-sr-only" : "hidden sm:inline")}>{option.label}</span>
           </button>

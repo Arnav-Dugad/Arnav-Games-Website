@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 
 import { useState, type ReactNode } from "react";
 import {
+  SunMoon,
   BellRing,
   Bookmark,
   Check,
@@ -23,6 +24,7 @@ import {
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { usePreferences } from "@/lib/preferences/PreferencesProvider";
+import { useThemePreference, type ThemePreference } from "@/lib/preferences/theme";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/SectionHeading";
 import { useToast } from "@/components/ui/Toast";
@@ -33,6 +35,7 @@ export function SettingsView() {
   return (
     <Container className="max-w-3xl py-10 lg:py-14">
       <div className="space-y-5">
+        <AppearanceCard />
         <NotificationCard />
         <MotionCard />
         <AccountCard />
@@ -101,6 +104,89 @@ function NotificationCard() {
   );
 }
 
+
+const APPEARANCES: Array<{ value: ThemePreference; label: string }> = [
+  { value: "system", label: "Automatic" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
+/**
+ * iOS-style appearance picker: a miniature of the page in each theme, so the
+ * choice is made by looking rather than by reading.
+ */
+function AppearanceCard() {
+  const [theme, setTheme] = useThemePreference();
+
+  return (
+    <SettingCard
+      icon={<SunMoon size={19} />}
+      title="Appearance"
+      description="Automatic follows your device's light or dark setting."
+    >
+      <div role="radiogroup" aria-label="Appearance" className="grid grid-cols-3 gap-3 sm:gap-5">
+        {APPEARANCES.map((option) => {
+          const active = theme === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setTheme(option.value)}
+              className="press group flex flex-col items-center gap-2.5"
+            >
+              <ThemeThumbnail kind={option.value} active={active} />
+              <span className={cn("text-sm font-medium", active ? "text-text" : "text-muted")}>{option.label}</span>
+              <span
+                aria-hidden
+                className={cn(
+                  "grid h-5 w-5 place-items-center rounded-full border transition-colors",
+                  active ? "border-brand bg-brand" : "border-line-strong",
+                )}
+              >
+                {active && <span className="h-2 w-2 rounded-full bg-white" />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </SettingCard>
+  );
+}
+
+function ThemeThumbnail({ kind, active }: { kind: ThemePreference; active: boolean }) {
+  // Hard-coded colours on purpose: each thumbnail shows its own theme
+  // regardless of which one is currently applied.
+  const panel = (tone: "light" | "dark") => (
+    <div className={cn("flex h-full flex-col gap-1.5 p-2", tone === "light" ? "bg-[#f5f5f7]" : "bg-black")}>
+      <div className={cn("h-2.5 rounded-full", tone === "light" ? "bg-white shadow-sm" : "bg-[#2c2c2e]")} />
+      <div className="flex flex-1 gap-1.5">
+        <div className={cn("flex-1 rounded-md", tone === "light" ? "bg-white shadow-sm" : "bg-[#1c1c1e]")} />
+        <div className={cn("flex-1 rounded-md", tone === "light" ? "bg-white shadow-sm" : "bg-[#1c1c1e]")} />
+      </div>
+      <div className="h-2 w-2/3 rounded-full bg-[#8a72ff]" />
+    </div>
+  );
+
+  return (
+    <span
+      className={cn(
+        "block aspect-[3/4] w-full max-w-[96px] overflow-hidden rounded-2xl ring-2 ring-offset-2 ring-offset-bg transition-[box-shadow]",
+        active ? "ring-brand" : "ring-transparent",
+      )}
+    >
+      {kind === "system" ? (
+        <span className="grid h-full grid-cols-2">
+          {panel("light")}
+          {panel("dark")}
+        </span>
+      ) : (
+        panel(kind)
+      )}
+    </span>
+  );
+}
 
 function MotionCard() {
   const { reduceMotion, setReduceMotion } = usePreferences();

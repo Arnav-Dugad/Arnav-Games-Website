@@ -53,7 +53,7 @@ export function BatchEditPanel({
           <p className="text-sm font-bold">Batch edit {gameIds.length} selected {gameIds.length === 1 ? "game" : "games"}</p>
           <p className="mt-0.5 text-[11px] text-muted">Only the chosen field changes. Everything else is preserved.</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close batch editor" className="grid h-10 w-10 place-items-center rounded-full text-faint hover:bg-white/8 hover:text-text"><X size={16} /></button>
+        <button type="button" onClick={onClose} aria-label="Close batch editor" className="grid h-10 w-10 place-items-center rounded-full text-faint hover:bg-fg/[0.08] hover:text-text"><X size={16} /></button>
       </div>
 
       <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
@@ -69,7 +69,7 @@ export function BatchEditPanel({
         <select value={value} onChange={(event) => setValue(event.target.value)} disabled={options.length === 0} aria-label="Batch edit value" className="min-h-12 min-w-0 rounded-xl border border-line bg-panel px-3 text-sm outline-none disabled:opacity-50 focus:border-brand">
           {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <button type="button" onClick={apply} disabled={busy || gameIds.length === 0} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-bg transition-transform hover:-translate-y-0.5 disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}Apply</button>
+        <button type="button" onClick={apply} disabled={busy || gameIds.length === 0} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-fg px-5 text-sm font-black text-bg transition-transform hover:-translate-y-0.5 disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}Apply</button>
       </div>
       <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-faint"><span className="flex items-center gap-1"><Library size={11} /> Multi-platform safe</span><span className="flex items-center gap-1"><Bookmark size={11} /> Saves preserved</span><span className="flex items-center gap-1"><Bell size={11} /> Alerts preserved</span><span className="flex items-center gap-1"><Gamepad2 size={11} /> History preserved</span></div>
     </section>

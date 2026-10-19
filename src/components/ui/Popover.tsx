@@ -40,6 +40,7 @@ export function Popover({
   width = 256,
   className,
   label,
+  align = "start",
 }: {
   open: boolean;
   onClose: () => void;
@@ -48,6 +49,8 @@ export function Popover({
   width?: number;
   className?: string;
   label?: string;
+  /** Which anchor edge the panel lines up with. `end` suits right-aligned triggers. */
+  align?: "start" | "end";
 }) {
   const [position, setPosition] = useState<Position | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -77,7 +80,8 @@ export function Popover({
     // Keep the panel inside the viewport horizontally rather than letting it
     // run off the right edge on narrow screens.
     const maxLeft = window.innerWidth - clampedWidth - MARGIN;
-    const left = Math.max(MARGIN, Math.min(rect.left, maxLeft));
+    const preferred = align === "end" ? rect.right - clampedWidth : rect.left;
+    const left = Math.max(MARGIN, Math.min(preferred, maxLeft));
 
     setPosition({
       top: above ? rect.top - panelHeight - GAP : rect.bottom + GAP,
@@ -85,7 +89,7 @@ export function Popover({
       width: clampedWidth,
       above,
     });
-  }, [anchorRef, width]);
+  }, [anchorRef, width, align]);
 
   // Layout effect so the first paint is already in the right place — a
   // measure-then-move would show the panel jumping.

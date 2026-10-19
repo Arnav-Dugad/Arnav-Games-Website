@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { isIgdbImage, sizedImage } from "@/lib/games/image";
 import { hueFromString, initials } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -23,6 +23,11 @@ import { cn } from "@/lib/utils/cn";
  * Failed URLs are tracked by value rather than by index, so changing the `image`
  * prop — as the hero carousel does on every rotation — naturally re-tries the
  * new source without needing a reset.
+ *
+ * While the full asset downloads, a blurred thumbnail of the *same* artwork
+ * sits over it under a soft sheen, then dissolves once the real image has
+ * decoded — so a slow connection shows the right colours immediately and the
+ * cover sharpens in place instead of popping in. See `CoverPlaceholder`.
  */
 
 interface GameCoverProps {
@@ -52,6 +57,7 @@ export function GameCover({
   rounded = "rounded-[inherit]",
 }: GameCoverProps) {
   const [failed, setFailed] = useState<string[]>([]);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   const sources = useMemo(
     () =>
@@ -68,16 +74,129 @@ export function GameCover({
   }
 
   return (
-    <Image
-      src={src}
-      alt=""
-      fill
-      sizes={sizes}
-      priority={priority}
-      unoptimized={isIgdbImage(src)}
-      onError={() => setFailed((prev) => (prev.includes(src) ? prev : [...prev, src]))}
-      className={cn("object-cover", rounded, className)}
-    />
+    <>
+      <Image
+        ref={imageRef}
+        src={src}
+        alt=""
+        fill
+        sizes={sizes}
+        priority={priority}
+        unoptimized={isIgdbImage(src)}
+        onError={() => setFailed((prev) => (prev.includes(src) ? prev : [...prev, src]))}
+        className={cn("object-cover", rounded, className)}
+      />
+      {/* Keyed by source: a new image (hero rotation, poster → header
+          fallback) gets a fresh placeholder lifecycle. */}
+      <CoverPlaceholder key={src} src={src} imageRef={imageRef} rounded={rounded} />
+    </>
+  );
+}
+
+/** Never changes, so `useSyncExternalStore` only distinguishes server/client. */
+const subscribeNothing = () => () => {};
+
+/**
+ * IGDB serves every asset at fixed size tokens. `cover_small` (90x128) keeps
+ * a poster's aspect; `thumb` (90x90) is the smallest token for landscape art.
+ * At 3–5KB either arrives long before the full image. Other providers publish
+ * one size only, so they get the sheen without a preview.
+ */
+function placeholderSource(src: string): string | null {
+  if (!isIgdbImage(src)) return null;
+  const match = src.match(/\/t_([a-z0-9_]+)\//i);
+  if (!match) return null;
+  const token = match[1].startsWith("cover") ? "cover_small" : "thumb";
+  return src.replace(/\/t_[a-z0-9_]+\//i, `/t_${token}/`);
+}
+
+/**
+ * The blurred stand-in that dissolves into the real cover.
+ *
+ * Driven entirely by direct DOM writes rather than React state: the decision
+ * depends on the image element's `complete` flag, which only exists in the
+ * DOM, and a state round-trip would cost a render per cover on grids of
+ * fifty. It also never renders on the server — before hydration the browser
+ * paints the full image progressively as it always has, and a cover that
+ * already finished loading by the time React attaches is simply skipped
+ * rather than flashing blurry for a frame.
+ */
+function CoverPlaceholder({
+  src,
+  imageRef,
+  rounded,
+}: {
+  src: string;
+  imageRef: React.RefObject<HTMLImageElement | null>;
+  rounded: string;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const client = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const preview = placeholderSource(src);
+
+  useLayoutEffect(() => {
+    const overlay = ref.current;
+    const img = imageRef.current;
+    if (!overlay || !img) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const settle = (instant: boolean) => {
+      if (instant) {
+        overlay.dataset.state = "done";
+        return;
+      }
+      overlay.dataset.state = "revealed";
+      // Once faded, drop it from rendering altogether: an invisible blurred
+      // layer still costs compositor memory on a grid of fifty covers. The
+      // timer backs up `transitionend`, which never fires if the element is
+      // hidden mid-fade.
+      const finish = () => {
+        clearTimeout(timer);
+        overlay.dataset.state = "done";
+      };
+      overlay.addEventListener("transitionend", finish, { once: true });
+      timer = setTimeout(finish, 900);
+    };
+
+    // Cached or already-decoded: skip the reveal entirely.
+    if (img.complete && img.naturalWidth > 0) {
+      settle(true);
+      return;
+    }
+
+    const onLoad = () => {
+      // `decode()` resolves once the bitmap is ready to paint, so the blur
+      // lifts onto a finished image rather than a half-rasterised one.
+      void img.decode().catch(() => {}).then(() => settle(false));
+    };
+    // A failed load hands over to the next source (or generated art) via the
+    // parent's onError; the placeholder just gets out of the way.
+    const onError = () => settle(true);
+    img.addEventListener("load", onLoad);
+    img.addEventListener("error", onError);
+    return () => {
+      clearTimeout(timer);
+      img.removeEventListener("load", onLoad);
+      img.removeEventListener("error", onError);
+    };
+  }, [client, imageRef]);
+
+  if (!client) return null;
+
+  return (
+    <span
+      ref={ref}
+      aria-hidden
+      data-state="loading"
+      className={cn("cover-placeholder pointer-events-none absolute inset-0 overflow-hidden", rounded)}
+    >
+      {preview && (
+        // A 4KB thumbnail served straight from IGDB: next/image would only
+        // add a srcset nobody needs for a blurred stand-in.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={preview} alt="" decoding="async" className="cover-placeholder-image" />
+      )}
+    </span>
   );
 }
 

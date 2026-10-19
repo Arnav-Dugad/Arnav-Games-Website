@@ -2,11 +2,14 @@ import Link from "next/link";
 import { ArrowRight, CalendarClock, Database, Flame, Trophy } from "lucide-react";
 import { CinematicHero } from "@/components/home/CinematicHero";
 import { GameRail } from "@/components/game/GameRail";
+import { CoverFlow } from "@/components/interactions/CoverFlow";
 import { GameGrid } from "@/components/game/GameGrid";
 import { Container, Section, SectionHeading } from "@/components/ui/SectionHeading";
 import { DataSourceNotice } from "@/components/ui/DataSourceNotice";
 import { Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { JoinCta } from "@/components/home/JoinCta";
+import { AnticipatedShelf, GamePassShelves } from "@/components/home/HomeShelves";
+import { Suspense } from "react";
 import { PersonalCommandCenter } from "@/components/home/PersonalCommandCenter";
 import { CountUp } from "@/components/motion/text";
 import { Marquee, Spotlight } from "@/components/motion/effects";
@@ -74,8 +77,21 @@ export default async function HomePage() {
             href="/upcoming"
           />
         </Container>
-        <Container className="mt-7"><GameRail games={featured} priorityCount={3} /></Container>
+        {/* Touch-sized screens get the cover-flow; md+ keeps the rail. A CSS
+            switch rather than a JS media query, so the server HTML is already
+            right and nothing swaps after hydration. */}
+        <div className="mt-6 md:hidden">
+          <CoverFlow games={featured} label="Landing soon" />
+        </div>
+        {/* Not inside Container: the rail aligns itself with `rail-gutter`. */}
+        <div className="mt-7 hidden md:block"><GameRail games={featured} priorityCount={3} /></div>
       </Section>
+
+      {/* Streamed: each shelf waits on its own sources (hype index, the Game
+          Pass catalogue) without holding up the page above it. */}
+      <Suspense fallback={null}>
+        <AnticipatedShelf />
+      </Suspense>
 
       <Section className="py-8 sm:py-11">
         <Container>
@@ -86,8 +102,15 @@ export default async function HomePage() {
             href="/browse?ordering=-added"
           />
         </Container>
-        <Container className="mt-7"><GameRail games={trending.data} /></Container>
+        {/* Full-bleed, not inside a Container: the rail's own gutter lines
+            the first card up with the heading and lets cards scroll off the
+            viewport edge. Inside a Container it double-indented and clipped. */}
+        <div className="mt-7"><GameRail games={trending.data} /></div>
       </Section>
+
+      <Suspense fallback={null}>
+        <GamePassShelves />
+      </Suspense>
 
       <Section>
         <Container>
@@ -114,7 +137,7 @@ export default async function HomePage() {
             href="/browse?ordering=-released"
           />
         </Container>
-        <Container className="mt-7"><GameRail games={newReleases.data} /></Container>
+        <div className="mt-7"><GameRail games={newReleases.data} /></div>
       </Section>
 
       <JoinCta />

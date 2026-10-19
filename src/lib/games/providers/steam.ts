@@ -32,6 +32,7 @@ import { REQUEST_TIMEOUT_MS, TTL, type GameProvider } from "./types";
 import { slugify, stripHtml } from "@/lib/utils/html";
 import { DETAIL_DEFAULTS } from "../detail";
 import { releaseState } from "../release-state";
+import { steamLogoFor } from "../steam-logo";
 
 const STORE = "https://store.steampowered.com/api";
 const DEFAULT_STEAM_REGION = "us";
@@ -406,9 +407,13 @@ async function summariesFor(appids: number[], revalidate: number): Promise<GameS
   const details = await mapWithLimit(appids, CONCURRENCY, (appid) =>
     fetchAppDetails(appid, revalidate),
   );
-  return details
+  const games = details
     .map((entry) => (entry ? mapSummary(entry) : null))
     .filter((game): game is GameSummary => game !== null);
+  // Library logos are confirmed with a cached HEAD each (30 days), bounded
+  // like the appdetails fan-out so a cold cache can't burst the CDN.
+  const logos = await mapWithLimit(games, CONCURRENCY, (game) => steamLogoFor(game.id));
+  return games.map((game, index) => ({ ...game, logo: logos[index] }));
 }
 
 async function fetchFeatured(): Promise<FeaturedCategories | null> {
@@ -635,7 +640,8 @@ export const steamProvider: GameProvider = {
     // Slugs minted by another provider simply aren't ours — fall through.
     if (appid === null) return null;
     const details = await fetchAppDetails(appid, TTL.detail);
-    return details ? mapDetail(details) : null;
+    const detail = details ? mapDetail(details) : null;
+    return detail ? { ...detail, logo: await steamLogoFor(detail.id) } : null;
   },
 
   async related(game: GameDetail, limit: number) {

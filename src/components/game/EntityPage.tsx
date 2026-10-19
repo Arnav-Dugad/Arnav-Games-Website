@@ -1,16 +1,49 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarRange, Gamepad2, LibraryBig } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { EntityGameExplorer } from "@/components/game/EntityGameExplorer";
-import { Container } from "@/components/ui/SectionHeading";
+import { CareerStats } from "@/components/charts/CareerStats";
+import { ReleaseTimeline } from "@/components/charts/ReleaseTimeline";
+import { Container, SectionHeading } from "@/components/ui/SectionHeading";
 import { Badge } from "@/components/ui/Badge";
 import { ExpandableText } from "@/components/ui/ExpandableText";
 import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/utils/cn";
 import { isIgdbImage } from "@/lib/games/image";
+import { summarizeCareer, toTimelineGames } from "@/lib/games/timeline";
 import type { IgdbEntity } from "@/lib/games/providers/igdb";
+import type { GameSummary } from "@/lib/games/types";
+
+type EntityKind = "company" | "character" | "franchise";
+
+/** Fewer than this many dated games is a list, not a timeline. */
+const MIN_TIMELINE_GAMES = 3;
+
+const COPY: Record<
+  EntityKind,
+  { directory: [href: string, label: string]; glance: string; timeline: string; games: [eyebrow: string, title: string] }
+> = {
+  company: {
+    directory: ["/studios", "All studios"],
+    glance: "Career",
+    timeline: "A career in releases",
+    games: ["Studio catalogue", "Games"],
+  },
+  franchise: {
+    directory: ["/franchises", "All franchises"],
+    glance: "Series",
+    timeline: "The series over time",
+    games: ["Complete collection", "Every game"],
+  },
+  character: {
+    directory: ["/browse", "Browse games"],
+    glance: "Appearances",
+    timeline: "Appearances over time",
+    games: ["Gameography", "Appears in"],
+  },
+};
 
 export function EntityPage({
   entity,
@@ -18,54 +51,70 @@ export function EntityPage({
   eyebrow,
 }: {
   entity: IgdbEntity | null;
-  kind: "company" | "character" | "franchise";
+  kind: EntityKind;
   eyebrow: string;
 }) {
   if (!entity) notFound();
 
-  const hasMark = Boolean(entity.image);
-  const datedGames = entity.games
-    .filter((game) => game.released)
-    .sort((a, b) => a.released!.localeCompare(b.released!));
-  const firstYear = datedGames.at(0)?.released?.slice(0, 4) ?? null;
-  const latestYear = datedGames.at(-1)?.released?.slice(0, 4) ?? null;
-  const directoryHref = kind === "company" ? "/studios" : kind === "franchise" ? "/franchises" : "/browse";
-  const directoryLabel = kind === "company" ? "All studios" : kind === "franchise" ? "All franchises" : "Browse games";
+  const copy = COPY[kind];
   const collectionPage = kind === "franchise";
+  const hasMark = Boolean(entity.image) && !collectionPage;
+
+  // Server clock; the chart re-judges exact dates against the viewer's own.
+  const now = new Date();
+  const summary = summarizeCareer(entity.games, now);
+  const timeline = toTimelineGames(entity.games, now);
+  const firstYear = summary.firstRelease?.released?.slice(0, 4) ?? null;
+  const latestYear = summary.latestRelease?.released?.slice(0, 4) ?? null;
+  const backdrop = backdropFor(entity, kind);
 
   return (
     <>
       <header className="noise relative isolate overflow-hidden border-b border-line">
-        {collectionPage && entity.image && (
-          <div className="absolute inset-0 -z-20">
-            <Image src={entity.image} alt="" fill priority sizes="100vw" unoptimized={isIgdbImage(entity.image)} className="scale-110 object-cover opacity-35 blur-[2px]" />
+        {/*
+          Key art from the entity's best-known game, heavily blurred — the hero
+          takes on the colour of the work without competing with the title.
+          Studios and characters previously sat on a flat gradient.
+        */}
+        {backdrop && (
+          <div aria-hidden className="absolute inset-0 -z-20">
+            <Image
+              src={backdrop}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              unoptimized={isIgdbImage(backdrop)}
+              className="scale-110 object-cover opacity-40 blur-[6px] saturate-[1.15]"
+            />
           </div>
         )}
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(70%_80%_at_75%_20%,rgba(124,92,255,0.2),transparent_65%)]" />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-bg via-bg/88 to-bg/55" />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-bg via-bg/80 to-transparent" />
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(70%_80%_at_75%_20%,rgba(138,114,255,0.22),transparent_65%)]" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-bg via-bg/85 to-bg/45" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-bg/90 via-bg/60 to-transparent" />
 
-        <Container className="pb-10 pt-24 lg:pb-16 lg:pt-32">
+        <Container className="pb-9 pt-20 sm:pt-24 lg:pb-14 lg:pt-32">
           <Reveal>
             <Link
-              href={directoryHref}
-              className="mb-8 inline-flex items-center gap-2 rounded-full border border-line bg-black/20 px-3.5 py-2 text-xs font-medium text-muted backdrop-blur-md transition-colors hover:border-line-strong hover:text-text"
+              href={copy.directory[0]}
+              className="material-thin press mb-7 inline-flex h-9 items-center gap-1 rounded-full pl-2.5 pr-3.5 text-[13px] font-medium text-text/90 transition-colors fine:hover:text-text sm:mb-9"
             >
-              <ArrowLeft size={14} />
-              {directoryLabel}
+              <ChevronLeft size={16} className="text-brand-soft" />
+              {copy.directory[1]}
             </Link>
           </Reveal>
 
           <div className={cn("grid items-end gap-8", collectionPage && "lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14")}>
-            <div className="flex min-w-0 flex-col gap-7 sm:flex-row sm:items-end sm:gap-8">
-              {hasMark && !collectionPage && (
+            <div className="flex min-w-0 flex-col gap-6 sm:flex-row sm:items-end sm:gap-8">
+              {hasMark && (
                 <Reveal
                   direction="right"
                   className={cn(
-                    "relative shrink-0 overflow-hidden rounded-3xl border border-line-strong shadow-[0_35px_90px_-34px_rgba(0,0,0,0.95)]",
+                    "relative shrink-0 overflow-hidden rounded-[1.75rem] shadow-[0_35px_90px_-34px_rgba(0,0,0,0.95)] ring-1 ring-fg/15",
                     kind === "company"
-                      ? "grid h-32 w-32 place-items-center bg-white/[0.96] p-4 sm:h-40 sm:w-40"
-                      : "aspect-[3/4] w-32 sm:w-44",
+                      ? // Logos are drawn for light paper; a near-white plate keeps dark marks legible.
+                        "grid h-28 w-28 place-items-center bg-white/[0.96] p-4 sm:h-40 sm:w-40"
+                      : "aspect-[3/4] w-28 sm:w-44",
                   )}
                 >
                   {/*
@@ -80,18 +129,15 @@ export function EntityPage({
                     fill
                     sizes="176px"
                     unoptimized={isIgdbImage(entity.image)}
-                    className={kind === "company" ? "object-contain p-1" : "object-cover"}
+                    className={kind === "company" ? "object-contain p-3 sm:p-4" : "object-cover"}
                   />
                 </Reveal>
               )}
 
               <div className="min-w-0 flex-1">
                 <Reveal>
-                  <p className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">
-                    <span aria-hidden className="h-px w-6 bg-gradient-to-r from-brand to-transparent" />
-                    {eyebrow}
-                  </p>
-                  <h1 className="max-w-4xl font-display text-[clamp(2.4rem,7vw,5.5rem)] font-black leading-[0.96] tracking-[-0.055em] text-white">
+                  <p className="mb-2.5 text-[13px] font-semibold text-brand-soft sm:text-sm">{eyebrow}</p>
+                  <h1 className="max-w-4xl break-words font-display text-[clamp(2.25rem,8vw,5.25rem)] font-black leading-[0.98] tracking-[-0.045em] text-text">
                     {entity.name}
                   </h1>
                 </Reveal>
@@ -102,7 +148,10 @@ export function EntityPage({
                     {entity.games.length} {entity.games.length === 1 ? "game" : "games"}
                   </Badge>
                   {firstYear && latestYear && (
-                    <Badge>{firstYear === latestYear ? firstYear : `${firstYear}—${latestYear}`}</Badge>
+                    <Badge>{firstYear === latestYear ? firstYear : `${firstYear}–${latestYear}`}</Badge>
+                  )}
+                  {summary.upcomingCount > 0 && (
+                    <Badge tone="neon">{summary.upcomingCount} upcoming</Badge>
                   )}
                 </Reveal>
               </div>
@@ -112,68 +161,73 @@ export function EntityPage({
           </div>
 
           {entity.description && (
-            <Reveal delay={0.14} className="mt-8 max-w-3xl">
+            <Reveal delay={0.14} className="mt-7 max-w-3xl">
               <ExpandableText
                 text={entity.description}
-                paragraphClassName="text-[15px] leading-[1.8] text-muted"
+                paragraphClassName="text-[15px] leading-[1.75] text-muted"
               />
             </Reveal>
           )}
-
-          <Reveal delay={0.18} className="mt-9 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-3">
-            <EntityStat icon={<LibraryBig size={17} />} value={String(entity.games.length)} label="Catalogue entries" />
-            <EntityStat icon={<CalendarRange size={17} />} value={firstYear ?? "—"} label="First release" />
-            <EntityStat icon={<Gamepad2 size={17} />} value={latestYear ?? "—"} label="Latest release" className="col-span-2 sm:col-span-1" />
-          </Reveal>
         </Container>
       </header>
 
-      <Container className="py-10 lg:py-16">
-        <div className="mb-7">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">
-            {collectionPage ? "Complete collection" : kind === "company" ? "Studio catalogue" : "Gameography"}
-          </p>
-          <h2 className="text-2xl font-bold sm:text-3xl">
-            {kind === "character" ? "Appears in" : collectionPage ? `Explore ${entity.name}` : "Games"}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-            Search the collection or arrange it by release date to find exactly what you want.
-          </p>
-        </div>
-
-        {entity.games.length > 0 ? (
-          <EntityGameExplorer games={entity.games} kind={kind} />
-        ) : (
-          <p className="rounded-2xl border border-dashed border-line py-16 text-center text-sm text-muted">
-            IGDB has no games linked to this entry yet.
-          </p>
+      <Container className="space-y-14 py-10 sm:space-y-16 lg:space-y-20 lg:py-16">
+        {entity.games.length > 0 && (
+          <section aria-label={`${copy.glance} at a glance`}>
+            <SectionHeading eyebrow={copy.glance} title="At a glance" className="mb-5 sm:mb-7" />
+            <CareerStats summary={summary} kind={kind} />
+          </section>
         )}
+
+        {timeline.length >= MIN_TIMELINE_GAMES && (
+          <section aria-label="Release timeline">
+            <SectionHeading
+              eyebrow="Timeline"
+              title={copy.timeline}
+              description="Every dated game by release and critic score. Hover or tap a dot for details."
+              className="mb-5 sm:mb-7"
+            />
+            <Reveal blur={false}>
+              <ReleaseTimeline games={timeline} subject={entity.name} undatedCount={entity.games.length - timeline.length} />
+            </Reveal>
+          </section>
+        )}
+
+        <section aria-label={copy.games[1]}>
+          <SectionHeading
+            eyebrow={copy.games[0]}
+            title={collectionPage ? `Explore ${entity.name}` : copy.games[1]}
+            description="Search the collection or sort it to find exactly what you want."
+            className="mb-5 sm:mb-7"
+          />
+
+          {entity.games.length > 0 ? (
+            <EntityGameExplorer games={entity.games} kind={kind} />
+          ) : (
+            <p className="rounded-3xl border border-dashed border-line py-16 text-center text-sm text-muted">
+              IGDB has no games linked to this entry yet.
+            </p>
+          )}
+        </section>
       </Container>
     </>
   );
 }
 
-function EntityStat({
-  icon,
-  value,
-  label,
-  className,
-}: {
-  icon: React.ReactNode;
-  value: string;
-  label: string;
-  className?: string;
-}) {
-  return (
-    <div className={cn("glass rounded-2xl p-4", className)}>
-      <span className="mb-3 grid h-8 w-8 place-items-center rounded-xl bg-brand/12 text-brand-soft">{icon}</span>
-      <p className="font-display text-lg font-bold text-text">{value}</p>
-      <p className="mt-0.5 text-[11px] uppercase tracking-[0.06em] text-faint">{label}</p>
-    </div>
-  );
+/**
+ * Hero backdrop. A franchise already resolves to its lead cover; studios and
+ * characters borrow a screenshot from their most-engaged game, which is the
+ * art a visitor is most likely to recognise.
+ */
+function backdropFor(entity: IgdbEntity, kind: EntityKind): string | null {
+  if (kind === "franchise" && entity.image) return entity.image;
+  const lead = [...entity.games]
+    .filter((game) => game.screenshots.length > 0 || game.image)
+    .sort((a, b) => b.added - a.added)[0];
+  return lead?.screenshots[0] ?? lead?.image ?? null;
 }
 
-function FranchisePosterStack({ games }: { games: IgdbEntity["games"] }) {
+function FranchisePosterStack({ games }: { games: GameSummary[] }) {
   const posters = games.filter((game) => game.image).slice(0, 3);
   if (posters.length === 0) return null;
 
@@ -192,7 +246,7 @@ function FranchisePosterStack({ games }: { games: IgdbEntity["games"] }) {
           <Link
             href={`/game/${game.slug}`}
             aria-label={game.name}
-            className="relative block h-full w-full overflow-hidden rounded-2xl border border-white/20 bg-panel shadow-[0_35px_70px_-25px_rgba(0,0,0,0.95)] transition-transform duration-500 hover:-translate-y-2 hover:scale-[1.02]"
+            className="relative block h-full w-full overflow-hidden rounded-2xl border border-fg/20 bg-panel shadow-[0_35px_70px_-25px_rgba(0,0,0,0.95)] transition-transform duration-500 ease-[var(--ease-apple)] hover:-translate-y-2 hover:scale-[1.02]"
           >
             <GameCover
               name={game.name}
@@ -202,7 +256,7 @@ function FranchisePosterStack({ games }: { games: IgdbEntity["games"] }) {
               width={420}
               sizes="160px"
             />
-            <span className="absolute inset-0 ring-1 ring-inset ring-white/10" />
+            <span className="absolute inset-0 ring-1 ring-inset ring-fg/10" />
           </Link>
         </div>
       ))}

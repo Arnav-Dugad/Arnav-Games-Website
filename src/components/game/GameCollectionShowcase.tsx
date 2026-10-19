@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { GameCover } from "./GameCover";
+import { DARK_STAGE_STYLE } from "./detail/theme";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { Badge } from "@/components/ui/Badge";
 import { ScorePill } from "@/components/ui/ScoreRing";
@@ -137,7 +138,7 @@ export function GameCollectionShowcase({ game }: { game: GameDetail }) {
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               {groups.slice(0, 5).map((group) => (
-                <span key={group.title} className="rounded-full border border-line bg-white/[0.03] px-3 py-1.5 text-[11px] text-muted">
+                <span key={group.title} className="rounded-full border border-line bg-fg/[0.03] px-3 py-1.5 text-[11px] text-muted">
                   {group.games.length} {group.label}
                 </span>
               ))}
@@ -145,7 +146,7 @@ export function GameCollectionShowcase({ game }: { game: GameDetail }) {
           </Reveal>
 
           {game.parentGame && (
-            <Reveal className="mb-9 rounded-3xl border border-gold/25 bg-[linear-gradient(135deg,rgba(255,200,87,0.10),rgba(16,16,32,0.75))] p-4 sm:p-5">
+            <Reveal className="mb-9 rounded-3xl border border-gold/25 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-gold)_12%,transparent),color-mix(in_oklab,var(--color-panel)_70%,transparent))] p-4 sm:p-5">
               <div className="flex items-center gap-4">
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-gold/20 bg-gold/10 text-gold">
                   <PackageOpen size={20} />
@@ -207,6 +208,9 @@ function UniverseCard({ entry, kind, href, backdrop, index }: { entry: Ref; kind
   return (
     <Link
       href={href}
+      // Art-led card: stays a dark surface in the light theme too, so its
+      // white type keeps contrast over the key art.
+      style={DARK_STAGE_STYLE}
       className="group relative isolate flex min-h-64 overflow-hidden rounded-[1.75rem] border border-brand/20 bg-panel p-6 shadow-[0_28px_80px_-45px_rgba(124,92,255,0.85)] transition-[transform,border-color,box-shadow] duration-500 fine:hover:-translate-y-1 fine:hover:border-brand/45 fine:hover:shadow-[0_34px_90px_-38px_rgba(124,92,255,0.85)] sm:min-h-72 sm:p-8"
     >
       <span className="absolute inset-0 -z-20">
@@ -241,7 +245,7 @@ function RelationShelf({ group }: { group: RelationGroup }) {
             <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">{group.description}</p>
           </div>
         </div>
-        <span className="hidden rounded-full border border-line bg-white/[0.03] px-3 py-1.5 text-xs text-faint sm:inline-flex">{group.games.length} {group.games.length === 1 ? "release" : "releases"}</span>
+        <span className="hidden rounded-full border border-line bg-fg/[0.03] px-3 py-1.5 text-xs text-faint sm:inline-flex">{group.games.length} {group.games.length === 1 ? "release" : "releases"}</span>
       </Reveal>
 
       <Stagger as="ul" className="snap-rail -mx-1 gap-3 overflow-x-auto px-1 pb-3 sm:gap-4" gap={0.035} onMount>

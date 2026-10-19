@@ -21,12 +21,12 @@ export function StoreLinks({ stores }: { stores: StoreRef[] }) {
             href={store.url ?? `https://${store.domain ?? ""}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="group flex items-center gap-3 rounded-xl border border-line px-3.5 py-3 text-sm transition-colors hover:border-line-strong hover:bg-white/[0.04]"
+            className="group flex items-center gap-3 rounded-xl border border-line px-3.5 py-3 text-sm transition-colors hover:border-line-strong hover:bg-fg/[0.04]"
           >
             {brandIcon(store.slug) ? (
               <BrandIcon name={store.slug} size={17} tinted title={null} />
             ) : (
-              <span aria-hidden className="h-[17px] w-[17px] rounded bg-white/10" />
+              <span aria-hidden className="h-[17px] w-[17px] rounded bg-fg/10" />
             )}
             <span className="min-w-0 flex-1 truncate">{store.name}</span>
             <ExternalLink

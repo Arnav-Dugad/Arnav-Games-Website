@@ -37,6 +37,7 @@ import type {
   CompanyRef,
   DirectoryRef,
   GameDetail,
+  GameLogo,
   GameSummary,
   LogoRef,
   MultiplayerModes,
@@ -400,6 +401,31 @@ const queryFor = (() => {
   };
 })();
 
+/**
+ * The cached, rate-limited query path, for sibling modules (`igdb-extras.ts`)
+ * that need IGDB endpoints this file doesn't wrap. Same contract as every
+ * query here: throws on failure, so an outage is never cached.
+ */
+export function igdbCachedQuery<T>(endpoint: string, body: string, revalidate: number): Promise<T> {
+  return queryFor(revalidate)<T>(endpoint, body);
+}
+
+/**
+ * The app access token and client id, for Twitch Helix — which accepts the
+ * same app token IGDB uses. Exported so live-data code shares one token (and
+ * its refresh/caching rules) instead of minting a second. Null when IGDB
+ * credentials are absent or the token request fails.
+ */
+export async function igdbAppAuth(): Promise<{ clientId: string; token: string } | null> {
+  const creds = credentials();
+  if (!creds) return null;
+  try {
+    return { clientId: creds.clientId, token: await getToken() };
+  } catch {
+    return null;
+  }
+}
+
 /* ---------------------------------------------------------------------------
  * Schema negotiation
  * ------------------------------------------------------------------------ */
@@ -443,6 +469,8 @@ let schemaPromise: Promise<{
   release: string[];
   ageRating: string[];
   descriptors: string[];
+  /** Absent from schemas cached before the field was negotiated. */
+  region?: string[];
 }> | null = null;
 
 /**
@@ -460,7 +488,8 @@ let schemaPromise: Promise<{
  */
 const cachedSchema = unstable_cache(
   async () => negotiateSchema(),
-  ["igdb", "schema"],
+  // Versioned: adding a negotiated group must not wait out a week-old entry.
+  ["igdb", "schema", "v2"],
   { revalidate: TTL.taxonomy, tags: ["igdb"] },
 );
 
@@ -513,7 +542,16 @@ function negotiateSchema() {
           ["age_ratings.content_descriptions.description"],
           [],
         ]);
-      return { release, ageRating, descriptors };
+      // The region enum moved to a `release_region` reference (same ids, 1–10)
+      // and the old `region` field now comes back empty — which is why every
+      // release row used to read "unspecified region". Its own probe for the
+      // same reason as descriptors: it changed independently.
+      const region = await negotiate("release_region", [
+          ["release_dates.release_region"],
+          ["release_dates.region"],
+          [],
+        ]);
+      return { release, ageRating, descriptors, region };
     })();
 }
 
@@ -679,8 +717,8 @@ async function summaryFields(): Promise<string> {
 }
 
 async function detailFields(): Promise<string> {
-  const { release, ageRating, descriptors } = await schema();
-  return [...CORE_DETAIL, ...release, ...ageRating, ...descriptors].join(",");
+  const { release, ageRating, descriptors, region = [] } = await schema();
+  return [...new Set([...CORE_DETAIL, ...release, ...ageRating, ...descriptors, ...region])].join(",");
 }
 
 /**
@@ -721,8 +759,10 @@ interface IgdbReleaseDate {
   category?: number;
   date?: number;
   human?: string;
-  /** Region enum; see `RELEASE_REGIONS`. */
+  /** Legacy region enum; see `RELEASE_REGIONS`. Now returned empty. */
   region?: number;
+  /** Current spelling: a `release_date_regions` id with the same 1–10 values. */
+  release_region?: number | { id?: number };
   platform?: IgdbNamed;
 }
 
@@ -863,6 +903,122 @@ export function igdbImage(imageId: string | null | undefined, size: IgdbImageSiz
 }
 
 /* ---------------------------------------------------------------------------
+ * Game logos
+ *
+ * IGDB keeps wordmarks as artworks with a dedicated `artwork_type`: 5 is the
+ * white mark, 7 the full-colour one, 6 the black one. They are transparent
+ * masters, so they are always requested as PNG — `.jpg` would flatten the
+ * alpha onto black. Lists use `t_logo_med` (284px wide, ~5 KB); hero and
+ * detail use `t_720p` (1280px wide, ~25 KB), which stays crisp at full-bleed
+ * hero sizes on a 2× display without the 1080p rendition's weight.
+ * ------------------------------------------------------------------------ */
+
+export type IgdbLogoSize = "logo_med" | "720p";
+
+/** White first: it reads best on this dark UI, over cover art or not. */
+const LOGO_TYPES: Array<{ type: number; tone: GameLogo["tone"] }> = [
+  { type: 5, tone: "light" },
+  { type: 7, tone: "color" },
+  { type: 6, tone: "dark" },
+];
+
+/** Artwork rows per id are ≤ 3 in practice; 150 ids keeps a page under IGDB's 500 cap. */
+const LOGO_CHUNK = 150;
+
+interface LogoArt {
+  imageId: string;
+  tone: GameLogo["tone"];
+  /** Index into LOGO_TYPES; lower is preferred. */
+  rank: number;
+}
+
+/**
+ * The preferred logo artwork for each id, in one batched query per 150 ids —
+ * never one per game. Cached for a day: logos almost never change, and a
+ * window at least as long as any route's keeps it from shortening a page's
+ * own revalidate. Throws on failure like every other query; callers decide.
+ */
+async function fetchLogoArt(rawIds: number[]): Promise<Map<number, LogoArt>> {
+  const ids = [...new Set(rawIds.filter((id) => Number.isInteger(id) && id > 0))].sort((a, b) => a - b);
+  const out = new Map<number, LogoArt>();
+  if (ids.length === 0) return out;
+
+  const query = queryFor(TTL.detail);
+  const chunks: number[][] = [];
+  for (let i = 0; i < ids.length; i += LOGO_CHUNK) chunks.push(ids.slice(i, i + LOGO_CHUNK));
+
+  const rows = (
+    await Promise.all(
+      chunks.map((chunk) =>
+        query<Array<{ id: number; game?: number; artwork_type?: number; image_id?: string }>>(
+          "artworks",
+          apicalypse({
+            fields: "game,artwork_type,image_id",
+            where: `game = (${chunk.join(",")}) & artwork_type = (${LOGO_TYPES.map((t) => t.type).join(",")})`,
+            sort: "id asc",
+            limit: 500,
+          }),
+        ),
+      ),
+    )
+  ).flat();
+
+  for (const row of rows) {
+    if (typeof row.game !== "number" || !row.image_id) continue;
+    const rank = LOGO_TYPES.findIndex((entry) => entry.type === row.artwork_type);
+    if (rank < 0) continue;
+    // Rows arrive oldest-first, so among equals the original upload wins.
+    const current = out.get(row.game);
+    if (current && current.rank <= rank) continue;
+    out.set(row.game, { imageId: row.image_id, tone: LOGO_TYPES[rank].tone, rank });
+  }
+  return out;
+}
+
+const logoFromArt = (art: LogoArt | undefined, size: IgdbLogoSize): GameLogo | null =>
+  art
+    ? {
+        url: `https://images.igdb.com/igdb/image/upload/t_${size}/${art.imageId}.png`,
+        tone: art.tone,
+        source: "igdb",
+      }
+    : null;
+
+/**
+ * Returns `games` with `logo` filled from IGDB: a logo, or null when IGDB has
+ * none. On a failed lookup the games come back untouched (`logo` undefined)
+ * — a missing wordmark degrades to the typographic fallback, never an error.
+ */
+async function attachLogos<T extends GameSummary>(games: T[], size: IgdbLogoSize): Promise<T[]> {
+  if (games.length === 0) return games;
+  try {
+    const art = await fetchLogoArt(games.map((game) => game.id));
+    return games.map((game) => ({ ...game, logo: logoFromArt(art.get(game.id), size) }));
+  } catch (err) {
+    warn("logos", err);
+    return games;
+  }
+}
+
+/** Logos for a batch of IGDB ids, for callers outside the provider. */
+export async function igdbLogosFor(
+  ids: number[],
+  size: IgdbLogoSize = "logo_med",
+): Promise<Map<number, GameLogo>> {
+  const out = new Map<number, GameLogo>();
+  if (!igdbConfigured()) return out;
+  try {
+    for (const [id, art] of await fetchLogoArt(ids)) {
+      const logo = logoFromArt(art, size);
+      if (logo) out.set(id, logo);
+    }
+  } catch (err) {
+    warn("logos", err);
+  }
+  return out;
+}
+
+/* ---------------------------------------------------------------------------
  * Platform families
  * ------------------------------------------------------------------------ */
 
@@ -968,6 +1124,14 @@ const RELEASE_REGIONS: Record<number, string> = {
   10: "Brazil",
 };
 
+function releaseRegionName(entry: IgdbReleaseDate): string | null {
+  const id =
+    typeof entry.release_region === "number"
+      ? entry.release_region
+      : entry.release_region?.id ?? entry.region;
+  return typeof id === "number" ? RELEASE_REGIONS[id] ?? null : null;
+}
+
 /* ---------------------------------------------------------------------------
  * Release resolution
  * ------------------------------------------------------------------------ */
@@ -1040,7 +1204,7 @@ function toReleaseEvents(game: IgdbGame): ReleaseEvent[] {
     events.push({
       date: exact ? isoFromUnix(entry.date!) : null,
       human: human || (exact ? isoFromUnix(entry.date!) : ""),
-      region: typeof entry.region === "number" ? RELEASE_REGIONS[entry.region] ?? null : null,
+      region: releaseRegionName(entry),
       platform: entry.platform?.name ?? null,
     });
   }
@@ -1537,13 +1701,21 @@ const todayEndSeconds = () => todayStartSeconds() + 86_400;
 
 const usable = (games: IgdbGame[]) => games.filter((game) => game.status !== CANCELLED);
 
-async function listGames(parts: Omit<QueryParts, "fields">, revalidate: number) {
+/**
+ * Every list path funnels through here, so this is also where wordmarks are
+ * attached: one batched `artworks` query per result set.
+ */
+async function listGames(
+  parts: Omit<QueryParts, "fields">,
+  revalidate: number,
+  logoSize: IgdbLogoSize = "logo_med",
+) {
   const query = queryFor(revalidate);
   const rows = await query<IgdbGame[]>(
     "games",
     apicalypse({ ...parts, fields: await summaryFields() }),
   );
-  return usable(rows).map(mapSummary);
+  return attachLogos(usable(rows).map(mapSummary), logoSize);
 }
 
 /**
@@ -2150,7 +2322,8 @@ export const igdbProvider: GameProvider = {
         const ranked = rankSearchResults(pool, term, altNames);
         const start = (page - 1) * pageSize;
         return {
-          results: ranked.slice(start, start + pageSize),
+          // Logos for the visible page only — the pool is several times larger.
+          results: await attachLogos(ranked.slice(start, start + pageSize), "logo_med"),
           count: ranked.length,
           hasNext: start + pageSize < ranked.length,
           page,
@@ -2337,7 +2510,13 @@ export const igdbProvider: GameProvider = {
 
       // Cast and popularity live on their own endpoints. Both are enrichment,
       // so a failure in either leaves the page intact rather than losing it.
-      const [characters, popScores, editions] = await Promise.all([
+      // One logo query covers the page's own wordmark and every nested card
+      // (similar titles, DLC, remakes…), which is also what `related` serves.
+      const nested = [
+        detail.similar, detail.dlcs, detail.expansions, detail.standaloneExpansions,
+        detail.bundles, detail.remakes, detail.remasters, detail.ports,
+      ];
+      const [characters, popScores, editions, logos] = await Promise.all([
         fetchCharacters(detail.id).catch((err) => {
           warn("characters", err);
           return [];
@@ -2350,10 +2529,26 @@ export const igdbProvider: GameProvider = {
           warn("gameVersions", err);
           return [];
         }),
+        fetchLogoArt([detail.id, ...nested.flat().map((game) => game.id)]).catch((err) => {
+          warn("logos", err);
+          return null;
+        }),
       ]);
+
+      const withLogo = <T extends GameSummary>(games: T[]): T[] =>
+        logos ? games.map((game) => ({ ...game, logo: logoFromArt(logos.get(game.id), "logo_med") })) : games;
 
       return {
         ...detail,
+        logo: logos ? logoFromArt(logos.get(detail.id), "720p") : undefined,
+        similar: withLogo(detail.similar),
+        dlcs: withLogo(detail.dlcs),
+        expansions: withLogo(detail.expansions),
+        standaloneExpansions: withLogo(detail.standaloneExpansions),
+        bundles: withLogo(detail.bundles),
+        remakes: withLogo(detail.remakes),
+        remasters: withLogo(detail.remasters),
+        ports: withLogo(detail.ports),
         characters,
         editions,
         popScore: popScores.get(detail.id) ?? null,
@@ -2435,6 +2630,8 @@ export async function igdbSpotlight(limit = 6): Promise<GameSummary[] | null> {
       const games = await listGames(
         { where: `${MAIN_GAMES} & id = (${popularIds.join(",")})`, limit: popularIds.length },
         TTL.list,
+        // The hero sets the wordmark large over key art.
+        "720p",
       );
       const rank = new Map(popularIds.map((id, index) => [id, index]));
       const ordered = games
@@ -2453,6 +2650,7 @@ export async function igdbSpotlight(limit = 6): Promise<GameSummary[] | null> {
         limit,
       },
       TTL.list,
+      "720p",
     );
     return recent.slice(0, limit);
   } catch (err) {

@@ -16,6 +16,7 @@ import { BrandIcon } from "@/components/brand/BrandIcon";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { useToast } from "@/components/ui/Toast";
+import { haptic } from "@/lib/haptics";
 import { Popover } from "@/components/ui/Popover";
 import { OWNERSHIP_PLATFORMS } from "@/lib/games/stores-catalog";
 import { cn } from "@/lib/utils/cn";
@@ -60,13 +61,16 @@ export function OwnershipPicker({
       ? owned.filter((entry) => entry !== slug)
       : [...owned, slug];
 
+    haptic("selection");
     setPending(next);
     try {
       // Ownership lives on the watchlist document, so the game has to be
       // tracked before it can hold anything.
       await ensure(game);
       await setOwnership(game.id, next);
+      haptic("success");
     } catch (err) {
+      haptic("warning");
       setPending(null);
       toast(err instanceof Error ? err.message : "Couldn't save that.", "error");
       return;
@@ -98,8 +102,12 @@ export function OwnershipPicker({
               : "h-9 w-9 justify-center rounded-full coarse:h-11 coarse:w-11"
             : "min-h-12 rounded-full px-5 text-[15px]",
           owned.length > 0
-            ? "border-mint/45 bg-mint/20 text-white"
-            : "border-white/15 bg-black/45 text-text backdrop-blur-xl fine:hover:bg-white/[0.14]",
+            ? variant === "icon"
+              ? "border-mint/45 bg-mint/20 text-white"
+              : "border-mint/45 bg-mint/15 text-text"
+            : variant === "icon"
+              ? "border-white/15 bg-black/45 text-white backdrop-blur-xl fine:hover:bg-black/70"
+              : "border-fg/15 bg-fg/[0.08] text-text backdrop-blur-xl fine:hover:bg-fg/[0.14]",
         )}
       >
         <Library size={variant === "icon" ? 15 : 17} />
@@ -141,7 +149,7 @@ export function OwnershipPicker({
                   onClick={() => choose(platform.slug)}
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors",
-                    active ? "bg-mint/12 text-text" : "text-muted hover:bg-white/6 hover:text-text",
+                    active ? "bg-mint/12 text-text" : "text-muted hover:bg-fg/[0.06] hover:text-text",
                   )}
                 >
                   {platform.icon ? (

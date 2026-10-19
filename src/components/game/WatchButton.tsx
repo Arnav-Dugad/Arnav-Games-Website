@@ -16,6 +16,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { useToast } from "@/components/ui/Toast";
+import { haptic } from "@/lib/haptics";
+import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { cn } from "@/lib/utils/cn";
 import type { GameSummary } from "@/lib/games/types";
 
@@ -33,6 +35,7 @@ export function WatchButton({ game, variant = "icon", compact = false, className
   const { toast } = useToast();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const calm = useCalmMotion();
 
   const followed = isFollowed(game.id);
 
@@ -58,6 +61,7 @@ export function WatchButton({ game, variant = "icon", compact = false, className
     setBusy(true);
     try {
       const nowFollowed = await toggleFollow(game);
+      haptic(nowFollowed ? "success" : "light");
       toast(
         nowFollowed
           ? `Following ${game.name} — release and DLC alerts are on`
@@ -65,6 +69,7 @@ export function WatchButton({ game, variant = "icon", compact = false, className
         nowFollowed ? "success" : "info",
       );
     } catch (err) {
+      haptic("warning");
       toast(err instanceof Error ? err.message : "Couldn't update your watchlist.", "error");
     } finally {
       setBusy(false);
@@ -116,15 +121,28 @@ export function WatchButton({ game, variant = "icon", compact = false, className
       disabled={busy}
       aria-pressed={followed}
       className={cn(
-        "press inline-flex min-h-12 items-center justify-center gap-2 rounded-full border px-6 text-[15px] font-semibold transition-[background-color,border-color,color] duration-300",
+        "press inline-flex min-h-12 items-center justify-center gap-2 rounded-full border px-6 text-[15px] font-semibold transition-[background-color,border-color,color,box-shadow] duration-300",
+        // Followed takes the page's cover-derived accent where there is one.
         followed
-          ? "border-brand/50 bg-brand/20 text-white"
-          : "border-white/15 bg-white/[0.08] text-text backdrop-blur-xl fine:hover:bg-white/[0.14]",
+          ? "border-[color-mix(in_oklab,var(--game-accent,var(--color-brand))_55%,transparent)] bg-[color-mix(in_oklab,var(--game-accent,var(--color-brand))_20%,transparent)] text-text shadow-[0_8px_24px_-12px_var(--game-glow,transparent)]"
+          : "border-fg/15 bg-fg/[0.08] text-text backdrop-blur-xl fine:hover:bg-fg/[0.14]",
         busy && "opacity-60",
         className,
       )}
     >
-      {followed ? <BellRing size={17} /> : <BellPlus size={17} />}
+      <AnimatePresence mode="wait" initial={false}>
+        {/* The bell rings once when you start following. */}
+        <motion.span
+          key={followed ? "on" : "off"}
+          initial={{ scale: 0.6, opacity: 0, rotate: 0 }}
+          animate={followed && !calm ? { scale: 1, opacity: 1, rotate: [0, -16, 12, -6, 0] } : { scale: 1, opacity: 1, rotate: 0 }}
+          exit={{ scale: 0.6, opacity: 0 }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          className="inline-flex"
+        >
+          {followed ? <BellRing size={17} /> : <BellPlus size={17} />}
+        </motion.span>
+      </AnimatePresence>
       {followed ? "Following" : "Follow game"}
     </button>
   );

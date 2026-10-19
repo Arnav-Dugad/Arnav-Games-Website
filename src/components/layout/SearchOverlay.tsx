@@ -16,6 +16,8 @@ import {
 import { OwnershipPicker } from "@/components/game/OwnershipPicker";
 import { WatchButton } from "@/components/game/WatchButton";
 import { SearchHitVisual, SearchKindIcon } from "@/components/search/SearchHitVisual";
+import { SpotlightPreview } from "@/components/search/SpotlightPreview";
+import { hitAsGame } from "@/components/search/hit-game";
 import { useDebouncedValue, useDialogFocus, useLockBodyScroll } from "@/hooks";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -25,34 +27,8 @@ import {
   hrefForSearchHit,
   type SearchHit,
 } from "@/lib/games/search";
-import type { GameSummary } from "@/lib/games/types";
 
 const EMPTY_RESULTS: SearchHit[] = [];
-
-function hitAsGame(hit: SearchHit): GameSummary {
-  return {
-    id: hit.id,
-    slug: hit.slug,
-    name: hit.name,
-    released: hit.released ?? null,
-    releaseWindow: hit.releaseWindow ?? null,
-    tba: hit.tba ?? false,
-    image: hit.image,
-    imageFallback: null,
-    rating: 0,
-    ratingsCount: 0,
-    metacritic: null,
-    platforms: [],
-    parentPlatforms: [],
-    genres: [],
-    screenshots: [],
-    esrb: null,
-    heroTrailer: null,
-    popScore: null,
-    playtime: 0,
-    added: 0,
-  };
-}
 
 const QUICK_LINKS = [
   { label: "Upcoming releases", detail: "The complete calendar", href: "/upcoming" },
@@ -136,13 +112,18 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === "Escape") onClose();
-    if (event.key === "ArrowDown") {
+    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && results.length) {
       event.preventDefault();
-      setCursor((value) => (results.length ? (value + 1) % results.length : 0));
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setCursor((value) => (results.length ? (value - 1 + results.length) % results.length : 0));
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      const next = (activeIndex + step + results.length) % results.length;
+      setCursor(next);
+      // Keyboard only: arrowing past the visible rows carries the list with
+      // the highlight. (Hover never scrolls — that would chain row to row.)
+      requestAnimationFrame(() =>
+        panelRef.current
+          ?.querySelector<HTMLElement>(`[data-search-index="${next}"]`)
+          ?.scrollIntoView({ block: "nearest" }),
+      );
     }
     if (event.key === "Enter") {
       event.preventDefault();
@@ -169,7 +150,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             role="dialog"
             aria-modal="true"
             aria-label="Search all of Arnav Games"
-            className="material relative z-10 flex h-dvh-safe w-full flex-col overflow-hidden sm:h-auto sm:max-h-[84vh] sm:max-w-4xl sm:rounded-[2rem] sm:shadow-[inset_0_1px_0_#ffffff21,0_40px_140px_-45px_rgba(0,0,0,0.9)]"
+            className="material relative z-10 flex h-dvh-safe w-full flex-col overflow-hidden sm:h-auto sm:max-h-[84vh] sm:max-w-4xl sm:rounded-[2rem] lg:max-w-5xl sm:shadow-[inset_0_1px_0_#ffffff21,0_40px_140px_-45px_rgba(0,0,0,0.9)]"
             initial={{ opacity: 0, y: 18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.99 }}
@@ -179,7 +160,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             {/* Phones get iOS's own pattern — a rounded field and a text
                 Cancel — while desktop keeps the roomier command-bar layout. */}
             <div className="relative flex items-center gap-3 border-b border-line px-3 py-3 safe-t sm:px-6 sm:py-5">
-              <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full bg-white/[0.09] px-3.5 sm:gap-3 sm:rounded-none sm:bg-transparent sm:px-0">
+              <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full bg-fg/[0.09] pl-3.5 pr-1.5 sm:gap-3 sm:rounded-none sm:bg-transparent sm:px-0">
                 <span className="grid shrink-0 place-items-center text-muted sm:h-10 sm:w-10 sm:rounded-2xl sm:bg-brand/12 sm:text-brand-soft">
                   <Search size={17} />
                 </span>
@@ -200,11 +181,27 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   <p className="mt-0.5 hidden text-[11px] text-faint sm:block">One search across the complete game universe</p>
                 </div>
                 {loading && <Loader2 size={17} className="shrink-0 animate-spin text-brand-soft" />}
+                {/* iOS's clear glyph: one tap back to an empty field, focus kept. */}
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      inputRef.current?.focus();
+                    }}
+                    aria-label="Clear search"
+                    className="press grid h-9 w-9 shrink-0 place-items-center rounded-full text-faint transition-colors hover:text-text sm:h-10 sm:w-10"
+                  >
+                    <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-fg/25 text-bg">
+                      <X size={12} strokeWidth={3} />
+                    </span>
+                  </button>
+                )}
               </div>
-              <button type="button" onClick={onClose} className="press shrink-0 px-1 text-[16px] font-medium text-brand-soft sm:hidden">
+              <button type="button" onClick={onClose} className="press min-h-11 shrink-0 px-1 text-[16px] font-medium text-brand-soft sm:hidden">
                 Cancel
               </button>
-              <button type="button" onClick={onClose} aria-label="Close search" className="press hidden h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.07] text-faint transition-colors hover:bg-white/[0.12] hover:text-text sm:grid">
+              <button type="button" onClick={onClose} aria-label="Close search" className="press hidden h-10 w-10 shrink-0 place-items-center rounded-full bg-fg/[0.07] text-faint transition-colors hover:bg-fg/[0.12] hover:text-text sm:grid">
                 <X size={17} />
               </button>
             </div>
@@ -222,7 +219,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   </button>
                 </div>
               ) : (
-                <div className="grid lg:grid-cols-[minmax(0,1fr)_230px]">
+                <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
                   <div className="p-2 sm:p-3 lg:border-r lg:border-line">
                     {SEARCH_KIND_ORDER.map((kind) => {
                       const hits = groups.get(kind) ?? [];
@@ -242,7 +239,8 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                                     href={hrefForSearchHit(hit)}
                                     onClick={onClose}
                                     onPointerEnter={() => setCursor(index)}
-                                    className={cn("flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl p-2 pr-24 transition-[background-color,transform]", index === activeIndex ? "bg-white/[0.09]" : "hover:bg-white/[0.05]")}
+                                    data-search-index={index}
+                                    className={cn("flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl p-2 pr-24 transition-[background-color,transform] active:scale-[0.99]", index === activeIndex ? "bg-fg/[0.09]" : "hover:bg-fg/[0.05]")}
                                   >
                                     <SearchHitVisual hit={hit} />
                                     <span className="min-w-0 flex-1">
@@ -261,24 +259,19 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                     })}
                   </div>
 
-                  <aside className="hidden p-5 lg:block">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-soft">Discovery map</p>
-                    <p className="mt-2 text-sm leading-relaxed text-muted">Results stay separated by what they are, so a genre can never masquerade as a franchise.</p>
-                    <div className="mt-5 space-y-2">
-                      {SEARCH_KIND_ORDER.map((kind) => {
-                        const count = groups.get(kind)?.length ?? 0;
-                        return (
-                          <div key={kind} className={cn("flex items-center justify-between rounded-xl px-3 py-2 text-xs", count ? "bg-white/[0.045] text-muted" : "text-faint/60")}>
-                            <span className="flex items-center gap-2"><SearchKindIcon kind={kind} size={13} /> {SEARCH_KIND_LABELS[kind]}</span>
-                            <span className="tabular-nums">{count}</span>
-                          </div>
-                        );
-                      })}
+                  {/* Spotlight: a live preview of the highlighted result. Sticky
+                      inside the scroll area so it stays in view while the list
+                      scrolls beneath the cursor. */}
+                  <aside aria-label="Result preview" className="hidden p-3 lg:block">
+                    <div className="sticky top-3 flex h-[min(34rem,calc(84vh-11rem))] flex-col gap-2">
+                      <div className="min-h-0 flex-1">
+                        <SpotlightPreview hit={results[activeIndex] ?? null} onNavigate={onClose} />
+                      </div>
+                      <button type="button" onClick={openFullSearch} className="group flex w-full shrink-0 items-center justify-between rounded-2xl border border-brand/25 bg-brand/10 px-4 py-3 text-left transition-colors hover:bg-brand/15">
+                        <span className="text-sm font-semibold text-text">View every result</span>
+                        <ArrowRight size={16} className="text-brand-soft transition-transform group-hover:translate-x-1" />
+                      </button>
                     </div>
-                    <button type="button" onClick={openFullSearch} className="group mt-6 flex w-full items-center justify-between rounded-2xl border border-brand/25 bg-brand/10 p-4 text-left transition-colors hover:bg-brand/15">
-                      <span><span className="block text-sm font-bold text-text">View every result</span><span className="mt-1 block text-[11px] text-muted">Open full discovery</span></span>
-                      <ArrowRight size={16} className="text-brand-soft transition-transform group-hover:translate-x-1" />
-                    </button>
                   </aside>
                 </div>
               )}

@@ -22,6 +22,14 @@ import { buildLibraryStats } from "../src/lib/games/stats";
 import { releaseState } from "../src/lib/games/release-state";
 import { fuzzyMatches, normaliseSearch, searchQueryVariants } from "../src/lib/games/fuzzy-search";
 import { batchPatchForEntry, type WatchlistEntry } from "../src/lib/firebase/db";
+import { localReleaseFor, regionForCountry } from "../src/lib/games/regions";
+import { buildHypeIndex, hypeScore } from "../src/lib/games/hype";
+import { stripNewsMarkup } from "../src/lib/games/news-text";
+import { paletteFromPixels, logoToneFromPixels } from "../src/lib/games/palette-core";
+import { decodePng } from "../src/lib/games/image-decode";
+import { changesFromObservations, isDelay, releaseUpperBound, releaseValue } from "../src/lib/games/release-value";
+import { normaliseStoreTitle } from "../src/lib/games/providers/igdb-extras";
+import type { ReleaseEvent } from "../src/lib/games/types";
 
 let failures = 0;
 
@@ -422,6 +430,129 @@ check("genres never masquerade as franchises", [
   groupedSearch.get("genre")?.length,
 ], [1, 1]);
 
+console.log("\nRelease regions");
+check("GB is Europe", regionForCountry("GB"), ["Europe", "Worldwide"]);
+check("lowercase input", regionForCountry("de"), ["Europe", "Worldwide"]);
+check("US is North America", regionForCountry("US"), ["North America", "Worldwide"]);
+check("JP is Japan, then Asia", regionForCountry("JP"), ["Japan", "Asia", "Worldwide"]);
+check("AU", regionForCountry("AU"), ["Australia", "Worldwide"]);
+check("BR", regionForCountry("BR"), ["Brazil", "Worldwide"]);
+check("KR", regionForCountry("KR"), ["Korea", "Asia", "Worldwide"]);
+check("CN", regionForCountry("CN"), ["China", "Asia", "Worldwide"]);
+check("IN is Asia", regionForCountry("IN"), ["Asia", "Worldwide"]);
+check("unknown is worldwide", regionForCountry("ZZ"), ["Worldwide"]);
+check("empty is worldwide", regionForCountry(""), ["Worldwide"]);
+{
+  const rel = (date: string | null, human: string, region: string | null): ReleaseEvent => ({ date, human, region, platform: null });
+  const releases = [
+    rel("2026-03-20", "Mar 20, 2026", "Japan"),
+    rel("2026-04-10", "Apr 10, 2026", "Worldwide"),
+    rel("2026-04-02", "Apr 2, 2026", "Worldwide"),
+    rel(null, "Q2 2026", "Europe"),
+  ];
+  check("Japan date beats worldwide for JP", localReleaseFor(releases, "JP")?.date, "2026-03-20");
+  check("earliest worldwide for US", localReleaseFor(releases, "US")?.date, "2026-04-02");
+  check("regional window wins over worldwide date", localReleaseFor(releases, "FR")?.human, "Q2 2026");
+  check("no matching region is null", localReleaseFor([rel("2026-01-01", "x", "Japan")], "US"), null);
+  check("unspecified region counts as worldwide", localReleaseFor([rel("2026-01-01", "x", null)], "US")?.date, "2026-01-01");
+}
+
+console.log("\nHype index");
+{
+  const base = { hypes: 0, wantToPlay: null, visits: null, playing: null, peakPlayers24h: null };
+  check("no signal is no index", buildHypeIndex(base), null);
+  check("zero signals score zero", hypeScore(base), 0);
+  check("saturated signals score 100", hypeScore({ hypes: 5000, wantToPlay: 0.01, visits: 0.01, playing: 0.01, peakPlayers24h: 0.5 }), 100);
+  const keys = ["hypes", "wantToPlay", "visits", "playing", "peakPlayers24h"] as const;
+  const ladder: Record<(typeof keys)[number], number[]> = {
+    hypes: [0, 1, 10, 100, 1000, 5000],
+    wantToPlay: [0.000001, 0.00001, 0.0001, 0.001, 0.01],
+    visits: [0.000001, 0.00001, 0.0001, 0.001, 0.01],
+    playing: [0.000001, 0.00001, 0.0001, 0.001, 0.01],
+    peakPlayers24h: [0.0000001, 0.00001, 0.001, 0.1],
+  };
+  for (const key of keys) {
+    const scores = ladder[key].map((value) => hypeScore({ ...base, hypes: 20, [key]: value }));
+    check(`monotonic in ${key}`, scores.every((score, i) => i === 0 || score >= scores[i - 1]), true);
+    check(`${key} actually moves the score`, scores[scores.length - 1] > scores[0], true);
+  }
+  const er = hypeScore({ hypes: 96, wantToPlay: 0.00117, visits: 0.000343, playing: 0.00287, peakPlayers24h: 0.0054 });
+  check("a heavyweight lands in the 70–95 band", er >= 70 && er <= 95, true);
+}
+
+console.log("\nNews text");
+check(
+  "BBCode stripped, link label kept",
+  stripNewsMarkup("[h1]Patch 1.2[/h1][b]New:[/b] [url=https://x.y]read more[/url] [img]{STEAM_CLAN_IMAGE}/a/b.png[/img]"),
+  "Patch 1.2 New: read more",
+);
+check("list bullets", stripNewsMarkup("[list][*]One[*]Two[/list]"), "One • Two");
+check(
+  "Steam's closed list items and paragraphs",
+  stripNewsMarkup("[h3]Patch Notes[/h3][list][*][p]Added X[/p][/*][*][p]Fixed Y.[/p][/*][/list]"),
+  "Patch Notes • Added X • Fixed Y.",
+);
+check("HTML and entities", stripNewsMarkup("<p>Fish &amp; chips&nbsp;&#8212; <a href='x'>now</a></p>"), "Fish & chips — now");
+check("youtube previews dropped", stripNewsMarkup("Watch [previewyoutube=abc;full][/previewyoutube] it"), "Watch it");
+check("bare urls dropped", stripNewsMarkup("See https://store.steampowered.com/app/1 today"), "See today");
+check("truncates on a word", stripNewsMarkup("alpha beta gamma delta epsilon", 17), "alpha beta gamma…");
+
+console.log("\nCover palette");
+{
+  // 10×11: 60 dark navy, 25 saturated orange, 15 dusty teal, 10 transparent.
+  const width = 10;
+  const height = 11;
+  const data = new Uint8Array(width * height * 4);
+  const paint = (from: number, to: number, rgba: [number, number, number, number]) => {
+    for (let i = from; i < to; i++) data.set(rgba, i * 4);
+  };
+  paint(0, 60, [12, 18, 40, 255]);
+  paint(60, 85, [240, 120, 20, 255]);
+  paint(85, 100, [90, 130, 125, 255]);
+  paint(100, 110, [255, 0, 255, 0]);
+  check("dominant, vibrant and muted", paletteFromPixels(data, width, height), {
+    dominant: "#0c1228",
+    vibrant: "#f07814",
+    muted: "#5a827d",
+    isDark: true,
+  });
+  const light = new Uint8Array(16).fill(240);
+  check("a light cover is not dark", paletteFromPixels(light, 2, 2)?.isDark, false);
+  check("fully transparent has no palette", paletteFromPixels(new Uint8Array(16), 2, 2), null);
+  check("black logo reads dark", logoToneFromPixels(new Uint8Array([0, 0, 0, 255, 10, 10, 10, 255])), "dark");
+  check("white logo reads light", logoToneFromPixels(new Uint8Array([255, 255, 255, 255, 250, 250, 250, 255])), "light");
+  check("red logo reads color", logoToneFromPixels(new Uint8Array([220, 30, 30, 255])), "color");
+}
+
+console.log("\nRelease delay tracking");
+check("value prefers the day", releaseValue({ released: "2026-05-01", releaseWindow: "Q2 2026" }), "2026-05-01");
+check("value falls back to the window", releaseValue({ released: null, releaseWindow: "Q4 2026" }), "Q4 2026");
+check("value is TBA without either", releaseValue({ released: null, releaseWindow: null }), "TBA");
+check("quarter bound", releaseUpperBound("Q4 2026"), "2026-12-31");
+check("month bound (short)", releaseUpperBound("Feb 2028"), "2028-02-29");
+check("month bound (long)", releaseUpperBound("September 2026"), "2026-09-30");
+check("year bound", releaseUpperBound("2027"), "2027-12-31");
+check("TBA has no bound", releaseUpperBound("TBA"), null);
+check("narrowing inside a window is not a delay", isDelay("Q4 2026", "2026-11-15"), false);
+check("slipping a quarter is a delay", isDelay("2026-11-15", "Q1 2027"), true);
+check("moving earlier is not a delay", isDelay("2026-11-15", "2026-10-01"), false);
+check("losing the date is a delay", isDelay("2026-11-15", "TBA"), true);
+check("gaining a date is not a delay", isDelay("TBA", "2026-11-15"), false);
+check(
+  "changes chain oldest first",
+  changesFromObservations([
+    { value: "2027-02-01", observedAt: 300 },
+    { value: "Q4 2026", observedAt: 100 },
+    { value: "2026-11-15", observedAt: 200 },
+  ]).map((change) => `${change.from}>${change.to}`),
+  ["Q4 2026>2026-11-15", "2026-11-15>2027-02-01"],
+);
+
+console.log("\nStore title matching");
+check("trademarks stripped", normaliseStoreTitle("Battlefield™ 6"), "Battlefield 6");
+check("bundle suffix stripped", normaliseStoreTitle("Call of Duty®: Black Ops Cold War - Cross-Gen Bundle"), "Call of Duty: Black Ops Cold War");
+check("windows suffix stripped", normaliseStoreTitle("Forza Horizon 5 (PC)"), "Forza Horizon 5");
+
 console.log("\nHTML handling");
 check(
   // A closing </p> and a <br> each contribute a break, so the paragraph gap is
@@ -439,9 +570,45 @@ check("list markers survive", stripHtml("<ul><li>One</li><li>Two</li></ul>"), "�
 check("apostrophes decode", stripHtml("Baldur&#39;s Gate"), "Baldur's Gate");
 check("slugify", slugify("Hack and slash/Beat 'em up"), "hack-and-slash-beat-em-up");
 
-console.log(
-  failures === 0
-    ? "\nAll provider self-checks passed.\n"
-    : `\n${failures} check(s) failed.\n`,
-);
-process.exit(failures === 0 ? 0 : 1);
+/**
+ * A 2×1 RGBA PNG (one opaque red, one transparent pixel), built by hand with
+ * a stored (uncompressed) deflate block so the decoder is tested against
+ * bytes we fully control. The decoder doesn't verify chunk CRCs, so zeros do.
+ */
+async function pngChecks() {
+  console.log("\nPNG decoding");
+  const raw = [0, 255, 0, 0, 255, 0, 0, 0, 0]; // filter byte, then two RGBA pixels
+  let a = 1;
+  let b = 0;
+  for (const byte of raw) {
+    a = (a + byte) % 65521;
+    b = (b + a) % 65521;
+  }
+  const zlib = [0x78, 0x01, 0x01, raw.length, 0, ~raw.length & 0xff, 0xff, ...raw, b >> 8, b & 0xff, a >> 8, a & 0xff];
+  const chunk = (type: string, body: number[]) => [
+    (body.length >>> 24) & 255, (body.length >>> 16) & 255, (body.length >>> 8) & 255, body.length & 255,
+    ...[...type].map((c) => c.charCodeAt(0)), ...body, 0, 0, 0, 0,
+  ];
+  const png = new Uint8Array([
+    137, 80, 78, 71, 13, 10, 26, 10,
+    ...chunk("IHDR", [0, 0, 0, 2, 0, 0, 0, 1, 8, 6, 0, 0, 0]),
+    ...chunk("IDAT", zlib),
+    ...chunk("IEND", []),
+  ]);
+  const decoded = await decodePng(png);
+  check("decodes a hand-built RGBA PNG", decoded && { w: decoded.width, h: decoded.height, px: [...decoded.data] }, {
+    w: 2,
+    h: 1,
+    px: [255, 0, 0, 255, 0, 0, 0, 0],
+  });
+  check("rejects non-PNG bytes", await decodePng(new Uint8Array([1, 2, 3])), null);
+}
+
+pngChecks().then(() => {
+  console.log(
+    failures === 0
+      ? "\nAll provider self-checks passed.\n"
+      : `\n${failures} check(s) failed.\n`,
+  );
+  process.exit(failures === 0 ? 0 : 1);
+});

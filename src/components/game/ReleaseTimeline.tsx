@@ -10,6 +10,7 @@
  */
 
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays, Clock } from "lucide-react";
 import { GameCover } from "./GameCover";
 import { CountdownInline } from "./Countdown";
@@ -115,13 +116,7 @@ export function ReleaseTimeline({ games }: { games: GameSummary[] }) {
 
   return (
     <div className="relative">
-      {groups.length > 1 && (
-        <nav aria-label="Jump to release month" className="mask-fade-x mb-8 flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {groups.map((group, index) => (
-            <a key={group.key} href={`#${groupId(group.key)}`} className={cn("shrink-0 rounded-full border px-4 py-2 text-xs font-semibold transition-colors", index === 0 ? "border-brand/40 bg-brand/12 text-white" : "border-line bg-white/[0.03] text-muted hover:border-line-strong hover:text-text")}>{group.label}<span className="ml-2 text-faint tabular-nums">{group.games.length}</span></a>
-          ))}
-        </nav>
-      )}
+      {groups.length > 1 && <MonthJump groups={groups} />}
       {/* Timeline rule — desktop only. */}
       <span
         aria-hidden
@@ -150,7 +145,7 @@ export function ReleaseTimeline({ games }: { games: GameSummary[] }) {
             <h2 className="font-display text-lg font-bold tracking-tight lg:text-2xl">
               {group.label}
             </h2>
-            <span className="rounded-full bg-white/6 px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
+            <span className="rounded-full bg-fg/[0.06] px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
               {group.games.length}
             </span>
           </div>
@@ -173,13 +168,85 @@ export function ReleaseTimeline({ games }: { games: GameSummary[] }) {
   );
 }
 
+/**
+ * Month chips that follow the reader.
+ *
+ * The active chip tracks whichever month section is under the sticky header
+ * (an IntersectionObserver band just below it), and the chip row scrolls
+ * itself — never the page — so the active chip stays in view on a phone.
+ */
+function MonthJump({ groups }: { groups: MonthGroup[] }) {
+  const [active, setActive] = useState(groups[0]?.key ?? "");
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const sections = groups
+      .map((group) => document.getElementById(groupId(group.key)))
+      .filter((element): element is HTMLElement => element !== null);
+    if (sections.length === 0) return;
+    const visible = new Set<HTMLElement>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target as HTMLElement);
+          else visible.delete(entry.target as HTMLElement);
+        }
+        // Topmost section touching the band wins; document order breaks ties.
+        const first = sections.find((section) => visible.has(section));
+        const group = first && groups.find((g) => groupId(g.key) === first.id);
+        if (group) setActive(group.key);
+      },
+      // A thin band ~a quarter of the way down, under the sticky headers.
+      { rootMargin: "-22% 0px -70% 0px" },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [groups]);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    const chip = nav?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!nav || !chip) return;
+    const navBox = nav.getBoundingClientRect();
+    const chipBox = chip.getBoundingClientRect();
+    if (chipBox.left >= navBox.left + 24 && chipBox.right <= navBox.right - 24) return;
+    const left = nav.scrollLeft + (chipBox.left - navBox.left) - navBox.width / 2 + chipBox.width / 2;
+    nav.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+  }, [active]);
+
+  return (
+    <nav ref={navRef} aria-label="Jump to release month" className="mask-fade-x mb-8 flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+      {groups.map((group) => {
+        const current = group.key === active;
+        return (
+          <a
+            key={group.key}
+            href={`#${groupId(group.key)}`}
+            onClick={() => setActive(group.key)}
+            aria-current={current ? "true" : undefined}
+            className={cn(
+              "press inline-flex min-h-9 shrink-0 items-center rounded-full border px-4 text-xs font-semibold transition-colors coarse:min-h-11",
+              current
+                ? "border-brand/40 bg-brand/12 text-text"
+                : "border-line bg-fg/[0.03] text-muted fine:hover:border-line-strong fine:hover:text-text",
+            )}
+          >
+            {group.label}
+            <span className={cn("ml-2 tabular-nums", current ? "text-brand-soft" : "text-faint")}>{group.games.length}</span>
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
 function ReleaseRow({ game }: { game: GameSummary }) {
   const date = parseISO(game.released);
 
   return (
     <div data-release-date={game.released ?? ""} data-release-window={game.releaseWindow ?? ""} data-release-tba={game.tba ? "true" : "false"} className="group relative flex items-stretch gap-3 overflow-hidden rounded-2xl border border-line bg-panel/60 p-2.5 transition-colors duration-400 fine:hover:border-line-strong fine:hover:bg-panel sm:gap-4 sm:p-3">
       {/* Date block — the timeline's anchor on desktop. */}
-      <div className="flex w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-white/[0.04] py-2 sm:w-14">
+      <div className="flex w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-fg/[0.04] py-2 sm:w-14">
         {date ? (
           <>
             <span className="font-display text-lg font-bold leading-none tabular-nums sm:text-xl">

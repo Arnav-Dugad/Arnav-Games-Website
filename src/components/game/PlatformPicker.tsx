@@ -53,7 +53,7 @@ export function PlatformPicker({
           "inline-flex min-h-9 max-w-[min(16rem,65vw)] items-center gap-1.5 rounded-full border px-2.5 text-[12px] transition-colors",
           selected
             ? "border-brand/40 bg-brand/12 text-text"
-            : "border-line bg-white/[0.04] text-faint hover:text-muted",
+            : "border-line bg-fg/[0.04] text-faint hover:text-muted",
           busy && "opacity-60",
         )}
       >
@@ -87,7 +87,7 @@ export function PlatformPicker({
                       <button
                         type="button"
                         onClick={() => choose(location.slug)}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-muted transition-colors hover:bg-white/8 hover:text-text"
+                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-muted transition-colors hover:bg-fg/[0.08] hover:text-text"
                       >
                         <Glyph icon={location.icon} />
                         <span className="min-w-0 flex-1 truncate">{location.name}</span>
@@ -103,7 +103,7 @@ export function PlatformPicker({
                 <button
                   type="button"
                   onClick={() => choose(null)}
-                  className="w-full rounded-lg px-2.5 py-2 text-left text-[13px] text-faint transition-colors hover:bg-white/8 hover:text-text"
+                  className="w-full rounded-lg px-2.5 py-2 text-left text-[13px] text-faint transition-colors hover:bg-fg/[0.08] hover:text-text"
                 >
                   Clear play location
                 </button>

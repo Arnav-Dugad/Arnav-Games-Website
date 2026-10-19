@@ -12,7 +12,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
-import { ArrowUpDown, BellRing, BookmarkX, CalendarClock, Check, CircleHelp, Library, PencilLine, Search, X } from "lucide-react";
+import { BellRing, BookmarkX, CalendarClock, Check, CircleHelp, Library, PencilLine } from "lucide-react";
+import { FilterToolbar, SearchField, SegmentedControl, SortMenu, type FacetDef } from "@/components/filters";
 import { GameCover } from "./GameCover";
 import { CountdownInline } from "./Countdown";
 import { PlatformPicker } from "./PlatformPicker";
@@ -34,15 +35,16 @@ import { cn } from "@/lib/utils/cn";
 import { releaseLabel } from "@/lib/utils/format";
 import { fuzzyMatches } from "@/lib/games/fuzzy-search";
 import { releaseState, type ReleaseState } from "@/lib/games/release-state";
-import type { WatchStatus } from "@/lib/firebase/db";
+import type { WatchStatus, WatchlistEntry } from "@/lib/firebase/db";
 import { BatchEditPanel } from "@/components/library/BatchEditPanel";
 
+// Ordered the way a backlog flows, with the unsorted pile last.
 const FILTERS: { value: WatchStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "none", label: "No status" },
   { value: "want", label: "Want to play" },
   { value: "playing", label: "Playing" },
   { value: "played", label: "Played" },
+  { value: "none", label: "No status" },
 ];
 
 const STATUS_LABEL: Record<WatchStatus, string> = {
@@ -62,8 +64,16 @@ const SORTS: { value: WatchSort; label: string }[] = [
   { value: "score", label: "Highest rated" },
 ];
 
-export function WatchlistView() {
-  const { entries, loading, setStatus, remove } = useWatchlist();
+export function WatchlistView({
+  previewEntries,
+}: {
+  /** Dev-only sample data for `/watchlist/preview`; bypasses the live list. */
+  previewEntries?: WatchlistEntry[];
+} = {}) {
+  const live = useWatchlist();
+  const entries = previewEntries ?? live.entries;
+  const loading = previewEntries ? false : live.loading;
+  const { setStatus, remove } = live;
   const { toast } = useToast();
   const [filter, setFilter] = useState<WatchStatus | "all">("all");
   const [sort, setSort] = useState<WatchSort>("upcoming");
@@ -85,11 +95,41 @@ export function WatchlistView() {
     return base;
   }, [saved]);
 
+  const ownedCount = useMemo(
+    () => saved.filter((entry) => (entry.ownedOn ?? []).length > 0).length,
+    [saved],
+  );
+
   const releaseCounts = useMemo(() => {
     const result: Record<ReleaseState, number> = { released: 0, upcoming: 0, unknown: 0 };
     for (const entry of saved) result[releaseState(entry)]++;
     return result;
   }, [saved]);
+
+  const facets = useMemo<FacetDef[]>(() => [
+    {
+      id: "release",
+      label: "Release",
+      mode: "single",
+      anyLabel: "Any release state",
+      options: [
+        { value: "upcoming", label: "Not released yet", short: "Upcoming", count: releaseCounts.upcoming },
+        { value: "released", label: "Released", count: releaseCounts.released },
+        { value: "unknown", label: "Date unknown", count: releaseCounts.unknown },
+      ],
+      selected: releaseFilter === "all" ? [] : [releaseFilter],
+      onChange: (next) => setReleaseFilter((next[0] as ReleaseState | undefined) ?? "all"),
+    },
+    {
+      id: "owned",
+      label: "Ownership",
+      mode: "single",
+      anyLabel: "Owned or not",
+      options: [{ value: "owned", label: "Games I own", short: "Owned", count: ownedCount }],
+      selected: ownedOnly ? ["owned"] : [],
+      onChange: (next) => setOwnedOnly(next[0] === "owned"),
+    },
+  ], [releaseCounts, releaseFilter, ownedOnly, ownedCount]);
 
   const visible = useMemo(() => {
     const term = query.trim();
@@ -141,7 +181,7 @@ export function WatchlistView() {
   if (saved.length === 0) {
     return (
       <Container className="flex flex-col items-center justify-center py-24 text-center">
-        <span className="grid h-16 w-16 place-items-center rounded-2xl border border-line bg-white/[0.04]">
+        <span className="grid h-16 w-16 place-items-center rounded-2xl border border-line bg-fg/[0.04]">
           <BookmarkX size={24} className="text-faint" />
         </span>
         <h2 className="mt-6 font-display text-2xl font-bold">Nothing saved yet</h2>
@@ -163,7 +203,7 @@ export function WatchlistView() {
     <Container className="py-8 lg:py-12">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs leading-relaxed text-muted">Saving, alerts, ownership, access, and status remain independent.</p>
-        <button type="button" onClick={() => { setBatchMode((value) => !value); setSelected(new Set()); }} aria-pressed={batchMode} className={cn("inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors", batchMode ? "border-brand/45 bg-brand/15 text-white" : "border-line bg-white/[0.035] text-muted hover:text-text")}><PencilLine size={15} />{batchMode ? "Exit batch edit" : "Batch edit"}</button>
+        <button type="button" onClick={() => { setBatchMode((value) => !value); setSelected(new Set()); }} aria-pressed={batchMode} className={cn("inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors", batchMode ? "border-brand/45 bg-brand/15 text-text" : "border-fg/10 bg-fg/[0.06] text-text fine:hover:bg-fg/[0.1]")}><PencilLine size={15} />{batchMode ? "Exit batch edit" : "Batch edit"}</button>
       </div>
       {batchMode && <BatchEditPanel gameIds={[...selected]} onDone={() => setSelected(new Set())} onClose={() => { setBatchMode(false); setSelected(new Set()); }} />}
       <div className="mb-5 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
@@ -172,120 +212,59 @@ export function WatchlistView() {
         <WatchMetric icon={<BellRing size={16} />} label="Alerts on" value={saved.filter((entry) => entry.following).length} tone="mint" />
         <WatchMetric icon={<CircleHelp size={16} />} label="Date unknown" value={releaseCounts.unknown} />
       </div>
-      <div className="mb-6 space-y-4 rounded-2xl border border-line bg-panel/40 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-0 flex-1">
-            <Search
-              size={15}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint"
-            />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search your watchlist…"
-              aria-label="Search your watchlist"
-              className="min-h-11 w-full rounded-full border border-line bg-white/[0.04] pl-10 pr-9 text-sm outline-none transition-colors focus-visible:border-brand"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="Clear search"
-                className="absolute right-3 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-faint transition-colors hover:bg-white/10 hover:text-text"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
+      {/*
+        Collapsed controls: search, a status segmented control (the axis
+        people switch most), then release state and ownership as facet pills.
+      */}
+      <div className="mb-6 space-y-3">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search your watchlist"
+          label="Search your watchlist"
+          className="sm:max-w-md"
+        />
 
-          <div className="relative">
-            <ArrowUpDown
-              size={14}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint"
-            />
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as WatchSort)}
-              aria-label="Sort watchlist"
-              className="min-h-11 appearance-none rounded-full border border-line bg-white/[0.04] py-2 pl-9 pr-9 text-sm outline-none transition-colors hover:border-line-strong focus-visible:border-brand"
-            >
-              {SORTS.map((option) => (
-                <option key={option.value} value={option.value} className="bg-panel text-text">
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <span
-              aria-hidden
-              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-faint"
-            >
-              ▾
-            </span>
-          </div>
+        <SegmentedControl
+          label="Play status"
+          value={filter}
+          onChange={setFilter}
+          fill={false}
+          className="max-w-full sm:w-fit"
+          segments={FILTERS.map((option) => ({
+            value: option.value,
+            label: option.label,
+            count: counts[option.value] ?? 0,
+          }))}
+        />
 
-          <PosterSizeToggle size={posterSize} onChange={setPosterSize} />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {FILTERS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setFilter(option.value)}
-              className={cn(
-                "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-[13px] font-medium transition-colors",
-                filter === option.value
-                  ? "border-brand/50 bg-brand/20 text-white"
-                  : "border-line bg-white/[0.03] text-muted fine:hover:text-text",
+        <FilterToolbar
+          summary={
+            <p>
+              {visible.length === saved.length ? (
+                <>
+                  <span className="font-semibold tabular-nums text-text">{saved.length}</span> saved {saved.length === 1 ? "game" : "games"}
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold tabular-nums text-text">{visible.length}</span> of {saved.length}
+                  <span className="max-sm:hidden"> saved games</span>
+                </>
               )}
-            >
-              {option.label}
-              <span className="text-[11px] tabular-nums opacity-60">
-                {counts[option.value] ?? 0}
-              </span>
-            </button>
-          ))}
+            </p>
+          }
+          actions={<SortMenu options={SORTS} value={sort} onChange={setSort} label="Sort watchlist" />}
+          facets={facets}
+          onClearAll={() => {
+            setReleaseFilter("all");
+            setOwnedOnly(false);
+          }}
+          resultLabel={`Show ${visible.length} ${visible.length === 1 ? "game" : "games"}`}
+          railLabel="Watchlist filters"
+          railTrailing={<PosterSizeToggle size={posterSize} onChange={setPosterSize} />}
+        />
 
-          <button
-            type="button"
-            onClick={() => setOwnedOnly((value) => !value)}
-            aria-pressed={ownedOnly}
-            className={cn(
-              "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-[13px] font-medium transition-colors",
-              ownedOnly
-                ? "border-mint/45 bg-mint/15 text-white"
-                : "border-line bg-white/[0.03] text-muted fine:hover:text-text",
-            )}
-          >
-            <Library size={13} />
-            Owned only
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
-          {([
-            ["all", "Any release", saved.length],
-            ["upcoming", "Upcoming", releaseCounts.upcoming],
-            ["released", "Released", releaseCounts.released],
-            ["unknown", "Date unknown", releaseCounts.unknown],
-          ] as const).map(([value, label, count]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setReleaseFilter(value)}
-              aria-pressed={releaseFilter === value}
-              className={cn(
-                "min-h-9 rounded-full border px-3.5 text-xs font-medium transition-colors",
-                releaseFilter === value
-                  ? "border-cyan-400/40 bg-cyan-400/10 text-white"
-                  : "border-line bg-white/[0.025] text-muted hover:text-text",
-              )}
-            >
-              {label} <span className="ml-1 tabular-nums opacity-60">{count}</span>
-            </button>
-          ))}
-        </div>
-        {batchMode && <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4 text-xs"><button type="button" onClick={() => setSelected(new Set(visible.map((entry) => entry.gameId)))} className="font-semibold text-brand-soft hover:text-white">Select all {visible.length} visible</button><button type="button" onClick={() => setSelected(new Set())} className="font-semibold text-faint hover:text-text">Clear selection</button><span className="ml-auto tabular-nums text-muted">{selected.size} selected</span></div>}
+        {batchMode && <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-fg/[0.03] px-4 py-3 text-xs"><button type="button" onClick={() => setSelected(new Set(visible.map((entry) => entry.gameId)))} className="min-h-9 font-semibold text-brand-soft hover:text-text">Select all {visible.length} visible</button><button type="button" onClick={() => setSelected(new Set())} className="min-h-9 font-semibold text-faint hover:text-text">Clear selection</button><span className="ml-auto tabular-nums text-muted">{selected.size} selected</span></div>}
       </div>
 
       {visible.length === 0 ? (
@@ -376,7 +355,7 @@ export function WatchlistView() {
                           toast("Couldn't update the status.", "error");
                         }
                       }}
-                      className="min-h-9 rounded-full border border-line bg-white/[0.04] px-3 text-[12px] text-muted outline-none transition-colors focus-visible:border-brand"
+                      className="min-h-9 rounded-full border border-line bg-fg/[0.04] px-3 text-[12px] text-muted outline-none transition-colors focus-visible:border-brand"
                     >
                       {(Object.keys(STATUS_LABEL) as WatchStatus[]).filter((status) =>
                         releaseState(entry) !== "upcoming" || status === "none" || status === "want",
@@ -447,7 +426,7 @@ function WatchMetric({
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-panel/45 p-3.5 sm:p-4">
       <div className={cn(
-        "mb-3 grid h-8 w-8 place-items-center rounded-xl bg-white/[0.05] text-muted",
+        "mb-3 grid h-8 w-8 place-items-center rounded-xl bg-fg/[0.05] text-muted",
         tone === "brand" && "bg-brand/15 text-brand-soft",
         tone === "mint" && "bg-mint/10 text-mint",
       )}>

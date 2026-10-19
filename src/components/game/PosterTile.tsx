@@ -10,11 +10,18 @@
  * Kept separate from `GameCard` for the same reason — that component takes a
  * full game record and carries the ownership control, neither of which applies
  * to a list where every entry is already owned or tracked.
+ *
+ * It still joins the shared interactions: long-press / right-click opens the
+ * game context menu (the tile only registers itself — `ContextMenuHost` owns
+ * the gesture), and the poster morphs into the game page's cover.
  */
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { GameCover } from "./GameCover";
+import { CoverTransition, useSharedCover } from "@/components/interactions/CoverTransition";
+import { entryAsGameSummary, useGameMenuTarget } from "@/components/interactions/game-menu-targets";
 import { ScorePill } from "@/components/ui/ScoreRing";
 import { OWNERSHIP_PLATFORMS } from "@/lib/games/stores-catalog";
 import { cn } from "@/lib/utils/cn";
@@ -31,26 +38,39 @@ export function PosterTile({
   badge?: string;
 }) {
   const owned = entry.ownedOn ?? [];
+  const game = useMemo(() => entryAsGameSummary(entry), [entry]);
+  const cover = useSharedCover(entry.slug, entry.image);
+  const menuRef = useGameMenuTarget(game, cover.claim);
 
   return (
-    <Link href={`/game/${entry.slug}`} className="group/tile block">
+    <Link
+      ref={menuRef}
+      href={`/game/${entry.slug}`}
+      onClick={cover.claim}
+      data-game-menu
+      className="group/tile press-menu-target block"
+    >
       <div
+        data-menu-preview
         className={cn(
           "relative aspect-[3/4] w-full overflow-hidden rounded-xl border border-line bg-panel",
           "transition-[border-color,box-shadow,transform] duration-500",
+          "coarse:active:scale-[0.97] coarse:active:duration-100",
           "fine:group-hover/tile:border-line-strong fine:group-hover/tile:-translate-y-1",
           "fine:group-hover/tile:shadow-[0_20px_50px_-20px_rgba(124,92,255,0.5)]",
         )}
       >
-        <GameCover
-          name={entry.name}
-          slug={entry.slug}
-          image={entry.image}
-          imageFallback={entry.imageFallback}
-          width={size === "large" ? 480 : 320}
-          sizes={size === "large" ? "(max-width: 640px) 46vw, 240px" : "(max-width: 640px) 30vw, 180px"}
-          className="transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] fine:group-hover/tile:scale-105"
-        />
+        <CoverTransition slug={entry.slug} active={cover.active}>
+          <GameCover
+            name={entry.name}
+            slug={entry.slug}
+            image={entry.image}
+            imageFallback={entry.imageFallback}
+            width={size === "large" ? 480 : 320}
+            sizes={size === "large" ? "(max-width: 640px) 46vw, 240px" : "(max-width: 640px) 30vw, 180px"}
+            className="transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] fine:group-hover/tile:scale-105"
+          />
+        </CoverTransition>
 
         <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-1.5 p-2">
           {owned.length > 0 ? (

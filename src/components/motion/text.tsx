@@ -106,7 +106,14 @@ export function CountUp({
   const [animated, setAnimated] = useState(0);
 
   useEffect(() => {
-    if (!inView || reduced) return;
+    if (!inView) return;
+    if (reduced) {
+      // Jump straight to the value, but after hydration: the server can't know
+      // the motion setting and renders 0, so rendering `value` on the client's
+      // first pass would be a hydration mismatch.
+      const frame = requestAnimationFrame(() => setAnimated(value));
+      return () => cancelAnimationFrame(frame);
+    }
     const controls = animate(0, value, {
       duration,
       ease: [0.16, 1, 0.3, 1],
@@ -116,7 +123,7 @@ export function CountUp({
   }, [inView, value, duration, reduced]);
 
   // Reduced motion skips the tween entirely rather than running it instantly.
-  const display = reduced ? value : animated;
+  const display = animated;
 
   const formatted = compact
     ? compactNumber(display)

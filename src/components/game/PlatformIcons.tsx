@@ -90,7 +90,7 @@ export function PlatformList({ platforms }: { platforms: { slug: string; name: s
       {keys.map((key) => (
         <li
           key={key}
-          className="inline-flex items-center gap-2 rounded-full border border-line bg-white/[0.04] px-3 py-1.5 text-xs text-muted transition-colors hover:border-line-strong"
+          className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-3 py-1.5 text-xs text-muted transition-colors hover:border-line-strong"
         >
           <PlatformGlyph platform={key} size={15} tinted />
           {LABELS[key]}

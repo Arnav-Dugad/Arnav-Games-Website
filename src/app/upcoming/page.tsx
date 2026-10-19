@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { CalendarClock, CalendarDays, CalendarX2, CircleHelp, ShieldCheck, Sparkles } from "lucide-react";
+import { CalendarClock, CalendarX2, ShieldCheck } from "lucide-react";
 import { BrowseControls, UPCOMING_SORTS } from "@/components/game/BrowseControls";
+import { LinkSwitch, SegmentedControl } from "@/components/filters";
 import { ReleaseTimeline } from "@/components/game/ReleaseTimeline";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Container } from "@/components/ui/SectionHeading";
@@ -27,11 +27,11 @@ export const metadata: Metadata = {
  */
 const PAGE_SIZE = 120;
 const WINDOWS = [
-  { value: "30", label: "Next 30 days", detail: "Immediate launches" },
-  { value: "90", label: "Next 90 days", detail: "The useful default" },
-  { value: "365", label: "Next 12 months", detail: "Long-range calendar" },
-  { value: "all", label: "All dated", detail: "Every future dated release" },
-  { value: "tba", label: "Date TBA", detail: "Announced without a date" },
+  { value: "30", label: "30 days", detail: "Launching within the next month" },
+  { value: "90", label: "90 days", detail: "The next three months of launches" },
+  { value: "365", label: "12 months", detail: "The long-range calendar for the year ahead" },
+  { value: "all", label: "All dated", detail: "Every future release with a date or window" },
+  { value: "tba", label: "Date TBA", detail: "Announced, but no date given yet" },
 ] as const;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -83,6 +83,7 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Sea
   const windowed = games.filter((game) => game.releaseWindow).length;
   const tba = games.filter((game) => game.tba).length;
   const filtered = Boolean(genres || platforms);
+  const activeWindow = WINDOWS.find((item) => item.value === timeframe) ?? WINDOWS[1];
 
   return (
     <>
@@ -96,17 +97,6 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Sea
             {data.count.toLocaleString("en-US")} {filtered ? "matching records" : timeframe === "tba" ? "TBA records" : "scheduled records"}
           </Badge>
           <Badge tone="neon" icon={<ShieldCheck size={12} />}>Past releases blocked</Badge>
-          {/*
-            An honest escape hatch rather than a hidden filter. The default hides
-            roughly two thirds of the calendar, so it has to say so and offer the
-            way back.
-          */}
-          <Link
-            href={upcomingHref({ genres, platforms, ordering, timeframe, showAll: !showAll })}
-            className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white/[0.04] px-3 py-1 text-[12px] text-muted transition-colors hover:border-line-strong hover:text-text"
-          >
-            {showAll ? "Show anticipated only" : "Include every announced game"}
-          </Link>
         </div>
       </PageHeader>
 
@@ -117,12 +107,39 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Sea
           </div>
         )}
 
-        <nav aria-label="Release horizon" className="no-scrollbar -mx-4 mb-6 flex snap-x gap-2 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:rounded-3xl sm:border sm:border-line sm:bg-panel/45 sm:p-2 lg:grid-cols-5">
-          {WINDOWS.map((item) => {
-            const active = timeframe === item.value;
-            return <Link key={item.value} href={upcomingHref({ genres, platforms, timeframe: item.value, showAll })} aria-current={active ? "page" : undefined} className={`press shrink-0 snap-start whitespace-nowrap rounded-full px-4 py-2.5 sm:whitespace-normal sm:rounded-2xl sm:p-4 ${active ? "border border-brand/40 bg-brand/20 text-white shadow-[inset_0_1px_0_#ffffff1f,0_18px_45px_-28px_rgba(138,114,255,0.9)]" : "border border-line bg-white/[0.05] text-muted transition-colors hover:bg-white/[0.08] hover:text-text sm:border-transparent sm:bg-transparent"}`}><span className="flex items-center gap-2 text-sm font-semibold sm:font-bold">{active ? <Sparkles size={14} className="text-brand-soft" /> : item.value === "tba" ? <CircleHelp size={14} className="text-faint" /> : <CalendarDays size={14} className="text-faint" />}{item.label}</span><span className="mt-1.5 hidden pl-[22px] text-[11px] text-faint sm:block">{item.detail}</span></Link>;
-          })}
-        </nav>
+        {/*
+          Page-level controls: which slice of the calendar, and whether to
+          include the long tail. Both live in the URL, so they are links —
+          drawn as a segmented control and a switch because that's what they
+          are to the reader.
+        */}
+        <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 lg:w-[34rem]">
+            <SegmentedControl
+              label="Release horizon"
+              value={timeframe}
+              segments={WINDOWS.map((item) => ({
+                value: item.value,
+                label: item.label,
+                title: item.detail,
+                href: upcomingHref({ genres, platforms, timeframe: item.value, showAll }),
+              }))}
+            />
+            <p className="mt-2 px-1 text-[12px] text-faint">{activeWindow.detail}</p>
+          </div>
+          {/*
+            An honest escape hatch rather than a hidden filter. The default
+            hides roughly two thirds of the calendar, so it has to say so and
+            offer the way back.
+          */}
+          <LinkSwitch
+            href={upcomingHref({ genres, platforms, ordering, timeframe, showAll: !showAll })}
+            checked={showAll}
+            label="Every announced game"
+            description={showAll ? "Showing the full, unfiltered calendar" : "Hiding titles nobody is tracking yet"}
+            className="self-start lg:self-auto"
+          />
+        </div>
 
         <div className="mb-6 grid grid-cols-3 gap-2.5">
           <AccuracyMetric label="Exact dates" value={exact} />
@@ -138,6 +155,7 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Sea
           defaultSort={defaultOrdering}
           noun="release"
           showDatePresets={false}
+          showScore={false}
         />
 
         <div className="mt-9">
@@ -226,7 +244,7 @@ function EmptyCalendar({ filtered, showAll, tba }: { filtered: boolean; showAll:
 
 function AccuracyMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-line bg-white/[0.025] p-3 sm:p-4">
+    <div className="min-w-0 rounded-2xl border border-line bg-fg/[0.025] p-3 sm:p-4">
       <p className="font-display text-xl font-black tabular-nums sm:text-2xl">{value}</p>
       <p className="mt-1 text-[10px] font-semibold uppercase leading-tight tracking-[0.05em] text-faint sm:truncate sm:tracking-[0.06em]">{label}</p>
     </div>

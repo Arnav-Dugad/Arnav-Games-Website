@@ -119,10 +119,36 @@ in `.env.local` (or the shell) on the machine running `npm run deploy`.
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Accounts | |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Accounts | |
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | — | Unused; Analytics is not wired up |
+| `ADMIN_EMAILS` | `/admin` analytics | Runtime var, comma-separated. Verified emails allowed to read analytics. Defaults to `arnavrival12@gmail.com,arnavrival16@gmail.com` when unset |
 
 If you add Firebase after the first deploy, remember step 6 above — add the
 `workers.dev` (or custom) domain to Firebase's authorised domains or Google
 sign-in will be rejected.
+
+### Analytics (`/admin`)
+
+First-party and cookieless. A small tracker posts pageviews, Web Vitals
+(LCP/INP/CLS) and follow/own/sign-up events to `POST /api/track`; searches are
+logged server-side by `/api/search`. Rows go into the `analytics_events` table
+in D1 (binding `DB`). No IPs, user agents, user ids or query strings are
+stored; Do Not Track and Global Privacy Control are honoured on both the
+client and the server, and obvious bots are dropped.
+
+`/admin` is a private dashboard (noindex, disallowed in robots.txt). The page
+signs you in with Firebase and calls `GET /api/admin/stats`, which verifies the
+ID token on the Worker with `jose` (issuer/audience bound to
+`NEXT_PUBLIC_FIREBASE_PROJECT_ID`) and only answers verified emails listed in
+`ADMIN_EMAILS`:
+
+```bash
+npx wrangler secret put ADMIN_EMAILS   # or a plain var in wrangler.jsonc
+```
+
+Search counts are of requests the Worker answered — if a CDN cache ever sits
+in front of `/api/search`, cached repeats aren't counted — and include
+type-ahead prefixes. Locally, `next dev` uses the emulated D1, so events land
+in `.wrangler/state`; `/admin?devBypass=1` skips sign-in **only** in `next dev`
+on localhost (the branch doesn't exist in production builds).
 
 ### Notifications
 

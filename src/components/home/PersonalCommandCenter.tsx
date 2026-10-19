@@ -112,16 +112,18 @@ export function PersonalCommandCenter({ genres }: { genres: Ref[] }) {
   return (
     <section aria-labelledby="command-center-title" className="relative py-8 sm:py-11 lg:py-14">
       <Container>
-        <div className="noise relative isolate overflow-hidden rounded-[2rem] border border-brand/20 bg-[radial-gradient(circle_at_10%_0%,rgba(124,92,255,0.2),transparent_34%),radial-gradient(circle_at_100%_100%,rgba(34,211,238,0.11),transparent_38%),linear-gradient(145deg,rgba(16,16,32,0.94),rgba(5,5,12,0.98))] p-4 shadow-[0_40px_120px_-60px_rgba(124,92,255,0.7)] sm:p-6 lg:p-8">
+        <div className="glass relative isolate overflow-hidden rounded-[2rem] p-4 sm:p-6 lg:p-8">
+          {/* Brand light, drawn from tokens so it works on both the dark and light glass. */}
+          <span aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_8%_0%,color-mix(in_oklab,var(--color-brand)_20%,transparent),transparent_38%),radial-gradient(circle_at_100%_100%,color-mix(in_oklab,var(--color-neon)_11%,transparent),transparent_42%)]" />
           <Reveal className="relative z-10 mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
               <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft"><Radar size={13} /> Personalized command center</p>
-              <h2 id="command-center-title" className="text-3xl font-black sm:text-4xl">Welcome back, {firstName(user.displayName)}</h2>
+              <h2 id="command-center-title" className="text-3xl font-bold sm:text-4xl">Welcome back, {firstName(user.displayName)}</h2>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">Your library, release radar, progress, and taste profile—synchronized into one live briefing.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href="/stats" className="group inline-flex w-fit items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-4 py-2.5 text-sm font-semibold text-brand-soft transition-colors hover:border-brand/50 hover:text-white">Open your stats <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" /></Link>
-              <Link href="/library" className="group inline-flex w-fit items-center gap-2 rounded-full border border-line bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-muted transition-colors hover:border-line-strong hover:text-text">Library <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" /></Link>
+              <Link href="/stats" className="group inline-flex w-fit items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-4 py-2.5 text-sm font-semibold text-brand-soft transition-colors hover:border-brand/50 hover:bg-brand/15">Open your stats <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" /></Link>
+              <Link href="/library" className="group inline-flex w-fit items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2.5 text-sm font-semibold text-muted transition-colors hover:border-line-strong hover:text-text">Library <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" /></Link>
             </div>
           </Reveal>
 
@@ -165,12 +167,12 @@ export function PersonalCommandCenter({ genres }: { genres: Ref[] }) {
             <DashboardStat icon={<Trophy size={16} />} value={snapshot.played} label="Completed" tone="gold" />
           </Stagger>
 
-          <Reveal className="relative z-10 mt-4 flex flex-col gap-4 rounded-2xl border border-line bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <Reveal className="relative z-10 mt-4 flex flex-col gap-4 rounded-2xl border border-line bg-fg/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div>
               <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.07em] text-faint"><Sparkles size={13} className="text-brand-soft" /> Taste signal</p>
               <p className="mt-1.5 text-sm text-muted">{profileUsable ? `Built from ${entries.length} tracked ${entries.length === 1 ? "game" : "games"}, weighted toward what you finish.` : "Mark games as playing or played to sharpen your recommendations."}</p>
             </div>
-            {tasteGenres.length > 0 ? <div className="flex flex-wrap gap-2">{tasteGenres.map((genre) => <Link key={genre.id} href={`/browse?genres=${genre.slug}`} className="rounded-full border border-brand/20 bg-brand/[0.08] px-3 py-1.5 text-xs font-semibold text-brand-soft transition-colors hover:border-brand/40 hover:text-white">{genre.name}</Link>)}</div> : <Button href="/browse" variant="secondary" size="sm">Build your taste profile</Button>}
+            {tasteGenres.length > 0 ? <div className="flex flex-wrap gap-2">{tasteGenres.map((genre) => <Link key={genre.id} href={`/browse?genres=${genre.slug}`} className="rounded-full border border-brand/20 bg-brand/[0.08] px-3 py-1.5 text-xs font-semibold text-brand-soft transition-colors hover:border-brand/40 hover:bg-brand/15">{genre.name}</Link>)}</div> : <Button href="/browse" variant="secondary" size="sm">Build your taste profile</Button>}
           </Reveal>
         </div>
       </Container>
@@ -184,7 +186,7 @@ export function PersonalCommandCenter({ genres }: { genres: Ref[] }) {
             </Reveal>
           </Container>
           <div className="mt-6">
-            {!currentRecommendations ? <Container><GameRailSkeleton count={6} /></Container> : currentRecommendations.results.length > 0 ? <GameRail games={currentRecommendations.results} /> : <Container><div className="rounded-2xl border border-line bg-white/[0.025] p-5 text-sm text-muted">Recommendation data is temporarily quiet. Your command center remains fully available.</div></Container>}
+            {!currentRecommendations ? <Container><GameRailSkeleton count={6} /></Container> : currentRecommendations.results.length > 0 ? <GameRail games={currentRecommendations.results} /> : <Container><div className="rounded-2xl border border-line bg-fg/[0.025] p-5 text-sm text-muted">Recommendation data is temporarily quiet. Your command center remains fully available.</div></Container>}
           </div>
         </div>
       )}
@@ -193,7 +195,7 @@ export function PersonalCommandCenter({ genres }: { genres: Ref[] }) {
 }
 
 function BriefingCard({ icon, eyebrow, tone, children }: { icon: React.ReactNode; eyebrow: string; tone: "brand" | "mint"; children: React.ReactNode }) {
-  return <Reveal className="flex min-h-0 flex-col rounded-[1.5rem] border border-line bg-white/[0.025] p-5"><div className="mb-4 flex items-center gap-2"><span className={cn("grid h-9 w-9 place-items-center rounded-xl", tone === "mint" ? "bg-mint/10 text-mint" : "bg-brand/10 text-brand-soft")}>{icon}</span><p className="text-[10px] font-bold uppercase tracking-[0.07em] text-faint">{eyebrow}</p></div>{children}</Reveal>;
+  return <Reveal className="flex min-h-0 flex-col rounded-[1.5rem] border border-line bg-fg/[0.025] p-5"><div className="mb-4 flex items-center gap-2"><span className={cn("grid h-9 w-9 place-items-center rounded-xl", tone === "mint" ? "bg-mint/10 text-mint" : "bg-brand/10 text-brand-soft")}>{icon}</span><p className="text-[10px] font-bold uppercase tracking-[0.07em] text-faint">{eyebrow}</p></div>{children}</Reveal>;
 }
 
 function ReleaseSignal({ entry, now, releasesSoon }: { entry: WatchlistEntry; now: number; releasesSoon: number }) {
@@ -202,12 +204,12 @@ function ReleaseSignal({ entry, now, releasesSoon }: { entry: WatchlistEntry; no
 }
 
 function QuietSignal({ title, body, success = false }: { title: string; body: string; success?: boolean }) {
-  return <div className="flex flex-1 items-start gap-3"><span className={cn("mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full", success ? "bg-mint/10 text-mint" : "bg-white/[0.05] text-faint")}>{success ? <CheckCircle2 size={15} /> : <Radar size={15} />}</span><div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs leading-relaxed text-muted">{body}</p></div></div>;
+  return <div className="flex flex-1 items-start gap-3"><span className={cn("mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full", success ? "bg-mint/10 text-mint" : "bg-fg/[0.05] text-faint")}>{success ? <CheckCircle2 size={15} /> : <Radar size={15} />}</span><div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs leading-relaxed text-muted">{body}</p></div></div>;
 }
 
 function DashboardStat({ icon, value, label, tone }: { icon: React.ReactNode; value: number; label: string; tone: "brand" | "mint" | "neon" | "gold" }) {
   const tones = { brand: "bg-brand/10 text-brand-soft", mint: "bg-mint/10 text-mint", neon: "bg-neon/10 text-neon", gold: "bg-gold/10 text-gold" };
-  return <StaggerItem><div className="flex h-full items-center gap-3 rounded-2xl border border-line bg-black/20 p-4"><span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", tones[tone])}>{icon}</span><div><p className="font-display text-xl font-black tabular-nums">{value}</p><p className="text-[11px] text-muted">{label}</p></div></div></StaggerItem>;
+  return <StaggerItem><div className="flex h-full items-center gap-3 rounded-2xl border border-line bg-fg/[0.03] p-4"><span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", tones[tone])}>{icon}</span><div><p className="font-display text-xl font-black tabular-nums">{value}</p><p className="text-[11px] text-muted">{label}</p></div></div></StaggerItem>;
 }
 
 function CommandCenterSkeleton() {
@@ -220,7 +222,7 @@ function CommandCenterOnboarding({ name }: { name: string }) {
     { icon: <Gamepad2 size={17} />, title: "Set your status", body: "Playing and completed games shape your taste." },
     { icon: <Sparkles size={17} />, title: "Unlock your briefing", body: "Get release, progress, and recommendation signals." },
   ];
-  return <section className="py-8 sm:py-11"><Container><Reveal className="relative overflow-hidden rounded-[2rem] border border-brand/20 bg-[radial-gradient(circle_at_0%_0%,rgba(124,92,255,0.2),transparent_45%),rgba(16,16,32,0.72)] p-5 sm:p-8"><p className="text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft">Your command center</p><h2 className="mt-2 text-3xl font-black">Let&apos;s make Arnav Games yours, {name}</h2><p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">Track one game to activate a personal homepage. Nothing is guessed and no placeholder activity is invented.</p><Stagger className="mt-7 grid gap-3 sm:grid-cols-3" gap={0.05} onMount>{steps.map((step) => <StaggerItem key={step.title}><div className="h-full rounded-2xl border border-line bg-black/20 p-4"><span className="grid h-9 w-9 place-items-center rounded-xl bg-brand/10 text-brand-soft">{step.icon}</span><h3 className="mt-3 text-sm font-bold">{step.title}</h3><p className="mt-1 text-xs leading-relaxed text-muted">{step.body}</p></div></StaggerItem>)}</Stagger><div className="mt-6 flex flex-wrap gap-3"><Button href="/browse">Find your first game</Button><Button href="/upcoming" variant="secondary">Explore upcoming releases</Button></div></Reveal></Container></section>;
+  return <section className="py-8 sm:py-11"><Container><Reveal className="relative isolate overflow-hidden glass rounded-[2rem] p-5 sm:p-8"><span aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_0%_0%,color-mix(in_oklab,var(--color-brand)_18%,transparent),transparent_45%)]" /><p className="text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft">Your command center</p><h2 className="mt-2 text-3xl font-bold">Let&apos;s make Arnav Games yours, {name}</h2><p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">Track one game to activate a personal homepage. Nothing is guessed and no placeholder activity is invented.</p><Stagger className="mt-7 grid gap-3 sm:grid-cols-3" gap={0.05} onMount>{steps.map((step) => <StaggerItem key={step.title}><div className="h-full rounded-2xl border border-line bg-fg/[0.03] p-4"><span className="grid h-9 w-9 place-items-center rounded-xl bg-brand/10 text-brand-soft">{step.icon}</span><h3 className="mt-3 text-sm font-bold">{step.title}</h3><p className="mt-1 text-xs leading-relaxed text-muted">{step.body}</p></div></StaggerItem>)}</Stagger><div className="mt-6 flex flex-wrap gap-3"><Button href="/browse">Find your first game</Button><Button href="/upcoming" variant="secondary">Explore upcoming releases</Button></div></Reveal></Container></section>;
 }
 
 function firstName(name: string | null): string {

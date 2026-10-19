@@ -39,6 +39,20 @@
  * refused by the browser — simply never reveals it, and the still artwork
  * underneath remains. Proving success rather than guessing failure means every
  * unknown degrades to the artwork, which is the desired fallback anyway.
+ *
+ * "Playing" is also not enough on its own. For the first couple of seconds the
+ * embed overlays its own centre transport (previous / pause / next) on top of
+ * the video, and most trailers open on a black studio card besides. Waiting
+ * until the player reports a few seconds of *elapsed playback* skips both, so
+ * the dissolve lands on actual footage.
+ *
+ * ---------------------------------------------------------------------------
+ * Controlling a running player
+ *
+ * Mute and pause go over the same channel as player commands rather than by
+ * rebuilding the `src`. Changing the URL reloads the embed — the trailer jumps
+ * back to its studio card, and the new frame never re-runs the handshake, so
+ * it could be shown without ever having proven it plays.
  */
 
 import { AnimatePresence, motion } from "motion/react";
@@ -51,13 +65,20 @@ import type { Trailer } from "@/lib/games/types";
 const DEFAULT_DELAY_MS = 1800;
 
 /**
- * How long the player gets to report that it is playing.
+ * Seconds of confirmed playback before the video is revealed. Long enough to
+ * clear YouTube's start-up transport overlay and the usual black studio card.
+ */
+const REVEAL_AT_SECONDS = 2.6;
+
+/**
+ * How long the player gets to prove itself (handshake, buffering, and the
+ * reveal threshold above).
  *
  * Generous enough for a cold embed on a slow connection, short enough that a
- * blocked video doesn't leave the hero waiting on something that will never
+ * blocked video doesn't leave the page waiting on something that will never
  * arrive.
  */
-const PLAYBACK_GRACE_MS = 6000;
+const PLAYBACK_GRACE_MS = 9000;
 
 /** YouTube's player states; 1 is PLAYING. */
 const STATE_PLAYING = 1;
@@ -88,12 +109,20 @@ export function youtubeBackdropSrc(id: string, muted: boolean, origin?: string):
 export function BackdropTrailer({
   trailer,
   muted = true,
+  paused = false,
   delayMs = DEFAULT_DELAY_MS,
   className,
   onPlayingChange,
+  onUnavailable,
 }: {
   trailer: Trailer | null;
   muted?: boolean;
+  /**
+   * Freezes playback in place (the frame stays visible). Used when the reader
+   * pauses the hero, scrolls it away, or hides the tab — a video nobody can
+   * see shouldn't keep decoding.
+   */
+  paused?: boolean;
   delayMs?: number;
   className?: string;
   /**
@@ -101,12 +130,31 @@ export function BackdropTrailer({
    * slide longer once a trailer is genuinely running, rather than guessing.
    */
   onPlayingChange?: (playing: boolean) => void;
+  /**
+   * Fires once if the player errors or never proves itself within the grace
+   * period — the artwork is staying, so callers can stop waiting for video.
+   */
+  onUnavailable?: () => void;
 }) {
   const richMotion = useRichMotion();
   const [mounted, setMounted] = useState(false);
-  /** Flips true only once the player reports it is actually playing. */
+  /** Flips true only once the player reports sustained playback. */
   const [confirmed, setConfirmed] = useState(false);
+  /**
+   * The mute state baked into the embed URL, captured when the player mounts.
+   * Later changes go over postMessage — see "Controlling a running player".
+   */
+  const [srcMuted, setSrcMuted] = useState(muted);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const mutedRef = useRef(muted);
+  const confirmedRef = useRef(false);
+  const onUnavailableRef = useRef(onUnavailable);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+    onUnavailableRef.current = onUnavailable;
+  });
 
   const youtubeId = trailer?.kind === "youtube" ? trailer.youtubeId ?? null : null;
   const videoUrl = trailer?.kind !== "youtube" ? trailer?.url ?? null : null;
@@ -117,7 +165,10 @@ export function BackdropTrailer({
       const frame = requestAnimationFrame(() => setMounted(false));
       return () => cancelAnimationFrame(frame);
     }
-    const id = setTimeout(() => setMounted(true), delayMs);
+    const id = setTimeout(() => {
+      setSrcMuted(mutedRef.current);
+      setMounted(true);
+    }, delayMs);
     return () => clearTimeout(id);
   }, [richMotion, trailer, delayMs]);
 
@@ -130,6 +181,7 @@ export function BackdropTrailer({
   // Reported as an effect rather than from the message handler so the parent
   // hears every transition, including the reset above.
   useEffect(() => {
+    confirmedRef.current = confirmed;
     onPlayingChange?.(confirmed);
   }, [confirmed, onPlayingChange]);
 
@@ -151,9 +203,25 @@ export function BackdropTrailer({
     // The embed only starts reporting after it hears this, and it can miss the
     // first one if it is still booting — hence the short repeat.
     const handshake = setInterval(() => send("listening"), 400);
+    let lastState: number | undefined;
+    let settled = false;
+
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      clearInterval(handshake);
+      setConfirmed(false);
+      onUnavailableRef.current?.();
+    };
 
     const onMessage = (event: MessageEvent) => {
-      if (!/youtube(-nocookie)?\.com$/.test(new URL(event.origin).hostname)) return;
+      let host: string;
+      try {
+        host = new URL(event.origin).hostname;
+      } catch {
+        return;
+      }
+      if (!/youtube(-nocookie)?\.com$/.test(host)) return;
       let payload: { event?: string; info?: unknown };
       try {
         payload = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
@@ -164,8 +232,7 @@ export function BackdropTrailer({
       if (payload?.event === "onError") {
         // 101/150 are "embedding disabled by request"; anything else is just as
         // unplayable for our purposes.
-        clearInterval(handshake);
-        setConfirmed(false);
+        fail();
         return;
       }
 
@@ -173,19 +240,29 @@ export function BackdropTrailer({
        * The state arrives under two different shapes, and only one of them is
        * the documented `onStateChange`. In practice the embed reports almost
        * everything through `infoDelivery`, whose `info` is a status object
-       * carrying `playerState` — listening only for `onStateChange` means the
-       * "it's playing" signal never arrives and every trailer stays hidden.
+       * carrying `playerState` and `currentTime` — listening only for
+       * `onStateChange` means the "it's playing" signal never arrives and
+       * every trailer stays hidden.
        */
-      const info = payload?.info;
-      const state =
-        typeof info === "number"
-          ? info
-          : (info as { playerState?: number } | undefined)?.playerState;
+      if (payload?.event !== "onStateChange" && payload?.event !== "infoDelivery") return;
+      const info = payload.info;
+      const status = typeof info === "object" && info !== null
+        ? (info as { playerState?: number; currentTime?: number })
+        : null;
+      const state = typeof info === "number" ? info : status?.playerState;
+      if (typeof state === "number") lastState = state;
 
+      // Revealed only after sustained playback — see "Proving the video
+      // actually plays" above. Once proven it stays proven; a later pause
+      // (ours, or a buffering stall) keeps the frame rather than flickering.
+      const time = status?.currentTime;
       if (
-        state === STATE_PLAYING &&
-        (payload?.event === "onStateChange" || payload?.event === "infoDelivery")
+        !settled &&
+        lastState === STATE_PLAYING &&
+        typeof time === "number" &&
+        time >= REVEAL_AT_SECONDS
       ) {
+        settled = true;
         clearInterval(handshake);
         setConfirmed(true);
       }
@@ -193,7 +270,7 @@ export function BackdropTrailer({
 
     window.addEventListener("message", onMessage);
     // Nothing confirmed in time means blocked, restricted, or autoplay refused.
-    const giveUp = setTimeout(() => clearInterval(handshake), PLAYBACK_GRACE_MS);
+    const giveUp = setTimeout(fail, PLAYBACK_GRACE_MS);
 
     return () => {
       clearInterval(handshake);
@@ -202,7 +279,49 @@ export function BackdropTrailer({
     };
   }, [mounted, youtubeId]);
 
-  const onVideoPlaying = useCallback(() => setConfirmed(true), []);
+  /* --- Commands: mute and pause without reloading ------------------------ */
+  const command = useCallback(
+    (func: string) => {
+      const win = frameRef.current?.contentWindow;
+      if (!win || !youtubeId) return;
+      try {
+        win.postMessage(
+          JSON.stringify({ event: "command", func, args: [], id: youtubeId, channel: "widget" }),
+          "*",
+        );
+      } catch {
+        /* frame gone */
+      }
+    },
+    [youtubeId],
+  );
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (youtubeId) command(muted ? "mute" : "unMute");
+    const video = videoRef.current;
+    if (video) video.muted = muted;
+  }, [mounted, muted, youtubeId, command]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (youtubeId) command(paused ? "pauseVideo" : "playVideo");
+    const video = videoRef.current;
+    if (video) {
+      if (paused) video.pause();
+      else void video.play().catch(() => {});
+    }
+  }, [mounted, paused, youtubeId, command]);
+
+  // MP4s have no start-up overlay, but the same "sustained playback" rule
+  // keeps a stalled first frame from being revealed.
+  const onVideoTime = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (!confirmedRef.current && event.currentTarget.currentTime >= 0.4) setConfirmed(true);
+  }, []);
+  const onVideoError = useCallback(() => {
+    setConfirmed(false);
+    onUnavailableRef.current?.();
+  }, []);
 
   const playable = Boolean(youtubeId || videoUrl);
   if (!mounted || !trailer || !playable) return null;
@@ -226,15 +345,15 @@ export function BackdropTrailer({
           initial={{ opacity: 0 }}
           animate={{ opacity: confirmed ? 1 : 0 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
         >
           {youtubeId ? (
             <iframe
               ref={frameRef}
-              key={`${youtubeId}-${muted}`}
+              key={youtubeId}
               src={youtubeBackdropSrc(
                 youtubeId,
-                muted,
+                srcMuted,
                 typeof window !== "undefined" ? window.location.origin : undefined,
               )}
               title=""
@@ -255,13 +374,15 @@ export function BackdropTrailer({
             />
           ) : videoUrl ? (
             <video
+              ref={videoRef}
               key={videoUrl}
               src={videoUrl}
               autoPlay
-              muted={muted}
+              muted={srcMuted}
               loop
               playsInline
-              onPlaying={onVideoPlaying}
+              onTimeUpdate={onVideoTime}
+              onError={onVideoError}
               poster={trailer.preview ?? undefined}
               className="h-full w-full object-cover"
             />
