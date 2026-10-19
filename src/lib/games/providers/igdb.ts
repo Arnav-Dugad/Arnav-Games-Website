@@ -74,7 +74,6 @@ export function igdbConfigured(): boolean {
  * ------------------------------------------------------------------------ */
 
 let tokenCache: { value: string; expiresAt: number } | null = null;
-let tokenInFlight: Promise<string> | null = null;
 
 /**
  * How long Next may reuse a cached token response.
@@ -169,8 +168,6 @@ export class TokenError extends Error {
 
 /** Increments on every forced refresh so each retry is its own cache entry. */
 let tokenGeneration = 0;
-/** Which generation the in-flight request was built for. */
-let tokenInFlightGeneration = -1;
 
 async function getToken(forceRefresh = false): Promise<string> {
   const creds = credentials();
@@ -184,24 +181,14 @@ async function getToken(forceRefresh = false): Promise<string> {
   }
 
   /*
-   * Collapse concurrent refreshes so a cold start doesn't fire one token
-   * request per in-flight render — but only across the *same* generation.
-   *
-   * Reusing any in-flight promise meant a forced refresh after a 401 could be
-   * handed a request already in progress for the previous generation: the same
-   * revoked token that caused the 401. The retry then failed identically, and
-   * 401 is not in the retry set, so the provider degraded to Steam. That is
-   * precisely the credential-rotation case this refresh path exists to survive.
+   * No in-flight sharing across requests. On Cloudflare Workers a promise
+   * whose I/O belongs to another request is cancelled when that request ends,
+   * and every request awaiting it is then killed as "hung" — which is exactly
+   * how search started failing. The token fetch is itself data-cached (see
+   * `fetchToken`), so concurrent cold requests cost little; only the resolved
+   * value is shared, via `tokenCache`.
    */
-  if (!tokenInFlight || tokenInFlightGeneration !== tokenGeneration) {
-    tokenInFlightGeneration = tokenGeneration;
-    tokenInFlight = fetchToken(creds.clientId, creds.clientSecret, tokenGeneration).finally(
-      () => {
-        tokenInFlight = null;
-      },
-    );
-  }
-  return tokenInFlight;
+  return fetchToken(creds.clientId, creds.clientSecret, tokenGeneration);
 }
 
 /* ---------------------------------------------------------------------------
@@ -465,18 +452,21 @@ async function negotiate(label: string, candidates: string[][]): Promise<string[
   return [];
 }
 
-let schemaPromise: Promise<{
+type NegotiatedSchema = {
   release: string[];
   ageRating: string[];
   descriptors: string[];
   /** Absent from schemas cached before the field was negotiated. */
   region?: string[];
-}> | null = null;
+};
+
+/** Resolved schema, shared across requests. Never a pending promise — see `getToken`. */
+let schemaValue: NegotiatedSchema | null = null;
 
 /**
  * The negotiated field set, cached across instances.
  *
- * `schemaPromise` alone is module-scoped, so every cold lambda paid three
+ * A module-scoped value alone means every cold isolate paid three
  * sequential probe round trips before its first real query — and those are the
  * requests most likely to meet the rate limiter. Worse, a 429 during probing
  * propagated out of `summaryFields()`, failed the provider, and dropped the
@@ -493,16 +483,13 @@ const cachedSchema = unstable_cache(
   { revalidate: TTL.taxonomy, tags: ["igdb"] },
 );
 
-function schema() {
-  if (!schemaPromise) {
-    schemaPromise = cachedSchema().catch((err) => {
-      // Never cache a rejected probe — a transient outage would otherwise
-      // permanently strip these fields for the life of the server.
-      schemaPromise = null;
-      throw err;
-    });
-  }
-  return schemaPromise;
+async function schema(): Promise<NegotiatedSchema> {
+  if (schemaValue) return schemaValue;
+  // A rejected probe is never cached: a transient outage would otherwise
+  // strip these fields for the life of the isolate.
+  const value = await cachedSchema();
+  schemaValue = value;
+  return value;
 }
 
 function negotiateSchema() {

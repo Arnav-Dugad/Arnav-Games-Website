@@ -31,14 +31,11 @@
       "migrations_dir": "migrations"
     }
   ],
-  "durable_objects": {
-    "bindings": [
-      // Live "online now" counter for /admin (src/server/presence-room.ts).
-      { "name": "PRESENCE", "class_name": "PresenceRoom" }
-    ]
-  },
+  // The PresenceRoom Durable Object (admin "online now") was removed; v2
+  // deletes its class so Cloudflare drops the namespace.
   "migrations": [
-    { "tag": "v1-presence", "new_sqlite_classes": ["PresenceRoom"] }
+    { "tag": "v1-presence", "new_sqlite_classes": ["PresenceRoom"] },
+    { "tag": "v2-remove-presence", "deleted_classes": ["PresenceRoom"] }
   ],
   "triggers": {
     // One trigger (the Free plan allows 5 per account, shared with other

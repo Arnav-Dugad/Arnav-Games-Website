@@ -7,14 +7,12 @@
  *  - A Cron Trigger. Due jobs run as internal `/api/cron/<job>` routes,
  *    called through the worker's own service binding with a shared secret,
  *    so job logic lives in normal, testable Next code.
- *  - The `PresenceRoom` Durable Object behind the admin "online now" counter.
  */
 
 // Resolved by wrangler at deploy time, after the OpenNext build.
 import nextWorker from "./.open-next/worker.js";
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
-export { PresenceRoom } from "./src/server/presence-room.ts";
 
 /**
  * One cron trigger drives every job.
@@ -39,8 +37,6 @@ function jobsDue(scheduledTime) {
   if (hour === 4 && slot === 2) jobs.push("prices");
   // Daily critic-score observations in the 05:00 UTC slot.
   if (hour === 5 && slot === 0) jobs.push("scores");
-  // Weekly owner digest, Mondays in the 08:00 UTC slot.
-  if (at.getUTCDay() === 1 && hour === 8 && slot === 0) jobs.push("digest");
   return jobs;
 }
 

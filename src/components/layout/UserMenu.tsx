@@ -30,10 +30,8 @@ import {
   Library,
   LogOut,
   Settings,
-  ShieldCheck,
   User as UserIcon,
 } from "lucide-react";
-import { useIsAdmin } from "@/lib/analytics/useIsAdmin";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useClickOutside, useEscapeKey, useMediaQuery } from "@/hooks";
 import { Button } from "@/components/ui/Button";
@@ -68,11 +66,9 @@ const ACCOUNT: Entry[] = [
   { href: "/settings", label: "Settings", icon: <Settings size={16} />, tint: "bg-panel-2 text-text" },
 ];
 
-const ADMIN: Entry = { href: "/admin", label: "Admin dashboard", icon: <ShieldCheck size={16} />, tint: "bg-brand text-white" };
 
 export function UserMenu() {
   const { user, loading, enabled, signOut } = useAuth();
-  const isAdmin = useIsAdmin();
   const pathname = usePathname();
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn !== null && openOn === pathname;
@@ -95,7 +91,7 @@ export function UserMenu() {
   const next = encodeURIComponent(pathname || "/");
   const name = user ? user.displayName || user.email?.split("@")[0] || "Player" : null;
   const hue = user ? avatarHue(user.uid) : 0;
-  const entries = [...LIBRARY, ...ACCOUNT, ...(isAdmin ? [ADMIN] : [])];
+  const entries = [...LIBRARY, ...ACCOUNT];
 
   const handleSignOut = async () => {
     close();
@@ -168,7 +164,6 @@ export function UserMenu() {
           )}
           <SheetGroup className={cn(!user && enabled && "mt-5")} entries={LIBRARY} onNavigate={close} />
           <SheetGroup className="mt-4" entries={ACCOUNT} onNavigate={close} />
-          {isAdmin && <SheetGroup className="mt-4" entries={[ADMIN]} onNavigate={close} />}
           {user && (
             <div className="mt-4 overflow-hidden rounded-2xl bg-fg/[0.06]">
               <button

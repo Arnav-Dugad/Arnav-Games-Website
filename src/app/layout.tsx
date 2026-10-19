@@ -5,8 +5,6 @@ import { Providers } from "@/components/layout/Providers";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { Footer } from "@/components/layout/Footer";
 import { PageTransition } from "@/components/interactions/PageTransition";
-import { Suspense } from "react";
-import { AnalyticsTracker } from "@/components/admin/AnalyticsTracker";
 import { THEME_BOOT_SCRIPT } from "@/lib/preferences/theme-script";
 import { LaunchSplash } from "@/components/pwa/LaunchSplash";
 import { PwaLayer } from "@/components/pwa/PwaLayer";
@@ -113,11 +111,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main id="main"><PageTransition>{children}</PageTransition></main>
           <Footer />
         </Providers>
-        {/* Cookieless first-party analytics. Suspense keeps its useSearchParams
-            from opting static routes out of prerendering. */}
-        <Suspense fallback={null}>
-          <AnalyticsTracker />
-        </Suspense>
       </body>
     </html>
   );

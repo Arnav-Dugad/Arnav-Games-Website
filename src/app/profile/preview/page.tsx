@@ -10,16 +10,15 @@ export const metadata: Metadata = {
 
 /**
  * DEV PREVIEW ONLY. The signed-in profile against the shared illustrative
- * library sample, so it can be reviewed without an account. `?admin=1` shows
- * the admin badge. 404s outside `next dev`; nothing here touches Firebase.
+ * library sample, so it can be reviewed without an account. 404s outside
+ * `next dev`; nothing here touches Firebase.
  */
-export default async function ProfilePreviewPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default function ProfilePreviewPage() {
   if (process.env.NODE_ENV !== "development") notFound();
-  const params = await searchParams;
   return (
     <>
       <PageHeader eyebrow="Dev preview · sample data" title="Profile" />
-      <ProfilePreview admin={params.admin === "1"} />
+      <ProfilePreview />
     </>
   );
 }

@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
       // Account surfaces hold nothing useful to a crawler and shouldn't be indexed.
-      disallow: ["/api/", "/profile", "/watchlist", "/notifications", "/login", "/signup", "/admin"],
+      disallow: ["/api/", "/profile", "/watchlist", "/notifications", "/login", "/signup"],
     },
     sitemap: `${BASE}/sitemap.xml`,
   };

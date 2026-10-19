@@ -9,7 +9,6 @@ import { buildSections, pickTopHit, SEARCH_PROMPTS, type SectionId } from "@/com
 import { Container } from "@/components/ui/SectionHeading";
 import { igdbConfigured, igdbSearchAll, listGamesByIds } from "@/lib/games/providers/igdb";
 import { searchGames } from "@/lib/games/source";
-import { applySearchAlias } from "@/lib/search/aliases";
 import type { SearchHit } from "@/lib/games/search";
 import { SOURCE_LABELS, type DataSource, type GameSummary } from "@/lib/games/types";
 
@@ -92,16 +91,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
     }));
   }
 
-  // Owner-approved aliases ("botw" → Breath of the Wild) lead the results,
-  // exactly as they do in the overlay via /api/search.
-  let aliased = false;
-  if (query.length >= 2) {
-    const before = hits[0];
-    hits = await applySearchAlias(query, hits);
-    aliased = hits[0] !== before && hits[0]?.kind === "game";
-  }
-
-  if (source === "igdb" || (aliased && igdbConfigured())) {
+  if (source === "igdb") {
     // Search hits carry identity only; the grid, filters and top-hit card
     // need full summaries. One batched, cached lookup, then back into the
     // server's relevance order (Steam fallback results already are summaries).
@@ -187,7 +177,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         ) : hits.length === 0 ? (
           <NoResults query={query} unavailable={source === "unavailable"} />
         ) : view === "all" ? (
-          <AllResults hits={hits} games={games} query={query} hrefFor={hrefFor} aliased={aliased} />
+          <AllResults hits={hits} games={games} query={query} hrefFor={hrefFor} />
         ) : view === "game" ? (
           games.length > 0 ? (
             <div data-track-src="search:game">
@@ -215,16 +205,13 @@ function AllResults({
   games,
   query,
   hrefFor,
-  aliased,
 }: {
   hits: SearchHit[];
   games: GameSummary[];
   query: string;
   hrefFor: (view: View) => string;
-  /** An approved alias put its game first: that is the top hit, full stop. */
-  aliased: boolean;
 }) {
-  const top = aliased ? hits[0] : preferKnown(pickTopHit(hits, query), hits, games);
+  const top = preferKnown(pickTopHit(hits, query), hits, games);
   const topGame = top?.kind === "game" ? (games.find((game) => game.id === top.id) ?? null) : null;
   const sections = buildSections(hits, query, { franchise: 6, company: 6, character: 6, taxonomy: 6 }).filter(
     (section) => section.id !== "top",

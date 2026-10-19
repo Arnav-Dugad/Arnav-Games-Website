@@ -21,8 +21,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/lib/firebase/AuthProvider";
-import { getFirebaseAuth } from "@/lib/firebase/config";
-import { track } from "@/lib/analytics/client";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
@@ -89,7 +87,6 @@ export function AuthForm({ mode }: { mode: Mode }) {
     try {
       if (mode === "signup") {
         await signUp(name, email, password);
-        track("signup");
         toast("Welcome to Arnav Games", "success");
       } else {
         await signIn(email, password);
@@ -108,13 +105,6 @@ export function AuthForm({ mode }: { mode: Mode }) {
     setBusy(true);
     try {
       await signInWithGoogle();
-      // Google sign-in creates the account on first use. A brand-new account
-      // has its creation and last sign-in stamped together.
-      const meta = getFirebaseAuth()?.currentUser?.metadata;
-      if (meta?.creationTime && meta.lastSignInTime
-        && Math.abs(Date.parse(meta.lastSignInTime) - Date.parse(meta.creationTime)) < 10_000) {
-        track("signup");
-      }
       toast("Signed in", "success");
       router.replace(next);
     } catch (err) {

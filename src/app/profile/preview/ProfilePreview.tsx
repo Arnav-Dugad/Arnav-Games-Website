@@ -5,7 +5,7 @@ import { sampleLibrary } from "@/components/stats/preview-sample";
 import type { Review } from "@/lib/firebase/db";
 
 /** DEV PREVIEW ONLY — see the page. Saving and signing out are no-ops. */
-export function ProfilePreview({ admin }: { admin: boolean }) {
+export function ProfilePreview() {
   const { entries } = sampleLibrary();
   const review = (index: number, rating: number, body: string): Review => ({
     id: `preview-${index}`,
@@ -36,7 +36,6 @@ export function ProfilePreview({ admin }: { admin: boolean }) {
         draft: { name: "Sam Rivera", bio: "RPGs, roguelikes and the occasional racing game.", gamerTag: "samplays", ownedPlatforms: ["steam", "ps5", "switch"], activeSubscriptions: ["game-pass"], playStyle: "dedicated" },
         reviews,
         entries,
-        admin,
       }}
       onSave={async () => {}}
       onSignOut={async () => {}}

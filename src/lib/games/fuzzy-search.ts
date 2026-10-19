@@ -7,23 +7,38 @@ const ROMAN: Record<string, string> = {
 
 const STOP_WORDS = new Set(["a", "an", "and", "of", "the", "to"]);
 
+/**
+ * Common gaming shorthand. Several are ambiguous on purpose ("gow" is both
+ * God of War and Gears of War): every expansion is searched and ranking
+ * decides, rather than guessing for the reader.
+ */
 const QUERY_ALIASES: Record<string, string[]> = {
-  ac: ["assassins creed", "animal crossing"],
-  cod: ["call of duty"],
-  cs: ["counter strike"],
-  ff: ["final fantasy"],
-  fifa: ["ea sports fc"],
-  gow: ["god of war", "gears of war"],
-  gta: ["grand theft auto"],
-  lol: ["league of legends"],
-  nfs: ["need for speed"],
-  pubg: ["playerunknowns battlegrounds"],
-  rdr: ["red dead redemption"],
-  re: ["resident evil"],
-  tlou: ["the last of us"],
-  tloz: ["the legend of zelda"],
-  wow: ["world of warcraft"],
+  ac: ["assassins creed", "animal crossing"], acnh: ["animal crossing new horizons"],
+  aoe: ["age of empires"], apex: ["apex legends"], bg3: ["baldurs gate 3"], bo: ["black ops"],
+  botw: ["breath of the wild"], cod: ["call of duty"], cp2077: ["cyberpunk 2077"],
+  cs: ["counter strike"], csgo: ["counter strike global offensive"], d2: ["destiny 2"],
+  d4: ["diablo iv"], dbd: ["dead by daylight"], dmc: ["devil may cry"], ds: ["dark souls"],
+  er: ["elden ring"], ff: ["final fantasy"], fh: ["forza horizon"], fifa: ["ea sports fc"],
+  gow: ["god of war", "gears of war"], gt: ["gran turismo"], gta: ["grand theft auto"],
+  hk: ["hollow knight"], hl: ["half life"], hzd: ["horizon zero dawn"],
+  kcd: ["kingdom come deliverance"], kh: ["kingdom hearts"], l4d: ["left 4 dead"],
+  lol: ["league of legends"], loz: ["the legend of zelda"], mc: ["minecraft"],
+  mgs: ["metal gear solid"], mh: ["monster hunter"], mk: ["mortal kombat"], mw: ["modern warfare"],
+  nfs: ["need for speed"], nms: ["no mans sky"], ow: ["overwatch"], poe: ["path of exile"],
+  pubg: ["playerunknowns battlegrounds"], rdr: ["red dead redemption"], re: ["resident evil"],
+  rl: ["rocket league"], ror2: ["risk of rain 2"], sc: ["starcraft"], sf: ["street fighter"],
+  smb: ["super mario bros"], ssb: ["super smash bros"], ssbu: ["super smash bros ultimate"],
+  tf2: ["team fortress 2"], tlou: ["the last of us"], tloz: ["the legend of zelda"],
+  totk: ["tears of the kingdom"], tw3: ["the witcher 3"], wow: ["world of warcraft"],
+  xc: ["xenoblade chronicles"],
 };
+
+/** "rdr2" → expansions of "rdr" + " 2"; whole-token entries win first. */
+function aliasesFor(token: string): string[] {
+  if (QUERY_ALIASES[token]) return QUERY_ALIASES[token];
+  const split = /^([a-z]+)(\d+)$/.exec(token);
+  return split && QUERY_ALIASES[split[1]] ? QUERY_ALIASES[split[1]].map((alias) => `${alias} ${split[2]}`) : [];
+}
 
 export const EDITION_MARKERS =
   /\b(collector|deluxe|ultimate|goty|game of the year|complete|definitive|remaster|bundle|edition|pack|season pass|demo|trial|beta)\b/;
@@ -51,7 +66,7 @@ export function searchQueryVariants(query: string): string[] {
   const variants = new Set([normalised]);
   const tokens = normalised.split(" ");
   for (const token of tokens) {
-    for (const alias of QUERY_ALIASES[token] ?? []) {
+    for (const alias of aliasesFor(token)) {
       variants.add(normaliseSearch(tokens.map((part) => part === token ? alias : part).join(" ")));
     }
   }

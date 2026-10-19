@@ -33,7 +33,6 @@ import {
   MessageSquare,
   Pencil,
   Settings,
-  ShieldCheck,
   Sparkles,
   Star,
   Trophy,
@@ -42,7 +41,6 @@ import { OwnedLibrary } from "./OwnedLibrary";
 import { PlayHistory } from "./PlayHistory";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
-import { useIsAdmin } from "@/lib/analytics/useIsAdmin";
 import { getUserProfile, getUserReviews, updateUserProfile, type Review, type WatchlistEntry } from "@/lib/firebase/db";
 import { releaseState } from "@/lib/games/release-state";
 import { useToast } from "@/components/ui/Toast";
@@ -78,7 +76,6 @@ export interface ProfileData {
   /** Null while loading. */
   reviews: Review[] | null;
   entries: WatchlistEntry[];
-  admin: boolean;
 }
 
 const EMPTY_DRAFT: ProfileDraft = { name: "", bio: "", gamerTag: "", ownedPlatforms: [], activeSubscriptions: [], playStyle: null };
@@ -90,7 +87,6 @@ const EMPTY_DRAFT: ProfileDraft = { name: "", bio: "", gamerTag: "", ownedPlatfo
 export function ProfileView() {
   const { user, signOut, setDisplayName } = useAuth();
   const { entries } = useWatchlist();
-  const admin = useIsAdmin();
   const { toast } = useToast();
   const router = useRouter();
   const [reviews, setReviews] = useState<Review[] | null>(null);
@@ -139,7 +135,6 @@ export function ProfileView() {
         draft: { ...draft, name: draft.name || fallbackName },
         reviews,
         entries,
-        admin,
       }}
       onSave={async (next) => {
         const name = next.name.trim() || fallbackName;
@@ -212,7 +207,7 @@ export function ProfileScreen({
           {/* Desktop keeps the doors out beside the identity; phones get them
               at the end, after the content people came to the profile for. */}
           <div className="hidden lg:block">
-            <NavGroup data={data} stats={stats} onSignOut={onSignOut} />
+            <NavGroup stats={stats} onSignOut={onSignOut} />
           </div>
         </aside>
 
@@ -263,7 +258,7 @@ export function ProfileScreen({
 
           <Reviews reviews={reviews} />
           <div className="lg:hidden">
-            <NavGroup data={data} stats={stats} onSignOut={onSignOut} />
+            <NavGroup stats={stats} onSignOut={onSignOut} />
           </div>
         </div>
       </div>
@@ -310,12 +305,6 @@ function IdentityCard({ data, onEdit }: { data: ProfileData; onEdit: () => void 
       {data.email && <p className="mt-1 truncate text-[13px] text-muted">{data.email}</p>}
 
       <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 lg:justify-start">
-        {data.admin && (
-          <Link href="/admin" className="press inline-flex min-h-7 items-center gap-1 rounded-full bg-gold/15 px-2.5 text-[12px] font-semibold text-gold fine:hover:bg-gold/25">
-            <ShieldCheck size={13} aria-hidden />
-            Admin
-          </Link>
-        )}
         {draft.playStyle && <span className="inline-flex min-h-7 items-center rounded-full bg-fg/[0.07] px-2.5 text-[12px] font-medium text-muted">{PLAY_STYLE[draft.playStyle]}</span>}
         {data.memberSince && (
           <span className="inline-flex min-h-7 items-center rounded-full bg-fg/[0.07] px-2.5 text-[12px] font-medium text-muted">
@@ -352,7 +341,7 @@ function ProfileAvatar({ name, photo, uid }: { name: string; photo: string | nul
   );
 }
 
-function NavGroup({ data, stats, onSignOut }: { data: ProfileData; stats: { owned: number; saved: number }; onSignOut: () => Promise<void> }) {
+function NavGroup({ stats, onSignOut }: { stats: { owned: number; saved: number }; onSignOut: () => Promise<void> }) {
   const row = "press flex min-h-[50px] items-center gap-3 px-4 transition-colors fine:hover:bg-fg/[0.04]";
   const icon = (node: ReactNode, tone: string) => <span aria-hidden className={cn("grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[8px] text-white", tone)}>{node}</span>;
   const links = [
@@ -360,7 +349,6 @@ function NavGroup({ data, stats, onSignOut }: { data: ProfileData; stats: { owne
     { href: "/watchlist", label: "Watchlist", value: String(stats.saved), icon: icon(<Bookmark size={16} />, "bg-[#ff9f0a]") },
     { href: "/stats", label: "Your stats", value: "", icon: icon(<BarChart3 size={16} />, "bg-mint") },
     { href: "/settings", label: "Settings", value: "", icon: icon(<Settings size={16} />, "bg-[#8e8e93]") },
-    ...(data.admin ? [{ href: "/admin", label: "Admin dashboard", value: "", icon: icon(<ShieldCheck size={16} />, "bg-gold") }] : []),
   ];
   return (
     <div className="space-y-4">
