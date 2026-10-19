@@ -1,15 +1,18 @@
 /**
- * Steam concurrent-player history: an hourly cron samples tracked games into
- * `player_history`, and `/api/game/[id]/players` reads it back as a chart.
+ * Steam concurrent-player history: the 10-minute cron samples tracked games
+ * into `playerHistory/{appid}` (one document per app, one field per hour —
+ * see `stats-docs.ts`), and the game page reads that document straight from
+ * Firestore in the browser.
  *
  * Steam publishes only the *current* count (the same call the live panel
  * uses); the history is entirely our own sampling, which is why it starts
  * the day a game was first tracked and says so (`since`).
  */
 
-import { getDb } from "@/lib/cloudflare/db";
-import { choosePlayerSamples, downsamplePlayers } from "./market-rules";
-import type { PlayerHistory } from "./types";
+import { commitWrites, fieldPath, type Budget, type Write } from "@/lib/firebase/server";
+import { choosePlayerSamples } from "./market-rules";
+import { expiredHours, STATS_COLLECTIONS, TRACKED_DOC } from "./stats-docs";
+import type { TrackedIndex } from "./tracked";
 
 const HOUR = 3600;
 /** Samples older than this are pruned; the chart never shows more. */
@@ -20,46 +23,43 @@ export const PLAYER_RUNS_PER_HOUR = 6;
 const WEEK = 7 * 24 * HOUR;
 
 /**
- * The apps this run should sample (see `choosePlayerSamples` for the rules).
- * Both lists come from D1 — binding calls, not subrequests.
+ * The apps this run should sample (see `choosePlayerSamples` for the rules),
+ * from the tracked index the cron already read: "due" apps reported players
+ * within the last week and haven't been sampled this hour; "quiet" ones
+ * haven't reported lately and share a rotating slice of each run.
  */
-export async function playerSampleQueue(limit: number, reserve = 8): Promise<number[]> {
-  const db = await getDb();
-  if (!db) return [];
+export function playerSampleQueue(index: TrackedIndex, limit: number, reserve = 8): number[] {
   const now = Math.floor(Date.now() / 1000);
   const hour = now - (now % HOUR);
   const run = Math.floor((now % HOUR) / (HOUR / PLAYER_RUNS_PER_HOUR));
-  const recent = "EXISTS (SELECT 1 FROM player_history p WHERE p.app_id = t.steam_app AND p.hour >= ?)";
-  try {
-    const [due, quiet] = await Promise.all([
-      db
-        .prepare(
-          `SELECT t.steam_app AS app FROM tracked_games t WHERE t.steam_app IS NOT NULL AND ${recent} ` +
-            "AND NOT EXISTS (SELECT 1 FROM player_history p WHERE p.app_id = t.steam_app AND p.hour = ?) " +
-            "GROUP BY t.steam_app ORDER BY MAX(t.last_seen) DESC LIMIT ?",
-        )
-        .bind(hour - WEEK, hour, limit)
-        .all<{ app: number }>(),
-      db
-        .prepare(
-          `SELECT t.steam_app AS app FROM tracked_games t WHERE t.steam_app IS NOT NULL AND NOT ${recent} ` +
-            "GROUP BY t.steam_app ORDER BY MAX(t.last_seen) DESC, t.steam_app LIMIT ?",
-        )
-        .bind(hour - WEEK, limit * PLAYER_RUNS_PER_HOUR)
-        .all<{ app: number }>(),
-    ]);
-    return choosePlayerSamples({
-      due: (due.results ?? []).map((row) => row.app),
-      quiet: (quiet.results ?? []).map((row) => row.app),
-      run,
-      runsPerHour: PLAYER_RUNS_PER_HOUR,
-      limit,
-      reserve,
-    });
-  } catch (err) {
-    console.warn("[players] queue failed:", err instanceof Error ? err.message : err);
-    return [];
+
+  // Most recently seen first; an app shared by several keys takes its best rank.
+  const apps: number[] = [];
+  const seenApp = new Set<number>();
+  for (const game of index.games) {
+    if (game.steamApp && !seenApp.has(game.steamApp)) {
+      seenApp.add(game.steamApp);
+      apps.push(game.steamApp);
+    }
   }
+  const due: number[] = [];
+  const quiet: number[] = [];
+  for (const app of apps) {
+    const last = index.playerSampledAt.get(app);
+    if (last !== undefined && last >= hour - WEEK) {
+      if (last !== hour) due.push(app);
+    } else {
+      quiet.push(app);
+    }
+  }
+  return choosePlayerSamples({
+    due: due.slice(0, limit),
+    quiet: quiet.slice(0, limit * PLAYER_RUNS_PER_HOUR),
+    run,
+    runsPerHour: PLAYER_RUNS_PER_HOUR,
+    limit,
+    reserve,
+  });
 }
 
 /**
@@ -83,67 +83,52 @@ async function currentPlayers(appid: number): Promise<number | null> {
 }
 
 /**
- * Samples each app once (one request each), at most 8 in flight, and files
- * the counts under the current hour. Re-running within the hour overwrites,
- * never duplicates.
+ * Samples each app once (one request each, charged to `budget`), at most 8
+ * in flight, and files the counts under the current hour — one field write
+ * per app plus one index write marking them sampled, all in a single commit
+ * (one more request). Re-running within the hour overwrites, never
+ * duplicates; each write also deletes the hours that just aged out.
  */
-export async function samplePlayers(appids: number[]): Promise<{ sampled: number; stored: number; pruned: number }> {
+export async function samplePlayers(
+  appids: number[],
+  budget: Budget,
+  extra: Write[] = [],
+): Promise<{ sampled: number; stored: number }> {
   const apps = [...new Set(appids.filter((id) => Number.isInteger(id) && id > 0))];
-  const db = await getDb();
-  if (!db || apps.length === 0) return { sampled: apps.length, stored: 0, pruned: 0 };
-
   const hour = Math.floor(Date.now() / 1000 / HOUR) * HOUR;
   const counts: Array<[number, number]> = [];
   let cursor = 0;
+  let sampled = 0;
   await Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, apps.length) }, async () => {
       while (cursor < apps.length) {
         const appid = apps[cursor++];
+        if (!budget.take()) return;
+        sampled++;
         const players = await currentPlayers(appid);
         if (players !== null) counts.push([appid, players]);
       }
     }),
   );
 
-  const statement = db.prepare("INSERT OR REPLACE INTO player_history (app_id, hour, players) VALUES (?, ?, ?)");
-  let stored = 0;
-  for (let i = 0; i < counts.length; i += 50) {
-    const part = counts.slice(i, i + 50);
-    try {
-      await db.batch(part.map(([appid, players]) => statement.bind(appid, hour, players)));
-      stored += part.length;
-    } catch (err) {
-      console.warn("[players] store failed:", err instanceof Error ? err.message : err);
-    }
+  const expired = expiredHours(hour, PLAYER_RETENTION_DAYS);
+  const writes: Write[] = counts.map(([appid, players]) => ({
+    type: "update",
+    path: `${STATS_COLLECTIONS.players}/${appid}`,
+    data: { appId: appid, updatedAt: hour, s: { [hour]: players } },
+    mask: ["appId", "updatedAt", fieldPath("s", hour), ...expired.map((h) => fieldPath("s", h))],
+  }));
+  if (counts.length > 0) {
+    writes.push({
+      type: "update",
+      path: TRACKED_DOC,
+      data: {},
+      mask: [],
+      transforms: counts.map(([appid]) => ({ field: fieldPath("plAt", appid), op: "maximum" as const, value: hour })),
+    });
   }
-
-  let pruned = 0;
-  try {
-    const result = await db
-      .prepare("DELETE FROM player_history WHERE hour < ?")
-      .bind(hour - PLAYER_RETENTION_DAYS * 24 * HOUR)
-      .run();
-    pruned = result.meta.changes ?? 0;
-  } catch (err) {
-    console.warn("[players] prune failed:", err instanceof Error ? err.message : err);
-  }
-  return { sampled: apps.length, stored, pruned };
-}
-
-/** The chart series for one app; empty (not null) when nothing is recorded. */
-export async function playerHistoryFor(appid: number): Promise<PlayerHistory> {
-  const empty: PlayerHistory = { appId: appid, points: [], peak24h: null, peakTracked: null, since: null };
-  const db = await getDb();
-  if (!db) return empty;
-  const now = Math.floor(Date.now() / 1000);
-  try {
-    const result = await db
-      .prepare("SELECT hour, players FROM player_history WHERE app_id = ? AND hour >= ? ORDER BY hour")
-      .bind(appid, now - PLAYER_RETENTION_DAYS * 24 * HOUR)
-      .all<{ hour: number; players: number }>();
-    return { appId: appid, ...downsamplePlayers(result.results ?? [], now) };
-  } catch (err) {
-    console.warn("[players] read failed:", err instanceof Error ? err.message : err);
-    return empty;
-  }
+  writes.push(...extra);
+  // Charge the commit before making it; the sampling loop left room for it.
+  const stored = writes.length > 0 && budget.take() ? await commitWrites(writes) : 0;
+  return { sampled, stored: stored > 0 ? counts.length : 0 };
 }

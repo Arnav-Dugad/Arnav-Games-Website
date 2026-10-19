@@ -273,7 +273,7 @@ function EntityPreview({ hit, onNavigate }: { hit: SearchHit; onNavigate: () => 
       <p className="mt-8 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-soft">{kindLabel}</p>
       <p className="mt-2 max-w-full break-words font-display text-2xl font-bold leading-tight [overflow-wrap:anywhere]">{hit.name}</p>
       {hit.subtitle && <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted">{hit.subtitle}</p>}
-      <Link
+      <Link prefetch={false}
         href={hrefForSearchHit(hit)}
         onClick={onNavigate}
         className="press mt-7 inline-flex min-h-11 items-center gap-2 rounded-full bg-fg px-5 text-sm font-semibold text-bg"

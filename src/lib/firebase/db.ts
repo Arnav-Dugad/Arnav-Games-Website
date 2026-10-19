@@ -1,10 +1,15 @@
 /**
  * Firestore access layer.
  *
- * Data model
+ * Data model (user data; see `firestore.rules` for who may read/write what)
  *   users/{uid}                        profile document
  *   users/{uid}/watchlist/{gameId}     one doc per tracked game
+ *   users/{uid}/settings/preferences   display + device preferences, mirrored
  *   reviews/{gameId}__{uid}            one review per user per game
+ *
+ * Public statistics (player/Twitch/review/score/price/release history) live
+ * in their own read-only collections, written only by the server — see
+ * `src/lib/games/stats-docs.ts`.
  *
  * Reviews are top-level rather than nested under the game so they can be
  * queried both ways (by game, and by author for the profile page) without
@@ -16,6 +21,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -179,6 +185,16 @@ export interface UserPreferences {
   /** Stable derived-notification ids already seen by this account. */
   notificationReadIds?: string[];
   notificationReleases?: boolean;
+  /** Appearance. "system" follows the device's light/dark setting. */
+  theme?: "system" | "light" | "dark";
+  /** An explicitly chosen price country (ISO alpha-2); null = automatic. */
+  priceRegion?: string | null;
+  /** The reader's own PC, for "Will it run?"; null = not entered. */
+  pcSpecs?: { cpu: string; gpu: string; ramGb: number } | null;
+  /** Newest first, at most 8. */
+  recentSearches?: string[];
+  /** "Best buys this month" budget, in minor units of `currency`. */
+  wishlistBudget?: { currency: string; amount: number } | null;
   updatedAt?: number;
 }
 
@@ -279,12 +295,19 @@ export async function getUserPreferences(uid: string): Promise<UserPreferences |
 export async function saveUserPreferences(
   uid: string,
   patch: UserPreferences,
+  options: { dropPosterSizeKeys?: string[] } = {},
 ): Promise<void> {
   const db = getDb();
   if (!db) return;
+  // A merge write deep-merges maps, so removing a poster-size key needs an
+  // explicit field delete (used once, to retire the old budget key).
+  const drops = options.dropPosterSizeKeys?.length
+    ? Object.fromEntries(options.dropPosterSizeKeys.map((key) => [key, deleteField()]))
+    : null;
+  const posterSizes = drops ? { ...patch.posterSizes, ...drops } : patch.posterSizes;
   await setDoc(
     doc(db, "users", uid, "settings", "preferences"),
-    { ...patch, updatedAt: Date.now(), updatedAtServer: serverTimestamp() },
+    { ...patch, ...(posterSizes ? { posterSizes } : {}), updatedAt: Date.now(), updatedAtServer: serverTimestamp() },
     { merge: true },
   );
 }

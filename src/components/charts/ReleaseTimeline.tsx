@@ -750,7 +750,7 @@ function Tooltip({
         </div>
         {touch ? (
           <div className="mt-2.5 flex gap-2">
-            <Link
+            <Link prefetch={false}
               href={`/game/${game.slug}`}
               className="press inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-fg/[0.1] text-[12.5px] font-semibold text-text"
             >
@@ -888,7 +888,7 @@ function TimelineTable({ games, subject }: { games: TimelineGame[]; subject: str
         {games.map((game) => (
           <tr key={game.id}>
             <th scope="row">
-              <Link href={`/game/${game.slug}`}>{game.name}</Link>
+              <Link prefetch={false} href={`/game/${game.slug}`}>{game.name}</Link>
             </th>
             <td>{game.approximate ? `${game.label} (window)` : game.label}</td>
             <td>{game.score ?? (game.upcoming ? "Upcoming" : "Unscored")}</td>

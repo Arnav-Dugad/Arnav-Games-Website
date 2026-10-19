@@ -36,7 +36,7 @@ import { Disclosure } from "./Disclosure";
 import { marketUrl, useEndpoint, type EndpointState, type GameIds } from "./endpoint";
 import { InfoTip } from "./InfoTip";
 import { useLiveField } from "./live";
-import { bestPrice, DiscountTag, STORE_LABEL, StoreMark, VERDICT, VerdictChip } from "./market-ui";
+import { bestPrice, DiscountTag, STORE_LABEL, StoreMark, useMarket, VERDICT, VerdictChip } from "./market-ui";
 import { countryName, formatMoney, formatRate } from "./money";
 import { hoursLabel } from "./summary";
 import { TimeChart } from "./TimeChart";
@@ -71,7 +71,7 @@ export function PriceSection({
   releaseDates?: ReactNode;
 }) {
   const [region] = usePriceRegion();
-  const latest = useEndpoint<GameMarket>(ids && region ? marketUrl(ids, region) : null);
+  const latest = useMarket(ids, region);
   const market = useLastReady(latest);
   const gamePass = useLiveField((live) => (live.gamePass && (live.gamePass.console || live.gamePass.pc) ? live.gamePass : null));
   const refreshing = latest.status === "loading" && market !== null;

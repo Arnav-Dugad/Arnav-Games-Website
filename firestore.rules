@@ -1,14 +1,21 @@
 rules_version = '2';
 
-// Firestore security rules for Arnav Games.
+// Firestore security rules for Arnav Games (project ludex-7170f).
 //
-// Paste into Firebase console → Firestore Database → Rules, then Publish.
+// Deploy: firebase deploy --only firestore:rules --project ludex-7170f
+// (firebase.json points here). The console's Rules tab shows the live copy.
 //
 // Principles:
-//  - A signed-in user may only ever write their own documents.
+//  - A signed-in user may only ever read and write their own documents, and
+//    every write is shape-checked: only known fields, with sane types and
+//    sizes. Updates check only the fields they change, so a document written
+//    before a rule existed never becomes un-editable.
 //  - Reviews are world-readable (they're public commentary) but the author is
 //    pinned to the authenticated uid, so nobody can post under another name.
-//  - Watchlists are private to their owner.
+//  - Our own sampled statistics (player/Twitch/review/score/price/release
+//    history) are public and read-only: the browser reads them directly so a
+//    chart costs no Cloudflare Worker request, and only the server — the
+//    Admin service account over REST, which bypasses these rules — writes.
 //  - Everything not matched below is denied by the final catch-all.
 
 service cloud.firestore {
@@ -22,29 +29,134 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    // The fields a write sets: every field on create, only the changed ones
+    // on update.
+    function touched() {
+      return resource == null
+        ? request.resource.data.keys().toSet()
+        : request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function changes(field) {
+      return touched().hasAny([field]);
+    }
+
+    function optionalString(field, max) {
+      return !changes(field)
+        || request.resource.data[field] == null
+        || (request.resource.data[field] is string && request.resource.data[field].size() <= max);
+    }
+
+    function optionalList(field, max) {
+      return !changes(field)
+        || (request.resource.data[field] is list && request.resource.data[field].size() <= max);
+    }
+
     // --- Profiles ---------------------------------------------------------
     // Private to the account holder. Reviews carry their own public author
     // snapshot, so exposing the profile document would only leak account data.
+    function validProfile() {
+      return touched().hasOnly([
+          'uid', 'displayName', 'email', 'photoURL', 'bio', 'favouriteGenre',
+          'ownedPlatforms', 'activeSubscriptions', 'gamerTag', 'playStyle',
+          'createdAt', 'createdAtServer', 'updatedAt'
+        ])
+        && optionalString('displayName', 100)
+        && optionalString('email', 320)
+        && optionalString('photoURL', 2048)
+        && optionalString('bio', 2000)
+        && optionalString('favouriteGenre', 100)
+        && optionalString('gamerTag', 64)
+        && optionalList('ownedPlatforms', 60)
+        && optionalList('activeSubscriptions', 30)
+        && (!changes('playStyle') || request.resource.data.playStyle == null
+            || request.resource.data.playStyle in ['casual', 'balanced', 'dedicated', 'competitive']);
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create: if isOwner(uid) && request.resource.data.uid == uid;
-      allow update: if isOwner(uid) && request.resource.data.uid == resource.data.uid;
+      allow create: if isOwner(uid) && request.resource.data.uid == uid && validProfile();
+      allow update: if isOwner(uid) && request.resource.data.uid == resource.data.uid && validProfile();
       allow delete: if isOwner(uid);
 
-      // --- Watchlist ------------------------------------------------------
-      // Fully private: only the owner can read or write their tracked games.
+      // --- Library / watchlist -------------------------------------------
+      // Fully private. One document per game with a catalogue snapshot plus
+      // personal state (status, ownership, subscriptions, follows); only the
+      // personal fields with a fixed vocabulary are checked here.
+      function validLibraryEntry(gameId) {
+        return request.resource.data.keys().size() <= 64
+          && (!changes('gameId') || request.resource.data.gameId == int(gameId))
+          && (!changes('status') || request.resource.data.status in ['none', 'want', 'playing', 'played'])
+          && (!changes('watchlisted') || request.resource.data.watchlisted is bool)
+          && (!changes('following') || request.resource.data.following is bool)
+          && optionalList('ownedOn', 40)
+          && optionalList('subscriptionAccess', 40)
+          && optionalList('followedReleases', 2000)
+          && optionalString('platform', 64);
+      }
+
       match /watchlist/{gameId} {
-        allow read, write: if isOwner(uid);
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validLibraryEntry(gameId);
       }
 
-      // --- Settings -------------------------------------------------------
-      // Display preferences (motion, layout, alerts). Private to the
-      // owner: unlike the profile above, nothing here is shown to anyone else,
-      // so there is no reason for it to be world-readable.
-      match /settings/{document} {
-        allow read, write: if isOwner(uid);
+      // --- Preferences ----------------------------------------------------
+      // users/{uid}/settings/preferences: display and device preferences,
+      // mirrored from the device (see PreferencesProvider.tsx). Private.
+      function validPreferences() {
+        let data = request.resource.data;
+        return touched().hasOnly([
+            'reduceMotion', 'posterSizes', 'notificationReadIds', 'notificationReleases',
+            'theme', 'priceRegion', 'pcSpecs', 'recentSearches', 'wishlistBudget',
+            'updatedAt', 'updatedAtServer'
+          ])
+          && (!changes('reduceMotion') || data.reduceMotion is bool)
+          && (!changes('notificationReleases') || data.notificationReleases is bool)
+          && (!changes('posterSizes') || (data.posterSizes is map && data.posterSizes.size() <= 50))
+          && optionalList('notificationReadIds', 500)
+          && (!changes('theme') || data.theme in ['system', 'light', 'dark'])
+          && (!changes('priceRegion') || data.priceRegion == null
+              || (data.priceRegion is string && data.priceRegion.matches('^[A-Z]{2}$')))
+          && (!changes('pcSpecs') || data.pcSpecs == null
+              || (data.pcSpecs is map
+                  && data.pcSpecs.keys().hasOnly(['cpu', 'gpu', 'ramGb'])
+                  && data.pcSpecs.cpu is string && data.pcSpecs.cpu.size() <= 120
+                  && data.pcSpecs.gpu is string && data.pcSpecs.gpu.size() <= 120
+                  && data.pcSpecs.ramGb is number && data.pcSpecs.ramGb > 0 && data.pcSpecs.ramGb <= 1024))
+          && optionalList('recentSearches', 8)
+          && (!changes('wishlistBudget') || data.wishlistBudget == null
+              || (data.wishlistBudget is map
+                  && data.wishlistBudget.keys().hasOnly(['currency', 'amount'])
+                  && data.wishlistBudget.currency is string && data.wishlistBudget.currency.matches('^[A-Z]{3}$')
+                  && data.wishlistBudget.amount is number && data.wishlistBudget.amount >= 0))
+          && (!changes('updatedAt') || data.updatedAt is number)
+          && (!changes('updatedAtServer') || data.updatedAtServer is timestamp);
       }
 
+      match /settings/preferences {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validPreferences();
+      }
+
+      // --- Coming next (stubs, deliberately closed until built) ------------
+      // Each is owner-only. When a feature lands, replace `false` with
+      // `isOwner(uid) && valid…()` and a shape check like the ones above.
+
+      // Play journal: users/{uid}/journal/{entryId} — owner-only.
+      match /journal/{entryId} {
+        allow read, write: if false; // TODO: isOwner(uid) && validJournalEntry()
+      }
+
+      // Recommendation feedback ("not interested", "more like this"):
+      // users/{uid}/feedback/{gameId} — owner-only.
+      match /feedback/{gameId} {
+        allow read, write: if false; // TODO: isOwner(uid) && validFeedback(gameId)
+      }
+
+      // Per-game playtime: users/{uid}/playtime/{gameId} — owner-only.
+      match /playtime/{gameId} {
+        allow read, write: if false; // TODO: isOwner(uid) && validPlaytime(gameId)
+      }
     }
 
     // --- Reviews ----------------------------------------------------------
@@ -73,6 +185,49 @@ service cloud.firestore {
         && request.resource.data.body.size() <= 4000;
 
       allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // --- Public statistics (server-written, read-only to everyone) --------
+    // One document per series; see src/lib/games/stats-docs.ts. Single-doc
+    // `get` only: no `list`, so nobody can page through whole collections
+    // (each document read counts against the free daily quota).
+    match /playerHistory/{appId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+    match /twitchHistory/{twitchId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+    match /reviewHistory/{appId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+    match /scoreHistory/{gameId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+    match /priceHistory/{key} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+    match /releaseHistory/{shard} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // Community tags (coming next): communityTags/{gameId} — public read,
+    // written only by the server (which bypasses rules), never by clients.
+    match /communityTags/{gameId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // The crons' work queue (trackedGames/index) is server-only: it holds
+    // view recency, which isn't anyone's business. Covered by the default
+    // deny below; listed here so its absence from the public set is explicit.
+    match /trackedGames/{doc} {
+      allow read, write: if false;
     }
 
     // --- Default deny -----------------------------------------------------

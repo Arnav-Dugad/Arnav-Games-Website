@@ -1,30 +1,36 @@
 "use client";
 
 /**
- * Live, fast-moving data for the game page (players, reviews, Twitch, deals,
- * news, Game Pass), fetched in the browser so the page HTML stays identical
- * for every reader and cacheable.
+ * The game page's server data after first paint — live numbers (players,
+ * reviews, Twitch, deals, news, Game Pass) plus the market, PC info and patch
+ * notes — fetched in the browser so the page HTML stays identical for every
+ * reader.
  *
- * A deliberately small stale-while-revalidate hook rather than a dependency:
+ * Cloudflare budget, which shapes everything here: the first load is ONE
+ * Worker request (`/api/game/[id]/insights`), shared by every section through
+ * `endpoint.ts`'s keyed cache; history charts read Firestore directly. After
+ * that only the live numbers refresh, from the lighter `/live`, every five
+ * minutes while the tab is visible and at most MAX_POLLS times per page view
+ * — a tab left open all day no longer costs a request every two minutes.
  *
  *  - A module-level cache keyed by URL means navigating back to a game shows
  *    its last numbers instantly, then refreshes them in place.
- *  - Every request is abortable; leaving the page (or a newer request) cancels
- *    the old one, so a slow response can never overwrite a fresher one.
- *  - It refreshes on an interval only while the tab is visible, and once when
- *    the reader returns to it — a backgrounded tab costs nothing.
+ *  - Every refresh is abortable; leaving the page (or a newer refresh)
+ *    cancels the old one, so a slow response can never overwrite a fresher one.
  *  - A failed refresh keeps showing the last good data. Only a first load that
  *    fails reports "error", and tiles treat that exactly like "no data": they
  *    disappear rather than show a broken state.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { GameLiveData } from "@/lib/games/types";
+import type { GameInsights, GameLiveData } from "@/lib/games/types";
+import { usePriceRegion } from "@/lib/preferences/region";
+import { insightsUrl, useEndpoint, type EndpointState, type GameIds } from "./endpoint";
 
-/** Matches the route's own `s-maxage=120`: polling faster only re-reads the edge cache. */
-const REFRESH_MS = 120_000;
-/** Data younger than this is shown without a refetch on mount. */
-const FRESH_MS = 60_000;
+/** Live numbers move by the minute, but a 5-minute view of them is plenty for a reader. */
+const REFRESH_MS = 5 * 60_000;
+/** Auto-refreshes per page view; the refresh button and returning to the tab still work after. */
+const MAX_POLLS = 6;
 
 type Status = "loading" | "ready" | "error";
 
@@ -36,7 +42,14 @@ interface LiveState {
   refresh: () => void;
 }
 
-const cache = new Map<string, { data: GameLiveData; at: number }>();
+interface InsightsContextValue {
+  ids: GameIds;
+  insights: EndpointState<GameInsights>;
+  retry: () => void;
+}
+
+/** Live refreshes by URL, newer than the insights answer they extend. */
+const polled = new Map<string, { data: GameLiveData; at: number }>();
 
 const LiveContext = createContext<LiveState>({
   data: null,
@@ -44,6 +57,7 @@ const LiveContext = createContext<LiveState>({
   refreshing: false,
   refresh: () => {},
 });
+const InsightsContext = createContext<InsightsContextValue | null>(null);
 
 export interface LiveRequest {
   id: number;
@@ -63,11 +77,24 @@ export function liveUrl({ id, steam, twitch, microsoft, name }: LiveRequest): st
 }
 
 export function GameLiveProvider({ request, children }: { request: LiveRequest; children: ReactNode }) {
+  const [region] = usePriceRegion();
+  const ids = useMemo<GameIds>(
+    () => ({ id: request.id, steam: request.steam ?? null, microsoft: request.microsoft ?? null }),
+    [request.id, request.steam, request.microsoft],
+  );
+  // Wait for the region rather than load a market for the wrong country.
+  const insights = useEndpoint<GameInsights>(region ? insightsUrl({ ...ids, twitch: request.twitch, name: request.name }, region) : null);
   const url = liveUrl(request);
-  const [entry, setEntry] = useState(() => cache.get(url) ?? null);
-  const [status, setStatus] = useState<Status>(() => (cache.has(url) ? "ready" : "loading"));
+
+  const [latest, setLatest] = useState(() => polled.get(url) ?? null);
   const [refreshing, setRefreshing] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const polls = useRef(0);
+
+  const base = insights.status === "ready" ? insights.data.live : null;
+  const baseAt = base ? Date.parse(base.fetchedAt) || 0 : 0;
+  const data = latest && latest.at >= baseAt ? latest.data : base ?? latest?.data ?? null;
+  const status: Status = data ? "ready" : insights.status === "loading" ? "loading" : "error";
 
   const load = useCallback(async () => {
     controller.current?.abort();
@@ -77,16 +104,14 @@ export function GameLiveProvider({ request, children }: { request: LiveRequest; 
     try {
       const res = await fetch(url, { signal: abort.signal, headers: { Accept: "application/json" } });
       if (!res.ok) throw new Error(String(res.status));
-      const data = (await res.json()) as GameLiveData;
-      const next = { data, at: Date.now() };
-      cache.set(url, next);
-      setEntry(next);
-      setStatus("ready");
+      const next = { data: (await res.json()) as GameLiveData, at: Date.now() };
+      polled.set(url, next);
+      if (polled.size > 50) polled.delete(polled.keys().next().value!);
+      setLatest(next);
     } catch (error) {
       if (abort.signal.aborted) return;
+      // Keep stale data on screen.
       console.warn("[live] refresh failed:", error instanceof Error ? error.message : error);
-      // Keep stale data on screen; only an empty first load is an error.
-      setStatus((current) => (cache.has(url) ? current : "error"));
     } finally {
       if (controller.current === abort) {
         controller.current = null;
@@ -95,38 +120,77 @@ export function GameLiveProvider({ request, children }: { request: LiveRequest; 
     }
   }, [url]);
 
+  const freshest = Math.max(baseAt, latest?.at ?? 0);
+  const ready = insights.status !== "loading";
   useEffect(() => {
-    const cached = cache.get(url);
-    // Deferred a frame so the state updates in `load` stay off the effect body.
-    const frame = !cached || Date.now() - cached.at > FRESH_MS ? requestAnimationFrame(() => void load()) : 0;
-
+    if (!ready) return;
+    polls.current = 0;
+    const stale = () => Date.now() - Math.max(freshest, polled.get(url)?.at ?? 0) > REFRESH_MS;
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") void load();
+      if (document.visibilityState !== "visible" || polls.current >= MAX_POLLS || !stale()) return;
+      polls.current++;
+      void load();
     }, REFRESH_MS);
     const onVisible = () => {
-      const current = cache.get(url);
-      if (document.visibilityState === "visible" && (!current || Date.now() - current.at > FRESH_MS)) void load();
+      if (document.visibilityState === "visible" && stale()) void load();
     };
     document.addEventListener("visibilitychange", onVisible);
-
     return () => {
-      cancelAnimationFrame(frame);
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
       controller.current?.abort();
     };
-  }, [url, load]);
+    // `freshest` is read through the closure on each tick; restarting the
+    // timer whenever data lands would defeat the poll cap.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, load, ready]);
 
-  const value = useMemo<LiveState>(
-    () => ({ data: entry?.data ?? null, status, refreshing, refresh: () => void load() }),
-    [entry, status, refreshing, load],
+  const live = useMemo<LiveState>(
+    () => ({ data, status, refreshing, refresh: () => void load() }),
+    [data, status, refreshing, load],
+  );
+  const context = useMemo<InsightsContextValue>(
+    () => ({ ids, insights, retry: insights.retry }),
+    [ids, insights],
   );
 
-  return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;
+  return (
+    <InsightsContext.Provider value={context}>
+      <LiveContext.Provider value={live}>{children}</LiveContext.Provider>
+    </InsightsContext.Provider>
+  );
 }
 
 export function useGameLive(): LiveState {
   return useContext(LiveContext);
+}
+
+const sameIds = (a: GameIds, b: GameIds) =>
+  a.id === b.id && (a.steam ?? null) === (b.steam ?? null) && (a.microsoft ?? null) === (b.microsoft ?? null);
+
+/**
+ * One part of the page's insights answer as an endpoint state, or null when
+ * `ids` aren't the page's game (the compare page, a related game) — callers
+ * then fall back to the part's own route.
+ */
+export function useInsightPart<K extends "market" | "pc" | "patches">(
+  ids: GameIds | null,
+  part: K,
+): (EndpointState<NonNullable<GameInsights[K]>> & { retry: () => void }) | null {
+  const context = useContext(InsightsContext);
+  if (!context || !ids || !sameIds(context.ids, ids)) return null;
+  const { insights, retry } = context;
+  if (insights.status !== "ready") return { ...insights, retry };
+  const value = insights.data[part];
+  if (value !== null && value !== undefined) return { status: "ready", data: value as NonNullable<GameInsights[K]>, retry };
+  const failed = (insights.data.unavailable as string[]).includes(part);
+  return { status: failed ? "error" : "missing", retry };
+}
+
+/** The page's resolved Twitch category (the server fills gaps IGDB leaves). */
+export function useResolvedTwitchId(): string | null {
+  const context = useContext(InsightsContext);
+  return context?.insights.status === "ready" ? context.insights.data.ids.twitch : null;
 }
 
 /**

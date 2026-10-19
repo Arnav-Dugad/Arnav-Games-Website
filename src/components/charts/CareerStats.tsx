@@ -197,7 +197,7 @@ function Empty({ children }: { children: ReactNode }) {
 function BestReviewed({ game, className }: { game: GameSummary; className?: string }) {
   return (
     <Reveal className={cn("min-w-0", className)}>
-      <Link
+      <Link prefetch={false}
         href={`/game/${game.slug}`}
         className="group glass relative isolate flex h-full min-h-[180px] gap-4 overflow-hidden rounded-3xl p-4 transition-colors sm:gap-5 sm:p-5 fine:hover:border-fg/20"
       >
@@ -260,7 +260,7 @@ function ReleaseTile({
 
   return (
     <Reveal className={cn("col-span-2 min-w-0", className)}>
-      <Link
+      <Link prefetch={false}
         href={`/game/${game.slug}`}
         className="press group glass flex h-full min-w-0 items-center gap-4 rounded-3xl p-3.5 transition-colors sm:p-4 fine:hover:border-fg/20"
       >

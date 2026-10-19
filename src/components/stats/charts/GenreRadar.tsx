@@ -142,7 +142,7 @@ export function GenreRadar({ axes, totalWithGenres }: { axes: RadarAxis[]; total
         <ul className="flex flex-wrap gap-1.5" aria-label={`${selected.label} games`}>
           {selected.games.slice(0, 8).map((game) => (
             <li key={game.gameId}>
-              <Link href={canonicalEntryHref(game)} className="press inline-flex max-w-[14rem] items-center rounded-full bg-fg/[0.06] px-2.5 py-1 text-xs font-medium transition-colors hover:bg-fg/[0.1]">
+              <Link prefetch={false} href={canonicalEntryHref(game)} className="press inline-flex max-w-[14rem] items-center rounded-full bg-fg/[0.06] px-2.5 py-1 text-xs font-medium transition-colors hover:bg-fg/[0.1]">
                 <span className="truncate">{game.name}</span>
               </Link>
             </li>

@@ -1,7 +1,8 @@
 /**
  * Steam review velocity around launch: an hourly cron samples review totals
  * for tracked games released in the last 14 days or releasing in the next 2,
- * into `review_history`; `/api/game/[id]/reviews` reads them back.
+ * into `reviewHistory/{appid}` (one document per app, one field per hour —
+ * see `stats-docs.ts`); the game page reads it straight from Firestore.
  *
  * Steam publishes only the running totals, so "how fast are reviews coming
  * in" and "how did launch week go" exist only because we sample — and only
@@ -12,13 +13,11 @@
  * Steam store request each, every hour.
  */
 
-import { getDb } from "@/lib/cloudflare/db";
+import { commitWrites, fieldPath, type Write } from "@/lib/firebase/server";
 import type { FetchBudget } from "./fetch-budget";
-import { reviewVelocity } from "./history-rules";
 import { releaseDatesInWindow } from "./providers/igdb-extras";
-import { parseSteamDate } from "./providers/steam";
-import { steamFullDetails } from "./steam-store";
-import type { ReviewVelocity } from "./types";
+import { expiredHours, STATS_COLLECTIONS } from "./stats-docs";
+import type { TrackedIndex } from "./tracked";
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
@@ -35,39 +34,27 @@ export interface ReviewQueue {
 }
 
 /**
- * Steam apps to sample this run, closest-to-launch first. Costs one IGDB
- * request (two above 500 tracked games), charged to `budget`.
+ * Steam apps to sample this run, closest-to-launch first, from the tracked
+ * index the cron already read. Costs one IGDB request (+ its token),
+ * charged to `budget`.
  */
-export async function reviewSampleQueue(limit: number, budget: FetchBudget): Promise<ReviewQueue> {
-  const db = await getDb();
-  if (!db) return { apps: [], inWindow: 0 };
-  let rows: Array<{ game_id: number; steam_app: number }> = [];
-  try {
-    rows =
-      (
-        await db
-          .prepare(
-            "SELECT game_id, steam_app FROM tracked_games WHERE game_id > 0 AND steam_app IS NOT NULL ORDER BY last_seen DESC LIMIT ?",
-          )
-          .bind(CANDIDATE_POOL)
-          .all<{ game_id: number; steam_app: number }>()
-      ).results ?? [];
-  } catch (err) {
-    console.warn("[reviews] queue read failed:", err instanceof Error ? err.message : err);
-    return { apps: [], inWindow: 0 };
-  }
+export async function reviewSampleQueue(index: TrackedIndex, limit: number, budget: FetchBudget): Promise<ReviewQueue> {
+  const rows = index.games
+    .filter((game) => game.gameId > 0 && game.steamApp)
+    .slice(0, CANDIDATE_POOL)
+    .map((game) => ({ gameId: game.gameId, steamApp: game.steamApp! }));
   if (rows.length === 0 || !budget.take(2)) return { apps: [], inWindow: 0 }; // query + token
 
   const now = Math.floor(Date.now() / 1000);
   const hour = now - (now % HOUR);
   const dates = await releaseDatesInWindow(
-    rows.map((row) => row.game_id),
+    rows.map((row) => row.gameId),
     hour - 14 * DAY,
     hour + 2 * DAY + HOUR,
   );
   const candidates = rows
-    .filter((row) => dates.has(row.game_id))
-    .map((row) => ({ app: row.steam_app, distance: Math.abs(now - dates.get(row.game_id)!) }))
+    .filter((row) => dates.has(row.gameId))
+    .map((row) => ({ app: row.steamApp, distance: Math.abs(now - dates.get(row.gameId)!) }))
     .sort((a, b) => a.distance - b.distance);
   const apps = [...new Set(candidates.map((c) => c.app))];
   return { apps: apps.slice(0, Math.max(0, limit)), inWindow: apps.length };
@@ -95,14 +82,13 @@ async function currentReviews(appid: number): Promise<{ total: number; positive:
   }
 }
 
-/** One request per app (each charged to `budget`), filed under the current hour. */
-export async function sampleReviews(
-  appids: number[],
-  budget: FetchBudget,
-): Promise<{ sampled: number; stored: number; pruned: number }> {
+/**
+ * One request per app (each charged to `budget`), filed under the current
+ * hour, then one commit (charged too) for every sample.
+ */
+export async function sampleReviews(appids: number[], budget: FetchBudget): Promise<{ sampled: number; stored: number }> {
   const apps = [...new Set(appids.filter((id) => Number.isInteger(id) && id > 0))];
-  const db = await getDb();
-  if (!db || apps.length === 0) return { sampled: 0, stored: 0, pruned: 0 };
+  if (apps.length === 0) return { sampled: 0, stored: 0 };
 
   const hour = Math.floor(Date.now() / 1000 / HOUR) * HOUR;
   const counts: Array<[number, { total: number; positive: number }]> = [];
@@ -120,57 +106,13 @@ export async function sampleReviews(
     }),
   );
 
-  const statement = db.prepare("INSERT OR REPLACE INTO review_history (app_id, hour, total, positive) VALUES (?, ?, ?, ?)");
-  let stored = 0;
-  for (let i = 0; i < counts.length; i += 50) {
-    const part = counts.slice(i, i + 50);
-    try {
-      await db.batch(part.map(([appid, s]) => statement.bind(appid, hour, s.total, s.positive)));
-      stored += part.length;
-    } catch (err) {
-      console.warn("[reviews] store failed:", err instanceof Error ? err.message : err);
-    }
-  }
-
-  let pruned = 0;
-  try {
-    const result = await db.prepare("DELETE FROM review_history WHERE hour < ?").bind(hour - RETENTION_DAYS * DAY).run();
-    pruned = result.meta.changes ?? 0;
-  } catch (err) {
-    console.warn("[reviews] prune failed:", err instanceof Error ? err.message : err);
-  }
-  return { sampled, stored, pruned };
-}
-
-/**
- * Launch time for the 72-hour figure: UTC midnight of Steam's release date
- * (Steam publishes a day, not a time). Read through the same cached store
- * record the PC panel and detail page use.
- */
-async function steamLaunch(appid: number): Promise<number | null> {
-  const details = await steamFullDetails(appid).catch(() => null);
-  if (!details?.release_date || details.release_date.coming_soon) return null;
-  const released = parseSteamDate(details.release_date.date).released;
-  const at = released ? Date.parse(`${released}T00:00:00Z`) : NaN;
-  return Number.isFinite(at) ? at / 1000 : null;
-}
-
-/** The series for one app; empty (not null) when nothing is recorded. */
-export async function reviewVelocityFor(appid: number): Promise<ReviewVelocity> {
-  const now = Math.floor(Date.now() / 1000);
-  const db = await getDb();
-  if (!db) return reviewVelocity(appid, [], null, now);
-  try {
-    const result = await db
-      .prepare("SELECT hour, total, positive FROM review_history WHERE app_id = ? ORDER BY hour")
-      .bind(appid)
-      .all<{ hour: number; total: number; positive: number }>();
-    const samples = result.results ?? [];
-    // The launch date only matters when there is something to measure.
-    const launch = samples.length > 0 ? await steamLaunch(appid) : null;
-    return reviewVelocity(appid, samples, launch, now);
-  } catch (err) {
-    console.warn("[reviews] read failed:", err instanceof Error ? err.message : err);
-    return reviewVelocity(appid, [], null, now);
-  }
+  const expired = expiredHours(hour, RETENTION_DAYS);
+  const writes: Write[] = counts.map(([appid, s]) => ({
+    type: "update",
+    path: `${STATS_COLLECTIONS.reviews}/${appid}`,
+    data: { appId: appid, updatedAt: hour, s: { [hour]: [s.total, s.positive] } },
+    mask: ["appId", "updatedAt", fieldPath("s", hour), ...expired.map((h) => fieldPath("s", h))],
+  }));
+  const committed = writes.length > 0 && budget.take() ? await commitWrites(writes) : 0;
+  return { sampled, stored: committed };
 }

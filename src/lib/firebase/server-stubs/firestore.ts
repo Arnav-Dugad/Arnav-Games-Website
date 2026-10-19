@@ -2,6 +2,7 @@ import { browserOnly } from "./shared";
 
 export const collection = () => browserOnly("collection");
 export const deleteDoc = () => browserOnly("deleteDoc");
+export const deleteField = () => browserOnly("deleteField");
 export const doc = () => browserOnly("doc");
 export const getDoc = () => browserOnly("getDoc");
 export const getDocs = () => browserOnly("getDocs");

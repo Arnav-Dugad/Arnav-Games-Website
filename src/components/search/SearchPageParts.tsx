@@ -130,7 +130,7 @@ export function TopHitCard({ hit, game }: { hit: SearchHit; game: GameSummary | 
 /** A franchise, studio, character, genre or platform as a compact tile. */
 export function EntityTile({ hit }: { hit: SearchHit }) {
   return (
-    <Link
+    <Link prefetch={false}
       href={hrefForSearchHit(hit)}
       className="group flex min-h-[88px] min-w-0 items-center gap-3.5 rounded-2xl p-3 transition-colors fine:hover:bg-fg/[0.05] coarse:active:bg-fg/[0.06]"
     >

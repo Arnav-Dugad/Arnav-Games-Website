@@ -22,11 +22,12 @@ import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import { compactNumber } from "@/lib/utils/format";
-import type { AchievementStats, DeckStatus, PlayerHistory, ProtonTier, TwitchHistory } from "@/lib/games/types";
+import type { AchievementStats, DeckStatus, ProtonTier } from "@/lib/games/types";
 import { Disclosure } from "./Disclosure";
-import { playersUrl, twitchUrl, useEndpoint, type GameIds } from "./endpoint";
+import type { GameIds } from "./endpoint";
+import { usePlayerHistory, useTwitchHistory } from "./history";
 import { InfoTip } from "./InfoTip";
-import { useLiveField } from "./live";
+import { useLiveField, useResolvedTwitchId } from "./live";
 import { TimeChart } from "./TimeChart";
 
 const HOUR = 3_600_000;
@@ -66,8 +67,10 @@ type Series = "players" | "twitch";
  * toggle switches the chart (and the stats above it) between them.
  */
 export function PlayersCard({ ids, twitchId }: { ids: GameIds; twitchId: string | null }) {
-  const history = useEndpoint<PlayerHistory>(ids.steam ? playersUrl(ids) : null);
-  const twitchHistory = useEndpoint<TwitchHistory>(twitchId ? twitchUrl(ids, twitchId) : null);
+  // Our sampled series, read straight from Firestore (no Worker request).
+  const history = usePlayerHistory(ids.steam);
+  const resolvedTwitch = useResolvedTwitchId();
+  const twitchHistory = useTwitchHistory(twitchId ?? resolvedTwitch);
   const live = useLiveField((data) => data.steamPlayers);
   const liveTwitch = useLiveField((data) => (data.twitch ? data.twitch.viewers : null));
   const [range, setRange] = useState<RangeKey>("7d");

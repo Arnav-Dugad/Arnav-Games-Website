@@ -506,7 +506,7 @@ export function BacklogRoulette({
                   transition={{ duration: reduced ? 0.2 : 0.4, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <div className="flex items-start justify-center gap-2 md:justify-start">
-                    <Link
+                    <Link prefetch={false}
                       href={`/game/${pick.slug}`}
                       className="min-w-0 font-display text-2xl font-bold leading-tight tracking-[-0.02em] fine:hover:text-brand-soft"
                     >

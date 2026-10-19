@@ -119,7 +119,7 @@ function ChartRowItem({ row, rank, last }: { row: ChartRow; rank: number; last: 
 
   return (
     <li ref={menuRef} data-game-menu className="press-menu-target">
-      <Link
+      <Link prefetch={false}
         href={`/game/${game.slug}`}
         data-menu-preview
         className="group -mx-2 flex min-h-[84px] items-center gap-3 rounded-2xl px-2 transition-colors duration-200 fine:hover:bg-fg/[0.045] coarse:active:bg-fg/[0.06]"

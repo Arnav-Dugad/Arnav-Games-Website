@@ -40,8 +40,6 @@ import type { WatchlistEntry } from "@/lib/firebase/db";
 import type { BatchPrices, LocalPrice } from "@/lib/games/types";
 import type { TimeToBeatLike } from "@/lib/games/stats";
 
-/** Kept in the synced preference map so the budget follows the reader. */
-const BUDGET_KEY = "arnav-games:wishlist-budget";
 const SHOWN = 6;
 
 interface Candidate {
@@ -84,8 +82,9 @@ export default function WishlistBudget({
   const sameCurrency = useMemo(() => priced.filter((item) => item.price.currency === currency), [priced, currency]);
   const scale = useMemo(() => budgetScale(sameCurrency.map((item) => item.price.price)), [sameCurrency]);
 
-  const { posterSizes, setPosterSize } = usePreferences();
-  const stored = parseBudget(posterSizes[BUDGET_KEY], currency);
+  // A real preference field (device + account), not a key in the poster-size map.
+  const { wishlistBudget, setWishlistBudget } = usePreferences();
+  const stored = wishlistBudget && currency && wishlistBudget.currency === currency && wishlistBudget.amount > 0 ? wishlistBudget.amount : null;
   const [draft, setDraft] = useState<{ currency: string; amount: number } | null>(null);
   const budget = draft?.currency === currency ? draft.amount : stored ?? scale?.suggested ?? 0;
 
@@ -93,9 +92,9 @@ export default function WishlistBudget({
   // preference is mirrored to the account.
   useEffect(() => {
     if (!draft || !currency || draft.currency !== currency || draft.amount === stored) return;
-    const id = window.setTimeout(() => setPosterSize(BUDGET_KEY, `${draft.currency}:${draft.amount}`), 600);
+    const id = window.setTimeout(() => setWishlistBudget({ currency: draft.currency, amount: draft.amount }), 600);
     return () => window.clearTimeout(id);
-  }, [draft, currency, stored, setPosterSize]);
+  }, [draft, currency, stored, setWishlistBudget]);
 
   const picks = useMemo(() => bestBuys(sameCurrency, budget), [sameCurrency, budget]);
   const regionName = PRICE_REGIONS.find((item) => item.code === region)?.name.replace(/ \(Euro\)$/, "") ?? region;
@@ -281,11 +280,11 @@ function PickRow({ item, running, currency, first }: { item: Candidate; running:
   // the width more than the price needs its own column.
   return (
     <li className={cn("flex items-center gap-3 py-2.5 pl-3 pr-1.5", !first && "border-t border-line")}>
-      <Link href={`/game/${entry.slug}`} tabIndex={-1} aria-hidden className="relative h-14 w-[42px] shrink-0 overflow-hidden rounded-lg ring-1 ring-inset ring-fg/10">
+      <Link prefetch={false} href={`/game/${entry.slug}`} tabIndex={-1} aria-hidden className="relative h-14 w-[42px] shrink-0 overflow-hidden rounded-lg ring-1 ring-inset ring-fg/10">
         <GameCover name={entry.name} slug={entry.slug} image={entry.image} imageFallback={entry.imageFallback} width={120} sizes="42px" />
       </Link>
       <div className="min-w-0 flex-1">
-        <Link href={`/game/${entry.slug}`} className="block truncate text-[15px] font-semibold fine:hover:text-brand-soft">{entry.name}</Link>
+        <Link prefetch={false} href={`/game/${entry.slug}`} className="block truncate text-[15px] font-semibold fine:hover:text-brand-soft">{entry.name}</Link>
         <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted">
           <span className="text-[13px] font-semibold tabular-nums text-text">{price.price === 0 ? "Free" : price.formatted}</span>
           {price.discount > 0 && <span className="rounded-md bg-mint/15 px-1 text-[11px] font-bold tabular-nums text-mint">−{price.discount}%</span>}
@@ -419,13 +418,6 @@ function budgetScale(prices: number[]): Scale | null {
   const max = Math.max(step * 10, Math.ceil(sum / step) * step);
   const suggested = Math.min(max, Math.max(step, Math.round((median * 2) / step) * step));
   return { step, max, suggested };
-}
-
-function parseBudget(raw: string | undefined, currency: string | null): number | null {
-  if (!raw || !currency) return null;
-  const [code, amount] = raw.split(":");
-  const value = Number(amount);
-  return code === currency && Number.isFinite(value) && value > 0 ? value : null;
 }
 
 function mostCommon(values: string[]): string | null {

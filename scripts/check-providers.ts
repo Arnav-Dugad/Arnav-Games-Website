@@ -55,6 +55,17 @@ import {
   parsePcRequirements,
 } from "../src/lib/games/hardware";
 import { downsampleTwitch, reviewVelocity, scoreTimeline, sumStreams } from "../src/lib/games/history-rules";
+import { decodeFields, encodeFields, fieldPath } from "../src/lib/firebase/server/values";
+import {
+  expiredDays,
+  expiredHours,
+  observationRows,
+  playerRows,
+  priceRows,
+  releaseShardPath,
+  scoreRows,
+  twitchRows,
+} from "../src/lib/games/stats-docs";
 import type { PricePoint } from "../src/lib/games/types";
 import type { ReleaseEvent } from "../src/lib/games/types";
 
@@ -1033,6 +1044,57 @@ console.log("\nReview velocity, Twitch, scores (round 4)");
     },
   );
 }
+
+console.log("\nFirestore REST values and field paths");
+{
+  const data = { n: 3, x: 2.5, s: "Q4 2026", none: null, ok: true, list: [1, "a"], map: { "1792407600": 52845 } };
+  const encoded = encodeFields(data);
+  check("integers are integerValue strings", encoded.n, { integerValue: "3" });
+  check("fractions are doubles", encoded.x, { doubleValue: 2.5 });
+  check("non-finite numbers become null, never NaN", encodeFields({ v: Number.NaN }).v, { nullValue: null });
+  check("round trip", decodeFields(encoded), data);
+  check("plain identifiers stay bare", fieldPath("s", "updatedAt"), "s.updatedAt");
+  check("numeric keys are quoted", fieldPath("s", 1792407600), "s.`1792407600`");
+  check("negative ids are quoted", fieldPath("seen", -367520), "seen.`-367520`");
+  check("spaces and dashes are quoted", fieldPath("123", "Q4 2026"), "`123`.`Q4 2026`");
+  check("backticks are escaped", fieldPath("a`b"), "`a\\`b`");
+}
+
+console.log("\nFirestore stats documents");
+check(
+  "player samples sort by hour and drop junk",
+  playerRows({ s: { "7200": 20, "3600": 10, bad: 5, "10800": -1, "14400": "x" } }),
+  [{ hour: 3600, players: 10 }, { hour: 7200, players: 20 }],
+);
+check("missing document is an empty series", playerRows(null), []);
+check(
+  "twitch samples are [viewers, streams]",
+  twitchRows({ s: { "3600": [120, 4], "7200": [5] } }),
+  [{ hour: 3600, viewers: 120, streams: 4 }],
+);
+check(
+  "score samples are keyed by ISO day",
+  scoreRows({ s: { "2026-10-02": [81.3, 9], "2026-10-01": [80, 7], "oct-3": [1, 1] } }),
+  [{ observed_on: "2026-10-01", score: 80, count: 7 }, { observed_on: "2026-10-02", score: 81.3, count: 9 }],
+);
+check(
+  "price rows read one country's days and stores",
+  priceRows({ IN: { "2026-10-19": { steam: ["INR", 99900, 99900, 0], gog: ["INR", 1, 1, 0] } }, US: { "2026-10-19": { steam: ["USD", 5999, null, null] } } }, "IN"),
+  [{ store: "steam", currency: "INR", price: 99900, initial: 99900, discount: 0, observed_on: "2026-10-19" }],
+);
+check(
+  "release observations sort by first sighting",
+  observationRows({ "Q1 2027": 300, "2026-11-01": 100, "": 50, junk: "x" }),
+  [{ value: "2026-11-01", observedAt: 100 }, { value: "Q1 2027", observedAt: 300 }],
+);
+check("release shards spread ids four ways", [1, 2, 3, 4].map(releaseShardPath), [
+  "releaseHistory/s1",
+  "releaseHistory/s2",
+  "releaseHistory/s3",
+  "releaseHistory/s0",
+]);
+check("prune deletes the day of hours that aged out", expiredHours(100 * 86_400, 30).slice(0, 2), [70 * 86_400, 70 * 86_400 - 3600]);
+check("prune deletes the week of days that aged out", expiredDays("2026-10-19", 365)[0], "2025-10-19");
 
 /**
  * A 2×1 RGBA PNG (one opaque red, one transparent pixel), built by hand with

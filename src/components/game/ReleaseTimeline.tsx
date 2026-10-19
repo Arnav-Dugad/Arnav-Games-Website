@@ -192,7 +192,7 @@ export function ReleaseRow({
       data-release-tba={game.tba ? "true" : "false"}
       className="group relative flex items-center gap-3 px-2.5 py-2.5 transition-colors duration-300 fine:hover:bg-fg/[0.035] sm:gap-4 sm:px-3"
     >
-      <Link
+      <Link prefetch={false}
         href={`/game/${game.slug}`}
         className="relative h-[68px] w-[51px] shrink-0 overflow-hidden rounded-[10px] shadow-[0_6px_16px_-10px_rgba(0,0,0,0.8)] ring-1 ring-inset ring-fg/10 sm:h-[76px] sm:w-[57px]"
         aria-hidden
@@ -203,7 +203,7 @@ export function ReleaseRow({
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex min-w-0 items-center gap-2">
-          <Link href={`/game/${game.slug}`} className="min-w-0 truncate text-[15px] font-semibold leading-snug fine:hover:text-brand-soft sm:text-base">
+          <Link prefetch={false} href={`/game/${game.slug}`} className="min-w-0 truncate text-[15px] font-semibold leading-snug fine:hover:text-brand-soft sm:text-base">
             {game.name}
           </Link>
           <ScorePill score={game.metacritic} className="shrink-0" />

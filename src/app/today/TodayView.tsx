@@ -195,7 +195,7 @@ export function TodayView({
 function OutTodayCard({ game, priority }: { game: TodayGame; priority: boolean }) {
   const cover = useSharedCover(game.slug, game.image);
   return (
-    <Link
+    <Link prefetch={false}
       href={`/game/${game.slug}`}
       onClick={cover.claim}
       data-stage="dark"
@@ -234,7 +234,7 @@ function NextRow({ game, today, first }: { game: TodayGame; today: string; first
   const cover = useSharedCover(game.slug, game.image);
   const days = game.released ? daysBetween(today, game.released) : null;
   return (
-    <Link
+    <Link prefetch={false}
       href={`/game/${game.slug}`}
       onClick={cover.claim}
       className="group flex items-center gap-3.5 pl-3.5 transition-colors fine:hover:bg-fg/[0.04] coarse:active:bg-fg/[0.06]"

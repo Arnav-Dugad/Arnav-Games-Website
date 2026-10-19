@@ -40,8 +40,32 @@ function jobsDue(scheduledTime) {
   return jobs;
 }
 
+/**
+ * The visitor's country as a first-party cookie on page loads, so the
+ * browser knows its default price region without a separate `/api/region`
+ * request (one Worker request saved per new visitor and device). Set only on
+ * document requests whose cookie is missing or stale, after Next has built
+ * the response, so nothing Next caches ever carries it. Not HttpOnly — the
+ * client reads it — and it holds nothing but a two-letter country code.
+ */
+const COUNTRY_COOKIE = "ag-cc";
+
+function withCountryCookie(request, response) {
+  if (request.method !== "GET") return response;
+  const dest = request.headers.get("sec-fetch-dest");
+  if (dest ? dest !== "document" : !(request.headers.get("accept") ?? "").includes("text/html")) return response;
+  const country = typeof request.cf?.country === "string" ? request.cf.country.toUpperCase() : "";
+  if (!/^[A-Z]{2}$/.test(country) || country === "XX" || country === "T1") return response;
+  if ((request.headers.get("cookie") ?? "").includes(`${COUNTRY_COOKIE}=${country}`)) return response;
+  const headers = new Headers(response.headers);
+  headers.append("Set-Cookie", `${COUNTRY_COOKIE}=${country}; Path=/; Max-Age=2592000; SameSite=Lax; Secure`);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export default {
-  fetch: nextWorker.fetch,
+  async fetch(request, env, ctx) {
+    return withCountryCookie(request, await nextWorker.fetch(request, env, ctx));
+  },
 
   async scheduled(controller, env, ctx) {
     if (!env.CRON_SECRET) return;

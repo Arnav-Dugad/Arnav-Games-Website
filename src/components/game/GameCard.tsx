@@ -155,11 +155,15 @@ export function GameCard({
   };
   const preview = useCoverPreview(Boolean(game.heroTrailer) || game.screenshots.length > 0);
 
+  // Catalogue links don't prefetch on sight (`prefetch={false}`, here and on
+  // every game/studio/franchise link): each viewport prefetch is a Worker
+  // request on Cloudflare's free plan, and a shelf-heavy page used to spend
+  // dozens of them per view. Hover and touch still prefetch the one you aim at.
   return (
     <div ref={menuRef} data-game-menu className={cn("group/card press-menu-target", className)}>
       <div className="relative">
       <TiltCard className="rounded-2xl" intensity={7} scale={1.03}>
-        <Link
+        <Link prefetch={false}
           href={`/game/${game.slug}`}
           aria-label={game.name}
           onClick={open}
@@ -233,7 +237,7 @@ export function GameCard({
           {/* Outside the link: an inline wrapper inside it would defeat the
               two-line clamp. */}
           <LogoMorph slug={game.slug} active={logoMorph && title.active} className="block">
-            <Link
+            <Link prefetch={false}
               href={`/game/${game.slug}`}
               onClick={open}
               className={cn(

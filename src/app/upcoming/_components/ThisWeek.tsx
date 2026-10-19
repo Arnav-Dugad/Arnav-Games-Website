@@ -87,7 +87,7 @@ function LeadCard({ game, hype, delays }: { game: GameSummary; hype?: number; de
       data-release-date={game.released ?? ""}
       className="relative isolate h-[176px] w-[min(82vw,520px)] overflow-hidden rounded-[22px] bg-panel text-white shadow-[0_24px_60px_-30px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-white/10 sm:h-[219px]"
     >
-      <Link href={`/game/${game.slug}`} className="absolute inset-0 -z-10" aria-label={game.name}>
+      <Link prefetch={false} href={`/game/${game.slug}`} className="absolute inset-0 -z-10" aria-label={game.name}>
         <GameCover
           name={game.name}
           slug={game.slug}
@@ -122,7 +122,7 @@ function PosterCard({ game, hype }: { game: GameSummary; hype?: number }) {
   return (
     <article data-release-date={game.released ?? ""} className="group">
       <div data-stage="dark" className="relative h-[176px] overflow-hidden rounded-[18px] bg-panel shadow-[0_18px_40px_-26px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-fg/10 sm:h-[219px]">
-        <Link href={`/game/${game.slug}`} aria-label={game.name} className="absolute inset-0">
+        <Link prefetch={false} href={`/game/${game.slug}`} aria-label={game.name} className="absolute inset-0">
           <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={330} sizes="(max-width: 640px) 132px, 164px" />
         </Link>
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2">
@@ -130,7 +130,7 @@ function PosterCard({ game, hype }: { game: GameSummary; hype?: number }) {
           <WatchButton game={game} compact className="pointer-events-auto" />
         </div>
       </div>
-      <Link href={`/game/${game.slug}`} className="mt-2 block line-clamp-2 text-[13px] font-semibold leading-snug fine:group-hover:text-brand-soft sm:text-[14px]">
+      <Link prefetch={false} href={`/game/${game.slug}`} className="mt-2 block line-clamp-2 text-[13px] font-semibold leading-snug fine:group-hover:text-brand-soft sm:text-[14px]">
         {game.name}
       </Link>
       {hype !== undefined && <HypeBadge value={hype} className="mt-1" />}

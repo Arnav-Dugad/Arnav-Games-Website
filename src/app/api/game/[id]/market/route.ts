@@ -40,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const market = await marketFor(ids, cc, { regional: search.get("regional") === "1" });
     return NextResponse.json(market, {
-      headers: { "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=86400" },
+      headers: { "Cache-Control": "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400" },
     });
   } catch (err) {
     console.error("[api/market] failed", err);

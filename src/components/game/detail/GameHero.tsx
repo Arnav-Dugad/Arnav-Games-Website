@@ -111,7 +111,7 @@ export function GameHero({
               Browse
             </Link>
             {franchise && (
-              <Link
+              <Link prefetch={false}
                 href={`/franchise/${franchise.slug}`}
                 className="inline-flex min-h-9 items-center rounded-full border border-white/10 bg-black/25 px-3 coarse:min-h-11 backdrop-blur-md transition-colors hover:border-[var(--game-accent)] hover:text-white"
               >

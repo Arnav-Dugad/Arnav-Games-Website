@@ -237,7 +237,7 @@ export function StudioCard({
 }) {
   const [logoFailed, setLogoFailed] = useState(false);
   return (
-    <Link
+    <Link prefetch={false}
       href={`/studio/${slug}`}
       className="press group flex h-full flex-col gap-2.5 rounded-2xl p-1.5 text-left transition-colors fine:hover:bg-fg/[0.04]"
     >

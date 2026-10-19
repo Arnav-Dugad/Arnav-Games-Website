@@ -90,7 +90,7 @@ function DayColumn({ day, index }: { day: WeekDay; index: number }) {
 
       {lead ? (
         <div className="mt-3">
-          <Link href={`/game/${lead.slug}`} className="group block">
+          <Link prefetch={false} href={`/game/${lead.slug}`} className="group block">
             <span className="relative block aspect-[3/4] overflow-hidden rounded-xl border border-fg/[0.08] bg-panel shadow-[0_12px_28px_-18px_#000] light:shadow-[0_10px_24px_-18px_#00000066]">
               <GameCover
                 name={lead.name}
@@ -111,7 +111,7 @@ function DayColumn({ day, index }: { day: WeekDay; index: number }) {
             <ul className="mt-2.5 space-y-1">
               {shown.map((game) => (
                 <li key={game.id}>
-                  <Link
+                  <Link prefetch={false}
                     href={`/game/${game.slug}`}
                     className="group -mx-1.5 flex min-h-11 items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors fine:hover:bg-fg/[0.05]"
                   >

@@ -73,7 +73,7 @@ export function CriticCompare({ critic, benchmark }: { critic: CriticData; bench
 
 function ScoredGame({ game, tag }: { game: CriticGame; tag: string }) {
   return (
-    <Link href={canonicalEntryHref(game)} className="press group flex min-w-0 items-center gap-3 rounded-2xl bg-fg/[0.04] p-2 pr-3 transition-colors hover:bg-fg/[0.07]">
+    <Link prefetch={false} href={canonicalEntryHref(game)} className="press group flex min-w-0 items-center gap-3 rounded-2xl bg-fg/[0.04] p-2 pr-3 transition-colors hover:bg-fg/[0.07]">
       <span className="relative aspect-[3/4] w-10 shrink-0 overflow-hidden rounded-lg">
         <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={80} sizes="40px" />
       </span>

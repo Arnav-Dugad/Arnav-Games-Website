@@ -5,8 +5,10 @@
  *
  * Prices are always the store's own local prices for this country — never a
  * currency conversion of a US price. The default comes from the visitor's
- * location (`/api/region`, Cloudflare's `cf-ipcountry`); Settings lets the
- * reader pick another. Device-local, like appearance.
+ * location: the `ag-cc` cookie the Worker sets on page loads, falling back to
+ * `/api/region` (Cloudflare's `cf-ipcountry`) when it's absent, e.g. in
+ * `next dev`. Settings lets the reader pick another; an explicit choice is
+ * mirrored to the signed-in account (see `PreferencesProvider`).
  */
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
@@ -14,7 +16,8 @@ import { STORAGE_PREFIX } from "@/lib/utils/storage-keys";
 
 export const REGION_KEY = `${STORAGE_PREFIX}price-region`;
 const DETECTED_KEY = `${STORAGE_PREFIX}price-region-detected`;
-const CHANGE_EVENT = "arnav-games:region-change";
+export const REGION_CHANGE_EVENT = "arnav-games:region-change";
+const CHANGE_EVENT = REGION_CHANGE_EVENT;
 export const FALLBACK_REGION = "US";
 
 /** Countries offered in Settings: Steam storefronts with their own pricing. */
@@ -66,7 +69,23 @@ function readKey(key: string): string | null {
   }
 }
 
-const readRegion = () => readKey(REGION_KEY) ?? readKey(DETECTED_KEY);
+/**
+ * The country the Worker stamps on page loads (the `ag-cc` cookie, see worker.mjs) —
+ * the default region without asking `/api/region`, and kept current if the
+ * reader travels.
+ */
+function readCookieCountry(): string | null {
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)ag-cc=([A-Z]{2})(?:;|$)/);
+    return match && valid(match[1]) ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The automatic (detected) country, whatever the reader has chosen. */
+export const readDetectedRegion = () => readCookieCountry() ?? readKey(DETECTED_KEY);
+const readRegion = () => readKey(REGION_KEY) ?? readDetectedRegion();
 const readExplicit = () => readKey(REGION_KEY) !== null;
 
 function subscribe(onChange: () => void) {
@@ -89,7 +108,7 @@ function remember(key: string, value: string) {
 
 let detecting: Promise<void> | null = null;
 
-/** Asks the server where we are, once per page load; settles on US otherwise. */
+/** Asks the server where we are, once per page load, only when the cookie is missing; settles on US otherwise. */
 function detectOnce() {
   detecting ??= fetch("/api/region")
     .then((response) => (response.ok ? response.json() : null))

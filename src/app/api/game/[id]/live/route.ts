@@ -66,6 +66,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const data = await liveDataFor(ids);
   return NextResponse.json(data, {
-    headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600" },
+    headers: { "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=600" },
   });
 }

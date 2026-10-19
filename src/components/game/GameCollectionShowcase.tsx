@@ -135,12 +135,12 @@ export function GameCollectionShowcase({ game }: { game: GameDetail }) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gold">Base-game relationship</p>
-                  <Link href={`/game/${game.parentGame.slug}`} className="mt-1 block truncate font-display text-lg font-bold transition-colors hover:text-gold">
+                  <Link prefetch={false} href={`/game/${game.parentGame.slug}`} className="mt-1 block truncate font-display text-lg font-bold transition-colors hover:text-gold">
                     {game.parentGame.name}
                   </Link>
                   <p className="mt-1 text-xs text-muted">This release depends on or extends the game above.</p>
                 </div>
-                <Link href={`/game/${game.parentGame.slug}`} aria-label={`Open ${game.parentGame.name}`} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line text-muted transition-colors hover:border-gold/35 hover:text-gold">
+                <Link prefetch={false} href={`/game/${game.parentGame.slug}`} aria-label={`Open ${game.parentGame.name}`} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line text-muted transition-colors hover:border-gold/35 hover:text-gold">
                   <ArrowUpRight size={16} />
                 </Link>
               </div>
@@ -238,7 +238,7 @@ function RelationShelf({ group }: { group: RelationGroup }) {
 function RelationPoster({ game, label, requirement, tone }: { game: GameSummary; label: string; requirement: string; tone: Tone }) {
   return (
     <article className="group h-full">
-      <Link href={`/game/${game.slug}`} className="block">
+      <Link prefetch={false} href={`/game/${game.slug}`} className="block">
         <span className="relative block aspect-[3/4] overflow-hidden rounded-2xl border border-line bg-panel shadow-[0_22px_55px_-30px_rgba(0,0,0,0.95)] light:shadow-[0_18px_40px_-26px_rgba(0,0,0,0.4)] transition-[transform,border-color,box-shadow] duration-500 fine:group-hover:-translate-y-1.5 fine:group-hover:border-brand/40 fine:group-hover:shadow-[0_28px_70px_-30px_rgba(124,92,255,0.6)]">
           <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={520} sizes="(max-width: 640px) 44vw, 208px" className="transition-transform duration-700 fine:group-hover:scale-105" />
           <span className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/5 to-black/20" />

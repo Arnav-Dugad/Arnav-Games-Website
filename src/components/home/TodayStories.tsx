@@ -81,7 +81,7 @@ function StoryCard({ story, large, wide }: { story: HomeStory; large: boolean; w
 
   return (
     <div ref={menuRef} data-game-menu className="press-menu-target h-full">
-      <Link
+      <Link prefetch={false}
         href={`/game/${game.slug}`}
         data-stage="dark"
         data-menu-preview

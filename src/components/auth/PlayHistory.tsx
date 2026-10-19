@@ -86,7 +86,7 @@ export function PlayHistory({ entries, reviews, now, limit = 8 }: { entries: Wat
         const Icon = kind.icon;
         return (
           <li key={event.key} className={cn(index > 0 && "border-t border-line")}>
-            <Link href={`/game/${event.slug}`} className="press flex items-center gap-3 px-3 py-2.5 transition-colors fine:hover:bg-fg/[0.04]">
+            <Link prefetch={false} href={`/game/${event.slug}`} className="press flex items-center gap-3 px-3 py-2.5 transition-colors fine:hover:bg-fg/[0.04]">
               <span className="relative h-12 w-9 shrink-0 overflow-hidden rounded-md ring-1 ring-inset ring-fg/10">
                 <GameCover name={event.name} slug={event.slug} image={event.image} imageFallback={event.imageFallback} width={96} sizes="36px" />
               </span>

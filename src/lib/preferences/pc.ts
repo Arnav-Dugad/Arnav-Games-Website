@@ -2,8 +2,10 @@
 
 /**
  * The reader's own PC specs, for "Will it run?" checks against Steam's
- * requirements. Entered once (game page sheet or Settings → My PC) and kept
- * on this device only — hardware is a property of the machine you're on.
+ * requirements. Entered once (game page sheet or Settings → My PC). The
+ * device copy is what the page reads; when signed in it is also mirrored to
+ * the account (see `PreferencesProvider`), so a new phone or browser can
+ * still answer "will it run on my PC?".
  */
 
 import { useCallback, useSyncExternalStore } from "react";
@@ -11,12 +13,13 @@ import type { UserPcSpecs } from "@/lib/games/types";
 import { STORAGE_PREFIX } from "@/lib/utils/storage-keys";
 
 export const PC_SPECS_KEY = `${STORAGE_PREFIX}pc-specs`;
-const CHANGE_EVENT = "arnav-games:pc-specs-change";
+export const PC_SPECS_CHANGE_EVENT = "arnav-games:pc-specs-change";
+const CHANGE_EVENT = PC_SPECS_CHANGE_EVENT;
 
 let cachedRaw: string | null = null;
 let cachedValue: UserPcSpecs | null = null;
 
-function parse(raw: string | null): UserPcSpecs | null {
+export function parsePcSpecs(raw: string | null): UserPcSpecs | null {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as Partial<UserPcSpecs>;
@@ -39,7 +42,7 @@ function read(): UserPcSpecs | null {
   }
   if (raw !== cachedRaw) {
     cachedRaw = raw;
-    cachedValue = parse(raw);
+    cachedValue = parsePcSpecs(raw);
   }
   return cachedValue;
 }

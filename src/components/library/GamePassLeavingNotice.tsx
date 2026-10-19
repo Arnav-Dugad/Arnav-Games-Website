@@ -53,7 +53,7 @@ export function GamePassLeavingNotice({ leaving }: { leaving: LeavingGame[] }) {
       <ul className="no-scrollbar flex gap-2 overflow-x-auto">
         {yours.slice(0, 6).map((game) => (
           <li key={game.id} className="shrink-0">
-            <Link
+            <Link prefetch={false}
               href={`/game/${game.slug}`}
               title={game.name}
               className="press relative block h-16 w-12 overflow-hidden rounded-xl border border-line"

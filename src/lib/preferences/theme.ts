@@ -10,8 +10,10 @@
  * the setter below fires an event the boot script listens for, so there is one
  * resolver, not two.
  *
- * The preference is device-local: appearance is usually a property of the
- * screen you are holding, not of the account.
+ * The device copy is the source of truth (it has to be readable before first
+ * paint). When signed in it is mirrored to the account, and restored from
+ * there on a device that has no choice of its own yet (see
+ * `PreferencesProvider`).
  */
 
 import { useCallback, useSyncExternalStore } from "react";

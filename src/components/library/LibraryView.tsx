@@ -686,11 +686,11 @@ function LibraryRow({ entry, hours }: { entry: WatchlistEntry; hours: number | n
   const game = useMemo(() => entryAsGameSummary(entry), [entry]);
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 transition-colors fine:hover:bg-fg/[0.035] sm:gap-4">
-      <Link href={`/game/${entry.slug}`} tabIndex={-1} aria-hidden className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-inset ring-fg/10">
+      <Link prefetch={false} href={`/game/${entry.slug}`} tabIndex={-1} aria-hidden className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-inset ring-fg/10">
         <GameCover name={entry.name} slug={entry.slug} image={entry.image} imageFallback={entry.imageFallback} width={160} sizes="48px" />
       </Link>
       <div className="min-w-0 flex-1">
-        <Link href={`/game/${entry.slug}`} className="block truncate text-[15px] font-semibold fine:hover:text-brand-soft">{entry.name}</Link>
+        <Link prefetch={false} href={`/game/${entry.slug}`} className="block truncate text-[15px] font-semibold fine:hover:text-brand-soft">{entry.name}</Link>
         <p className="mt-0.5 flex min-w-0 items-center gap-2 text-[12px] text-muted">
           <span className="shrink-0">{STATUS_LABELS[entry.status]}</span>
           {entry.released && <span className="shrink-0 tabular-nums text-faint">{entry.released.slice(0, 4)}</span>}

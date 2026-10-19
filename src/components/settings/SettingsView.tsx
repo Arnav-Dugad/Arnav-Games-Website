@@ -27,8 +27,7 @@ import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { usePreferences } from "@/lib/preferences/PreferencesProvider";
 import { useThemePreference, type ThemePreference } from "@/lib/preferences/theme";
-import { PRICE_REGIONS, usePriceRegion } from "@/lib/preferences/region";
-import { STORAGE_PREFIX } from "@/lib/utils/storage-keys";
+import { PRICE_REGIONS, readDetectedRegion, usePriceRegion } from "@/lib/preferences/region";
 import { InstallAppRow } from "@/components/pwa/InstallAppRow";
 import { MyPcSheet } from "@/components/pc/MyPcSheet";
 import { usePcSpecs } from "@/lib/preferences/pc";
@@ -330,7 +329,6 @@ function ThemeThumbnail({ kind, active }: { kind: ThemePreference; active: boole
 /* Prices                                                                     */
 /* -------------------------------------------------------------------------- */
 
-const DETECTED_KEY = `${STORAGE_PREFIX}price-region-detected`;
 const noop = () => () => {};
 
 function regionName(code: string | null): string | null {
@@ -348,13 +346,7 @@ function regionName(code: string | null): string | null {
 function useDetectedRegion(region: string | null, explicit: boolean): string | null {
   const stored = useSyncExternalStore(
     noop,
-    () => {
-      try {
-        return window.localStorage.getItem(DETECTED_KEY);
-      } catch {
-        return null;
-      }
-    },
+    readDetectedRegion,
     () => null,
   );
   // While automatic, the live region *is* the detected one (and updates with it).

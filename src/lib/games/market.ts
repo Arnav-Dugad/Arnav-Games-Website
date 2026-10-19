@@ -17,8 +17,9 @@
  */
 
 import { unstable_cache } from "next/cache";
-import { getDb, runAfterResponse } from "@/lib/cloudflare/db";
-import { externalIdsFor, igdbSlugForId } from "./providers/igdb-extras";
+import { runAfterResponse } from "@/lib/cloudflare/after";
+import { commitWrites, fieldPath, getDocument, type Write } from "@/lib/firebase/server";
+import { externalIdsFor } from "./providers/igdb-extras";
 import { igdbConfigured } from "./providers/igdb";
 import { convertMinor, formatMinor, planPriceRequests, priceVerdict, rotatingSlice } from "./market-rules";
 import type { FetchBudget } from "./fetch-budget";
@@ -32,7 +33,8 @@ import {
   type SteamPrice,
 } from "./steam-store";
 import { MICROSOFT_PRICE_BATCH, microsoftLocalPrice, microsoftPrices } from "./ms-store";
-import { trackGameView } from "./tracked";
+import { expiredDays, priceDocPath, priceRows, type PriceRow } from "./stats-docs";
+import { countryViewWrite } from "./tracked";
 import type { GameMarket, LocalPrice, PricePoint, RegionalPrice } from "./types";
 
 /** Current prices are re-read at most this often (matches the route's s-maxage). */
@@ -64,6 +66,8 @@ export interface MarketIds {
   igdbId: number | null;
   steam: number | null;
   microsoft: string | null;
+  /** Twitch category: the `twitch` hint, else IGDB's link (null when neither). */
+  twitch: string | null;
 }
 
 const DIGITS = /^\d{1,10}$/;
@@ -80,6 +84,8 @@ export async function resolveMarketIds(id: string, search: URLSearchParams): Pro
   if (!DIGITS.test(id) || Number(id) <= 0) return "id must be a numeric IGDB id";
   const steamRaw = search.get("steam")?.trim() || null;
   const msRaw = search.get("ms")?.trim().toUpperCase() || null;
+  const twitchRaw = search.get("twitch")?.trim() || null;
+  if (twitchRaw && !/^\d{1,12}$/.test(twitchRaw)) return "invalid twitch id";
   if (steamRaw && (!DIGITS.test(steamRaw) || Number(steamRaw) <= 0)) return "invalid steam id";
   if (msRaw && !BIG_ID.test(msRaw)) return "invalid ms id";
 
@@ -89,105 +95,109 @@ export async function resolveMarketIds(id: string, search: URLSearchParams): Pro
 
   if (hint && resolved?.steam !== hint) {
     // Steam-only (or IGDB can't vouch for the pairing): key on the appid.
-    return { key: -hint, igdbId: null, steam: hint, microsoft: msRaw };
+    return { key: -hint, igdbId: null, steam: hint, microsoft: msRaw, twitch: twitchRaw };
   }
   return {
     key: igdbConfigured() ? igdbId : null,
     igdbId,
     steam: hint ?? resolved?.steam ?? null,
     microsoft: msRaw ?? resolved?.microsoft ?? null,
+    twitch: twitchRaw ?? resolved?.twitch ?? null,
   };
 }
 
 /* ---------------------------------------------------------------------------
- * History (D1)
+ * History (Firestore: `priceHistory/{key}`, see stats-docs.ts)
  * ------------------------------------------------------------------------ */
 
-interface HistoryRow {
-  store: LocalPrice["store"];
-  currency: string;
-  price: number;
-  initial: number | null;
-  observed_on: string;
-}
+/**
+ * One country's observations: one document read, field-masked to that
+ * country. Cached for 30 minutes in Next's data cache (R2 on Workers — a
+ * binding call, not a subrequest), since the history only grows once a day
+ * and every game page view asks: without it each view would cost a Firestore
+ * read and an outbound request. Throws on a failed read so a failure is
+ * never cached.
+ */
+const cachedHistory = unstable_cache(
+  async (key: number, country: string): Promise<PriceRow[]> => {
+    const doc = await getDocument(priceDocPath(key), { mask: [fieldPath(country)] });
+    if (doc === undefined) throw new Error("price history unavailable");
+    return priceRows(doc?.data ?? {}, country);
+  },
+  ["price-history-v2"],
+  { revalidate: CURRENT_TTL, tags: ["price-history"] },
+);
 
-async function readHistory(key: number, country: string): Promise<HistoryRow[] | null> {
-  const db = await getDb();
-  if (!db) return null;
+/** Null when Firestore couldn't be read — the market then claims nothing about history. */
+async function readHistory(key: number, country: string): Promise<PriceRow[] | null> {
   try {
     const from = new Date(Date.now() - HISTORY_DAYS * DAY * 1000).toISOString().slice(0, 10);
-    const result = await db
-      .prepare(
-        "SELECT store, currency, price, initial, observed_on FROM price_history " +
-          "WHERE game_id = ? AND country = ? AND observed_on >= ? ORDER BY observed_on",
-      )
-      .bind(key, country, from)
-      .all<HistoryRow>();
-    return result.results ?? [];
+    return (await cachedHistory(key, country)).filter((row) => row.observed_on >= from);
   } catch (err) {
     console.warn("[market] history read failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }
 
-/** Writes made by this isolate, so cached re-renders don't rewrite the same row. */
+/**
+ * The writes for a set of observations: one document per game key, one
+ * field per country/day/store, so a later observation the same day replaces
+ * the earlier one (a sale that starts mid-day is still caught). Free and zero
+ * prices are skipped — there is no history to keep. `prune` adds deletes for
+ * the week of days that just passed the retention window (the daily cron
+ * passes it; page views don't bother).
+ */
+export function priceWrites(
+  observations: Array<{ key: number; price: LocalPrice }>,
+  today: string,
+  prune = false,
+): Write[] {
+  const byKey = new Map<number, LocalPrice[]>();
+  for (const { key, price } of observations) {
+    if (price.price <= 0 || price.currency === NO_CURRENCY || !Number.isInteger(key) || key === 0) continue;
+    byKey.set(key, [...(byKey.get(key) ?? []), price]);
+  }
+  const expired = prune ? expiredDays(today, HISTORY_DAYS) : [];
+  return [...byKey].map(([key, prices]) => {
+    const data: Record<string, Record<string, Record<string, unknown>>> = {};
+    const mask = new Set<string>();
+    for (const p of prices) {
+      data[p.country] ??= {};
+      data[p.country][today] ??= {};
+      data[p.country][today][p.store] = [p.currency, p.price, p.initial, p.discount];
+      mask.add(fieldPath(p.country, today, p.store));
+      for (const day of expired) mask.add(fieldPath(p.country, day));
+    }
+    return { type: "update", path: priceDocPath(key), data, mask: [...mask] } satisfies Write;
+  });
+}
+
+/** Writes made by this isolate, so re-renders don't rewrite the same value. */
 const written = new Map<string, number>();
 
 /**
- * One row per game/store/country/day; a later observation the same day
- * replaces the earlier one, so a sale that starts mid-day is still caught.
- * Free and zero prices are skipped — there is no history to keep.
+ * Records today's prices from a page view, but only where the stored value
+ * for today is missing or different — the (≤ 30-minute-old) history this
+ * request already read says which — so steady prices cost no writes at all.
  */
-export async function recordPrices(
-  observations: Array<{ key: number; price: LocalPrice }>,
-  today: string,
-): Promise<number> {
-  const rows = observations.filter(({ price }) => price.price > 0 && price.currency !== NO_CURRENCY);
-  if (rows.length === 0) return 0;
-  const db = await getDb();
-  if (!db) return 0;
-  const statement = db.prepare(
-    "INSERT OR REPLACE INTO price_history (game_id, store, country, currency, price, initial, discount, observed_on) " +
-      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-  );
-  let stored = 0;
-  for (let i = 0; i < rows.length; i += 50) {
-    const part = rows.slice(i, i + 50);
-    try {
-      await db.batch(
-        part.map(({ key, price: p }) =>
-          statement.bind(key, p.store, p.country, p.currency, p.price, p.initial, p.discount, today),
-        ),
-      );
-      stored += part.length;
-    } catch (err) {
-      console.warn("[market] record failed:", err instanceof Error ? err.message : err);
-    }
-  }
-  return stored;
-}
-
-function recordFromView(ids: MarketIds, prices: LocalPrice[], today: string) {
+function recordFromView(ids: MarketIds, prices: LocalPrice[], today: string, stored: PriceRow[] | null) {
   const key = ids.key;
-  if (key === null) return;
+  if (key === null || stored === null) return;
   const fresh = prices.filter((p) => {
+    const same = stored.some(
+      (row) => row.observed_on === today && row.store === p.store && row.currency === p.currency && row.price === p.price,
+    );
+    if (same) return false;
     const id = `${key}:${p.store}:${p.country}:${today}:${p.price}`;
     if (Date.now() - (written.get(id) ?? 0) < CURRENT_TTL * 1000) return false;
     written.set(id, Date.now());
     return true;
   });
   if (written.size > 5000) written.clear();
-  if (fresh.length > 0) void runAfterResponse(recordPrices(fresh.map((price) => ({ key, price })), today));
-
-  // Keep the game in the daily snapshot. Steam-only titles are tracked by
-  // `getGame` itself, which knows their slug.
-  if (key > 0) {
-    void runAfterResponse(
-      igdbSlugForId(key).then((slug) =>
-        slug ? trackGameView({ gameId: key, slug, steamApp: ids.steam, microsoft: ids.microsoft }) : undefined,
-      ),
-    );
-  }
+  const writes = priceWrites(fresh.map((price) => ({ key, price })), today);
+  const country = countryViewWrite(prices[0]?.country ?? "");
+  if (country) writes.push(country);
+  if (writes.length > 0) void runAfterResponse(commitWrites(writes));
 }
 
 /* ---------------------------------------------------------------------------
@@ -326,7 +336,7 @@ export async function marketFor(
       ? await regionalFor(ids.steam, { country, price: steam, currency })
       : [];
 
-  recordFromView(ids, paid, today);
+  recordFromView(ids, paid, today, historyRows);
 
   return { country, currency, prices, history, lowest, verdict, regional, trackingSince };
 }
@@ -355,29 +365,33 @@ export async function snapshotPrices(
   const steamIds = [...new Set(games.map((g) => g.steamApp).filter((id): id is number => Boolean(id)))];
   const msIds = [...new Set(games.map((g) => g.microsoft).filter((id): id is string => Boolean(id)))];
 
+  // One request is held back for the single Firestore commit at the end.
   const plan = planPriceRequests({
     steamItems: steamIds.length,
     microsoftItems: msIds.length,
     countries: countries.length,
-    budget: budget.remaining,
+    budget: Math.max(0, budget.remaining - 1),
     steamBatch: STEAM_PRICE_BATCH,
     microsoftBatch: MICROSOFT_PRICE_BATCH,
   });
   const steamSlice = rotatingSlice(steamIds, plan.steam * STEAM_PRICE_BATCH, turn);
   const msSlice = rotatingSlice(msIds, plan.microsoft * MICROSOFT_PRICE_BATCH, turn);
 
-  let rows = 0;
+  const observations: Array<{ key: number; price: LocalPrice }> = [];
   for (const country of countries) {
     const steam = await steamPrices(steamSlice, country, 0, budget);
     const ms = await microsoftPrices(msSlice, country, 0, budget);
-    const observations: Array<{ key: number; price: LocalPrice }> = [];
     for (const game of games) {
       const s = game.steamApp ? steam.get(game.steamApp) : undefined;
       if (s && game.steamApp) observations.push({ key: game.gameId, price: steamLocalPrice(game.steamApp, country, s) });
       const m = game.microsoft ? ms.get(game.microsoft) : undefined;
       if (m && game.microsoft) observations.push({ key: game.gameId, price: microsoftLocalPrice(game.microsoft, country, m) });
     }
-    rows += await recordPrices(observations, today);
   }
+  // Every country's prices for a game land in that game's one document, so
+  // the whole snapshot is one write per game and a single request.
+  const writes = priceWrites(observations, today, true);
+  const stored = writes.length > 0 && budget.take() ? await commitWrites(writes) : 0;
+  const rows = stored > 0 ? observations.filter((o) => o.price.price > 0 && o.price.currency !== NO_CURRENCY).length : 0;
   return { countries, steamGames: steamSlice.length, microsoftGames: msSlice.length, rows, fetches: budget.used };
 }

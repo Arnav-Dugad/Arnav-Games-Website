@@ -77,7 +77,7 @@ function ChartRow({ game, rank }: { game: GameSummary; rank: number }) {
       // reads as an error, so an undated one shows its genre alone.
       [game.genres[0]?.name, game.released ? releaseYear(game.released) : null].filter(Boolean).join(" · ");
   return (
-    <Link
+    <Link prefetch={false}
       href={`/game/${game.slug}`}
       className="press group flex items-center gap-3.5 rounded-xl py-2.5 transition-colors fine:hover:bg-fg/[0.04] sm:gap-4"
     >

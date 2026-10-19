@@ -5,14 +5,16 @@
  * both pages quote the same backlog hours.
  *
  * Time-to-beat is catalogue data, identical for every user and slow to
- * change, so it is cached for the life of the tab. Revisiting a page or
- * adding one game then costs one small request for the new id, not the whole
- * library again.
+ * change, so it is cached for the life of the tab and on the device for a
+ * week. Revisiting a page or adding one game then costs one small request
+ * for the new id, not the whole library again — and a returning reader often
+ * costs no Worker request at all.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { personalGameIds, type TimeToBeatLike } from "@/lib/games/stats";
 import type { WatchlistEntry } from "@/lib/firebase/db";
+import { readLocalCache, writeLocalCache } from "@/lib/utils/local-cache";
 
 /** Where the lookup stands. "unavailable" means hide every hours figure. */
 export type HoursStatus = "loading" | "ready" | "unavailable";
@@ -26,7 +28,30 @@ interface MetadataResponse {
   timeToBeatAvailable?: boolean;
 }
 
+/** Device copy lifetime, counted from when it was first filled. */
+const DEVICE_TTL_MS = 7 * 86_400_000;
+type DeviceCopy = { since: number; available: boolean | null; entries: Array<[number, TimeToBeatLike | null]> };
+let deviceSince: number | null = null;
+let hydrated = false;
+
+function hydrate() {
+  if (hydrated || typeof window === "undefined") return;
+  hydrated = true;
+  const stored = readLocalCache<DeviceCopy>("time-to-beat", DEVICE_TTL_MS);
+  if (!stored || Date.now() - stored.since > DEVICE_TTL_MS) return;
+  deviceSince = stored.since;
+  for (const [id, value] of stored.entries) if (!ttbCache.has(id)) ttbCache.set(id, value);
+  ttbSourceAvailable ??= stored.available;
+}
+
+function persist() {
+  deviceSince ??= Date.now();
+  const copy: DeviceCopy = { since: deviceSince, available: ttbSourceAvailable, entries: [...ttbCache].slice(-3000) };
+  writeLocalCache("time-to-beat", copy);
+}
+
 async function loadTimeToBeat(ids: number[]): Promise<boolean> {
+  hydrate();
   const missing = ids.filter((id) => !ttbCache.has(id));
   if (missing.length === 0) return ttbSourceAvailable ?? false;
 
@@ -50,6 +75,7 @@ async function loadTimeToBeat(ids: number[]): Promise<boolean> {
   // One answering chunk is enough to show hours; coverage notes then say how
   // many games actually had data.
   ttbSourceAvailable = results.some(Boolean) || Boolean(ttbSourceAvailable);
+  if (results.some(Boolean)) persist();
   return ttbSourceAvailable;
 }
 

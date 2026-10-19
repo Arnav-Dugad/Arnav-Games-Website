@@ -232,7 +232,7 @@ function FranchisePosterStack({ games }: { games: GameSummary[] }) {
             transform: `rotate(${(index - 1) * 4}deg) translateY(${Math.abs(index - 1) * 12}px)`,
           }}
         >
-          <Link
+          <Link prefetch={false}
             href={`/game/${game.slug}`}
             aria-label={game.name}
             className="relative block h-full w-full overflow-hidden rounded-2xl border border-fg/20 bg-panel shadow-[0_35px_70px_-25px_rgba(0,0,0,0.95)] light:shadow-[0_28px_56px_-28px_rgba(0,0,0,0.42)] transition-transform duration-500 ease-[var(--ease-apple)] hover:-translate-y-2 hover:scale-[1.02]"

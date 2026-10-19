@@ -49,6 +49,7 @@ import { SpotlightPreview } from "@/components/search/SpotlightPreview";
 import { hitAsGame } from "@/components/search/hit-game";
 import { buildSections, SEARCH_PROMPTS, type SearchSection } from "@/components/search/model";
 import { useRecentSearches } from "@/components/search/recent";
+import { readLocalCache, writeLocalCache } from "@/lib/utils/local-cache";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { useDebouncedValue, useDialogFocus, useLockBodyScroll, useMediaQuery } from "@/hooks";
 import { cn } from "@/lib/utils/cn";
@@ -74,12 +75,25 @@ type NavItem =
   | { type: "recent"; key: string; term: string }
   | { type: "all"; key: string };
 
-/** Trending suggestions, fetched once per page load and shared. */
+/** The suggestions change on the order of hours; matches the route's cache window. */
+const TRENDING_TTL_MS = 15 * 60_000;
+
+/**
+ * Trending suggestions, fetched at most once per page load and kept on the
+ * device for 15 minutes, so opening search on every page doesn't cost a
+ * Worker request each time.
+ */
 let trendingRequest: Promise<SearchHit[]> | null = null;
 function loadTrending(): Promise<SearchHit[]> {
+  const cached = readLocalCache<SearchHit[]>("search-trending", TRENDING_TTL_MS);
+  if (cached && !trendingRequest) trendingRequest = Promise.resolve(cached);
   trendingRequest ??= fetch("/search/suggest")
     .then((res) => (res.ok ? res.json() : { trending: [] }))
-    .then((data: { trending?: SearchHit[] }) => data.trending ?? [])
+    .then((data: { trending?: SearchHit[] }) => {
+      const trending = data.trending ?? [];
+      if (trending.length > 0) writeLocalCache("search-trending", trending);
+      return trending;
+    })
     .catch(() => {
       trendingRequest = null;
       return [];

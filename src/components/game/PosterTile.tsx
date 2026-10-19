@@ -44,7 +44,7 @@ export function PosterTile({
   const menuRef = useGameMenuTarget(game, cover.claim);
 
   return (
-    <Link
+    <Link prefetch={false}
       ref={menuRef}
       href={`/game/${entry.slug}`}
       onClick={cover.claim}

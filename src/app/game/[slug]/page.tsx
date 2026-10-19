@@ -342,7 +342,7 @@ export default async function GamePage({ params, searchParams }: { params: Param
                     links: { openCritic: game.links?.openCritic ?? null, metacritic: game.links?.metacritic ?? game.metacriticUrl },
                   }}
                 />
-                {!upcoming && <OpinionTrends ids={ids} launch={local.date} />}
+                {!upcoming && <OpinionTrends ids={ids} igdbId={source === "igdb" ? game.id : null} launch={local.date} />}
                 {hasPlayers && <PlayersCard ids={ids} twitchId={twitchId} />}
                 {hasSteam && (
                   <div className="pt-6">
@@ -406,7 +406,7 @@ function StudioLinks({ studios }: { studios: GameDetail["developers"] }) {
     <span className="flex flex-wrap gap-x-1.5 gap-y-1">
       {studios.map((studio, index) => (
         <span key={studio.id}>
-          <Link
+          <Link prefetch={false}
             href={`/studio/${studio.slug}`}
             className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-[var(--game-accent)]"
           >
@@ -462,7 +462,7 @@ function GameSidebar({ game }: { game: GameDetail }) {
               <span className="flex flex-wrap gap-x-1.5">
                 {franchises.map((franchise, i) => (
                   <span key={franchise.id}>
-                    <Link
+                    <Link prefetch={false}
                       href={`/franchise/${franchise.slug}`}
                       className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-[var(--game-accent)]"
                     >

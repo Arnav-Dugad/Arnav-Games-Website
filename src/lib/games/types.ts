@@ -538,11 +538,11 @@ export interface GamePcInfo {
 
 /* ---------------------------------------------------------------------------
  * Round 4 contracts: hardware, patches, review/Twitch/score history,
- * batch prices and Game Pass matching. Routes:
- *   /api/game/[id]/patches   → PatchNote[]
- *   /api/game/[id]/reviews   → ReviewVelocity
- *   /api/game/[id]/twitch    → TwitchHistory
- *   /api/game/[id]/scores    → ScoreTimeline
+ * batch prices and Game Pass matching. Where they come from:
+ *   /api/game/[id]/insights  → GameInsights (live + market + pc + patches)
+ *   Firestore, read in the browser (see stats-docs.ts):
+ *     reviewHistory/{appid}  → ReviewVelocity   twitchHistory/{id} → TwitchHistory
+ *     scoreHistory/{igdbId}  → ScoreTimeline    playerHistory/{appid} → PlayerHistory
  *   POST /api/prices         → BatchPrices      body { ids: number[], cc }
  *   POST /api/gamepass/match → GamePassMatches  body { ids: number[] }
  * ------------------------------------------------------------------------ */
@@ -640,3 +640,29 @@ export interface StudioReliability {
   avgDaysLate: number | null;
   since: string | null;
 }
+
+/**
+ * Everything the game page fetches from the Worker, in one response
+ * (`/api/game/[id]/insights?cc=`), so a page view costs one API request
+ * instead of eight. History series are read from Firestore directly.
+ */
+export interface GameInsights {
+  /** The ids the server resolved (hints confirmed or filled from IGDB). */
+  ids: {
+    key: number | null;
+    igdbId: number | null;
+    steam: number | null;
+    microsoft: string | null;
+    twitch: string | null;
+  };
+  live: GameLiveData;
+  /** Null when the game has no store ids, or when the market failed (see `unavailable`). */
+  market: GameMarket | null;
+  /** Null without a Steam app. */
+  pc: GamePcInfo | null;
+  /** Null without a Steam app, or when Steam couldn't be reached (see `unavailable`). */
+  patches: PatchNote[] | null;
+  /** Parts that were applicable but failed — "couldn't ask", not "nothing to show". */
+  unavailable: Array<"market" | "pc" | "patches">;
+}
+

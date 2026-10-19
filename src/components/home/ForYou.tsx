@@ -34,6 +34,7 @@ import { canonicalEntryHref } from "@/lib/notifications/model";
 import { releaseState } from "@/lib/games/release-state";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/format";
+import { readLocalCache, writeLocalCache } from "@/lib/utils/local-cache";
 import type { GameSummary, Ref } from "@/lib/games/types";
 
 const MAX_CARDS = 10;
@@ -224,7 +225,7 @@ function LibraryCard({ card }: { card: ShelfCard }) {
 
   return (
     <div ref={menuRef} data-game-menu className="press-menu-target">
-      <Link
+      <Link prefetch={false}
         href={canonicalEntryHref(entry)}
         data-stage="dark"
         data-menu-preview
@@ -268,6 +269,9 @@ type RecommendationView =
  * Taste-profile recommendations. Only the anonymous shape of the reader's
  * taste (genre ids, platform slugs) leaves the browser; see the API route.
  */
+/** Recommendations for an unchanged taste profile are reused on the device this long. */
+const RECS_TTL_MS = 6 * 60 * 60_000;
+
 function useRecommendations(entries: WatchlistEntry[], genres: Ref[], enabled: boolean): RecommendationView {
   const profile = useMemo(
     () =>
@@ -293,12 +297,22 @@ function useRecommendations(entries: WatchlistEntry[], genres: Ref[], enabled: b
   useEffect(() => {
     if (!key) return;
     const [genreIds, platforms, exclude] = key.split("|");
+    // The same taste profile gets the same picks for hours; reuse them on this
+    // device instead of a Worker request on every home visit.
+    const cacheKey = `recs:${key}`;
+    const cached = readLocalCache<{ games: GameSummary[]; personalised: boolean }>(cacheKey, RECS_TTL_MS);
+    if (cached) {
+      const frame = requestAnimationFrame(() => setResult({ key, ...cached }));
+      return () => cancelAnimationFrame(frame);
+    }
     const controller = new AbortController();
     const params = new URLSearchParams({ genres: genreIds, platforms, exclude, limit: "14" });
     fetch(`/api/recommendations?${params}`, { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : { results: [], personalised: false }))
       .then((data: { results?: GameSummary[]; personalised?: boolean }) => {
-        setResult({ key, games: Array.isArray(data.results) ? data.results : [], personalised: data.personalised === true });
+        const answer = { games: Array.isArray(data.results) ? data.results : [], personalised: data.personalised === true };
+        if (answer.games.length > 0) writeLocalCache(cacheKey, answer);
+        setResult({ key, ...answer });
       })
       .catch((error) => {
         if (error instanceof Error && error.name !== "AbortError") setResult({ key, games: [], personalised: false });

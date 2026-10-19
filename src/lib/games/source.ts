@@ -37,12 +37,20 @@ import { enrichWithSteam, steamProvider } from "./providers/steam";
 import { externalIdsFor, hypeIndexFor, summariesFor, timeToBeatFor } from "./providers/igdb-extras";
 import { TTL, type GameProvider } from "./providers/types";
 import { cache } from "react";
-import { runAfterResponse } from "@/lib/cloudflare/db";
+import { runAfterResponse } from "@/lib/cloudflare/after";
 import { gamePassShelf } from "./gamepass";
 import { paletteFor } from "./palette";
-import { getReleaseChanges, recordReleaseObservations } from "./release-history";
+import { commitWrites, type Write } from "@/lib/firebase/server";
+import {
+  forgetRecorded,
+  recordReleaseObservations,
+  releaseObservationsFor,
+  releaseObservationWrites,
+  type Observation,
+} from "./release-history";
+import { changesFromObservations } from "./release-value";
 import { steamLogoFor } from "./steam-logo";
-import { trackGameView } from "./tracked";
+import { claimViewWrite, trackGameView, trackedViewWrite } from "./tracked";
 import { wikidataFor } from "./wikidata";
 import type {
   BrowseFilters,
@@ -346,7 +354,7 @@ async function enrichIgdbDetail(detail: GameDetail): Promise<GameDetail> {
     }
   });
 
-  const [enriched, ids, timeToBeat, hype, palette, wiki, releaseChanges] = await Promise.all([
+  const [enriched, ids, timeToBeat, hype, palette, wiki, observations] = await Promise.all([
     merged,
     externalIds,
     timeToBeatFor([detail.id]),
@@ -354,8 +362,9 @@ async function enrichIgdbDetail(detail: GameDetail): Promise<GameDetail> {
     hypeIndexFor([detail.id], TTL.detail),
     paletteFor(detail.image ?? detail.imageFallback),
     wikidataFor(detail.slug),
-    getReleaseChanges(detail.id),
+    releaseObservationsFor(detail.id),
   ]);
+  const releaseChanges = changesFromObservations(observations ?? []);
 
   // IGDB's wordmark first; then Steam's library logo; Wikidata/Commons last,
   // since its marks are the least consistent in framing.
@@ -365,15 +374,10 @@ async function enrichIgdbDetail(detail: GameDetail): Promise<GameDetail> {
     wiki?.logo ??
     null;
 
-  void runAfterResponse(recordReleaseObservations([detail]));
-  // A viewed game joins the hourly player / daily price snapshots.
+  // Bookkeeping after the response: the delay tracker and the crons' queue
+  // (a viewed game joins the player / price snapshots), in one commit.
   void runAfterResponse(
-    trackGameView({
-      gameId: detail.id,
-      slug: detail.slug,
-      steamApp: enriched.steamAppId,
-      microsoft: ids?.microsoft ?? null,
-    }),
+    recordDetailView(detail, observations, { steamApp: enriched.steamAppId, microsoft: ids?.microsoft ?? null }),
   );
 
   return {
@@ -517,3 +521,30 @@ export function getGamePassRecentlyAdded(): Promise<Sourced<GameSummary[]>> {
 export function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+/**
+ * A detail view's writes — the release value if it's new (judged against the
+ * observations the render already read) and the tracked-games view mark if
+ * this isolate hasn't sent one lately — as a single Firestore commit, so a
+ * page view costs at most one write request. Nothing is written when the
+ * observations couldn't be read (better to skip than to guess).
+ */
+async function recordDetailView(
+  detail: GameDetail,
+  observations: Observation[] | null,
+  stores: { steamApp: number | null; microsoft: string | null },
+): Promise<void> {
+  const writes: Write[] = [];
+  let releaseKeys: string[] = [];
+  if (observations) {
+    const release = releaseObservationWrites([detail], new Map([[detail.id, observations]]));
+    writes.push(...release.writes);
+    releaseKeys = release.keys;
+  }
+  const view = trackedViewWrite({ gameId: detail.id, slug: detail.slug, ...stores });
+  const tracking = view !== null && claimViewWrite(detail.id);
+  if (tracking) writes.push(view);
+  if (writes.length === 0) return;
+  if ((await commitWrites(writes)) < writes.length) forgetRecorded(releaseKeys);
+}
+

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils/cn";
 import type { GameDetail, GamePcInfo, HardwareVerdictKind, PcRequirementTier, PcRequirements } from "@/lib/games/types";
 import { Disclosure } from "./Disclosure";
 import { pcUrl, useEndpoint, type GameIds } from "./endpoint";
+import { useInsightPart } from "./live";
 import { InfoTip } from "./InfoTip";
 import { AchievementsCard, DeckLinuxCard } from "./StatsSection";
 
@@ -50,7 +51,10 @@ export function HardwareChip({ kind, className }: { kind: HardwareVerdictKind; c
 }
 
 export function PcSection({ ids, rawRequirements }: { ids: GameIds; rawRequirements: GameDetail["requirements"] }) {
-  const pc = useEndpoint<GamePcInfo>(ids.steam ? pcUrl(ids) : null);
+  // The page's insights answer carries this; elsewhere it's its own request.
+  const fromPage = useInsightPart(ids, "pc");
+  const own = useEndpoint<GamePcInfo>(!fromPage && ids.steam ? pcUrl(ids) : null);
+  const pc = fromPage ?? own;
   const data = pc.status === "ready" ? pc.data : null;
   const requirements = data?.requirements ?? null;
   const rawPc = rawRequirements.find((req) => /pc|windows/i.test(req.platform)) ?? rawRequirements[0] ?? null;

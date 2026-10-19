@@ -1,12 +1,16 @@
 "use client";
 
-/** The reader's recent searches, kept in localStorage on this device only. */
+/**
+ * The reader's recent searches, kept in localStorage — and, when signed in,
+ * mirrored to the account (see `PreferencesProvider`) so they follow the
+ * reader to a new device.
+ */
 
 import { useCallback, useSyncExternalStore } from "react";
 
-const RECENT_KEY = "arnav-games:recent-searches";
-const RECENT_EVENT = "arnav-games:recent-searches";
-const MAX_RECENT = 8;
+export const RECENT_KEY = "arnav-games:recent-searches";
+export const RECENT_EVENT = "arnav-games:recent-searches";
+export const MAX_RECENT = 8;
 const EMPTY: string[] = [];
 
 let cache: { raw: string | null; value: string[] } = { raw: null, value: EMPTY };
@@ -45,7 +49,7 @@ function subscribe(onChange: () => void) {
   };
 }
 
-/** Recent searches, newest first, kept on this device only. */
+/** Recent searches, newest first (device copy; mirrored to the account when signed in). */
 export function useRecentSearches() {
   const recent = useSyncExternalStore(subscribe, readRecent, () => EMPTY);
 

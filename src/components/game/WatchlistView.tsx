@@ -319,7 +319,7 @@ export function WatchlistView({
                 className="group relative flex items-center gap-3 border-line px-3 py-2.5 transition-colors fine:hover:bg-fg/[0.035] sm:gap-4 [&:not(:first-child)]:border-t"
               >
                 {batchMode && <SelectionToggle selected={selected.has(entry.gameId)} name={entry.name} onToggle={() => setSelected(toggleSelected(selected, entry.gameId))} />}
-                <Link
+                <Link prefetch={false}
                   href={`/game/${entry.slug}`}
                   className="relative h-[70px] w-[52px] shrink-0 overflow-hidden rounded-xl sm:h-20 sm:w-16"
                   aria-hidden
@@ -337,7 +337,7 @@ export function WatchlistView({
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start gap-2">
-                    <Link href={`/game/${entry.slug}`} className="min-w-0 flex-1">
+                    <Link prefetch={false} href={`/game/${entry.slug}`} className="min-w-0 flex-1">
                       <h3 className="truncate font-semibold leading-snug sm:text-[15px]">
                         {entry.name}
                       </h3>
@@ -458,12 +458,12 @@ function NextUp({ saved, alerts, unknown }: { saved: WatchlistEntry[]; alerts: n
     <section aria-label="Next release" className="glass relative isolate overflow-hidden rounded-3xl p-5 sm:p-7">
       <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 -z-10 h-72 w-72 rounded-full bg-brand/20 blur-3xl" />
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-7">
-        <Link href={`/game/${next.slug}`} className="relative h-[150px] w-[112px] shrink-0 overflow-hidden rounded-2xl shadow-[0_24px_50px_-24px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-fg/10 sm:h-[176px] sm:w-[132px]">
+        <Link prefetch={false} href={`/game/${next.slug}`} className="relative h-[150px] w-[112px] shrink-0 overflow-hidden rounded-2xl shadow-[0_24px_50px_-24px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-fg/10 sm:h-[176px] sm:w-[132px]">
           <GameCover name={next.name} slug={next.slug} image={next.image} imageFallback={next.imageFallback} width={300} sizes="132px" priority />
         </Link>
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold text-brand-soft">Next up</p>
-          <Link href={`/game/${next.slug}`} className="mt-1 block font-display text-[26px] font-bold leading-tight tracking-[-0.02em] fine:hover:text-brand-soft sm:text-[34px]">
+          <Link prefetch={false} href={`/game/${next.slug}`} className="mt-1 block font-display text-[26px] font-bold leading-tight tracking-[-0.02em] fine:hover:text-brand-soft sm:text-[34px]">
             {next.name}
           </Link>
           <p className="mt-1 text-[15px] text-muted">{LONG_DATE.format(new Date(`${next.released}T00:00:00Z`))}</p>

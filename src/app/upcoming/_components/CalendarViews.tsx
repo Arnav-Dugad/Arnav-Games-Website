@@ -155,7 +155,7 @@ export function WeekView({
 
 function BoardCard({ game, hype }: { game: GameSummary; hype?: number }) {
   return (
-    <Link
+    <Link prefetch={false}
       href={`/game/${game.slug}`}
       data-release-date={game.released ?? ""}
       className="press group flex items-center gap-2 rounded-xl p-1.5 transition-colors fine:hover:bg-fg/[0.06]"

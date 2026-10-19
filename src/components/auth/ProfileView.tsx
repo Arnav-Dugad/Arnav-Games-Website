@@ -433,7 +433,7 @@ function Showcase({ entries, reviews }: { entries: WatchlistEntry[]; reviews: Re
       <ul className="grid grid-cols-3 gap-3 sm:grid-cols-6">
         {items.map((item) => (
           <li key={item.slug}>
-            <Link href={`/game/${item.slug}`} className="press group block">
+            <Link prefetch={false} href={`/game/${item.slug}`} className="press group block">
               <span className="relative block aspect-[3/4] overflow-hidden rounded-xl shadow-[0_14px_30px_-18px_rgba(0,0,0,0.8)] ring-1 ring-inset ring-fg/10">
                 <GameCover name={item.name} slug={item.slug} image={item.image} imageFallback={item.imageFallback} width={240} sizes="(max-width: 640px) 30vw, 120px" />
               </span>
@@ -574,7 +574,7 @@ function Reviews({ reviews }: { reviews: Review[] | null }) {
       <ul className="overflow-hidden rounded-2xl border border-line bg-panel/55 light:bg-panel [&>*+*]:border-t [&>*+*]:border-line">
         {shown.map((review) => (
           <li key={review.id}>
-            <Link href={`/game/${review.slug}`} className="press block px-4 py-3.5 transition-colors fine:hover:bg-fg/[0.04]">
+            <Link prefetch={false} href={`/game/${review.slug}`} className="press block px-4 py-3.5 transition-colors fine:hover:bg-fg/[0.04]">
               <span className="flex items-start justify-between gap-4">
                 <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{review.gameName}</span>
                 <span className="inline-flex shrink-0 items-center gap-1 text-[14px] font-bold tabular-nums text-gold">

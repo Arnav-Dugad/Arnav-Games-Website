@@ -22,6 +22,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
   const info = await pcInfoFor(ids.steam);
   return NextResponse.json(info, {
-    headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" },
+    headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800" },
   });
 }

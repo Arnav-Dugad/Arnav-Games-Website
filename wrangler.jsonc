@@ -22,15 +22,10 @@
       "bucket_name": "arnav-games-opennext-cache"
     }
   ],
-  "d1_databases": [
-    {
-      // Release-date history (delay tracker) and first-party analytics.
-      "binding": "DB",
-      "database_name": "arnav-games",
-      "database_id": "4f2aa1df-022e-4c02-b900-1a8dad25d6e4",
-      "migrations_dir": "migrations"
-    }
-  ],
+  // No D1: every table moved to Firestore (see src/lib/games/stats-docs.ts
+  // and scripts/migrate-d1-to-firestore.ts). The `arnav-games` D1 database
+  // still exists in the Cloudflare account as a read-only backup until it is
+  // deleted with `npx wrangler d1 delete arnav-games`.
   // The PresenceRoom Durable Object (admin "online now") was removed; v2
   // deletes its class so Cloudflare drops the namespace.
   "migrations": [

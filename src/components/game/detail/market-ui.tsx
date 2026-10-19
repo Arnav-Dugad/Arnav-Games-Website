@@ -12,7 +12,8 @@ import { BrandIcon } from "@/components/brand/BrandIcon";
 import { cn } from "@/lib/utils/cn";
 import { usePriceRegion } from "@/lib/preferences/region";
 import type { GameMarket, LocalPrice, PriceVerdictKind } from "@/lib/games/types";
-import { marketUrl, useEndpoint, type GameIds } from "./endpoint";
+import { marketUrl, useEndpoint, type EndpointState, type GameIds } from "./endpoint";
+import { useInsightPart } from "./live";
 
 export const STORE_LABEL: Record<LocalPrice["store"], string> = {
   steam: "Steam",
@@ -82,6 +83,17 @@ export function DiscountTag({ percent, className }: { percent: number; className
 }
 
 /**
+ * One game's market in `region`. On the game page this is a slice of the
+ * page's single insights request (no request of its own); anywhere else it
+ * falls back to `/market`.
+ */
+export function useMarket(ids: GameIds | null, region: string | null): EndpointState<GameMarket> & { retry: () => void } {
+  const part = useInsightPart(ids, "market");
+  const own = useEndpoint<GameMarket>(!part && ids && region ? marketUrl(ids, region) : null);
+  return part ?? own;
+}
+
+/**
  * The reader's local market for one game: the region, the `/market` answer
  * and its cheapest listing. `pending` covers both "region still being
  * detected" and "request in flight", which callers treat the same way (hold
@@ -89,7 +101,7 @@ export function DiscountTag({ percent, className }: { percent: number; className
  */
 export function useLocalMarket(ids: GameIds | null) {
   const [region] = usePriceRegion();
-  const market = useEndpoint<GameMarket>(ids && region ? marketUrl(ids, region) : null);
+  const market = useMarket(ids, region);
   const best = market.status === "ready" ? bestPrice(market.data) : null;
   const pending = Boolean(ids) && (!region || market.status === "loading");
   return { region, market, best, pending };

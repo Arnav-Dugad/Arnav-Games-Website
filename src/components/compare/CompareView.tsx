@@ -342,7 +342,7 @@ function ColumnHead({ game, onRemove }: { game: CompareGame; onRemove: () => voi
     <div className="max-w-[200px]">
       <div className="relative">
         {/* The name below is the labelled link; the cover duplicates it for pointer users only. */}
-        <Link href={`/game/${game.slug}`} tabIndex={-1} aria-hidden className="group block">
+        <Link prefetch={false} href={`/game/${game.slug}`} tabIndex={-1} aria-hidden className="group block">
           <span className="relative block aspect-[3/4] overflow-hidden rounded-2xl bg-fg/[0.06] shadow-[0_18px_40px_-24px_rgba(0,0,0,0.7)]">
             <GameCover
               name={game.name}
@@ -366,7 +366,7 @@ function ColumnHead({ game, onRemove }: { game: CompareGame; onRemove: () => voi
           <X size={15} />
         </button>
       </div>
-      <Link href={`/game/${game.slug}`} className="mt-3 block">
+      <Link prefetch={false} href={`/game/${game.slug}`} className="mt-3 block">
         <span className="line-clamp-2 text-[15px] font-semibold leading-snug text-text sm:text-[17px]">{game.name}</span>
       </Link>
       {game.developer && <p className="mt-0.5 truncate text-[13px] text-muted">{game.developer}</p>}
@@ -732,7 +732,7 @@ function buildRows(
     label: "",
     cells: games.map((game) => ({
       node: (
-        <Link
+        <Link prefetch={false}
           href={`/game/${game.slug}`}
           className="press inline-flex min-h-10 items-center gap-1.5 rounded-full bg-fg/[0.07] px-4 text-[13px] font-semibold text-text fine:hover:bg-fg/[0.12]"
         >

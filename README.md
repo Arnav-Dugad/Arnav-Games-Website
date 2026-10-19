@@ -71,8 +71,14 @@ handles the OAuth token exchange, caching and refresh itself.
 2. Add a **Web App**, copy its config into the `NEXT_PUBLIC_FIREBASE_*` variables
 3. **Authentication → Sign-in method** → enable *Email/Password* and *Google*
 4. **Firestore Database** → create a database
-5. **Firestore → Rules** → paste [`firestore.rules`](./firestore.rules) and publish
+5. Deploy the rules: `firebase deploy --only firestore:rules` ([`firebase.json`](./firebase.json)
+   points at [`firestore.rules`](./firestore.rules); pasting them into **Firestore → Rules** works too)
 6. **Authentication → Settings → Authorised domains** → add your deployed domain
+7. **Project settings → Service accounts → Generate new private key**, then put the
+   JSON, base64-encoded, in `FIREBASE_SERVICE_ACCOUNT` (`.env.local` for dev,
+   `npx wrangler secret put FIREBASE_SERVICE_ACCOUNT` for the Worker). The server
+   uses it to write our sampled statistics; without it those features quietly
+   switch off.
 
 The `NEXT_PUBLIC_` prefix is correct here — Firebase web config is public by
 design. Access is enforced by the Firestore rules, not by hiding these values.
@@ -120,6 +126,7 @@ in `.env.local` (or the shell) on the machine running `npm run deploy`.
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Accounts | |
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | — | Unused; Analytics is not wired up |
 | `CRON_SECRET` | Cron jobs (`/api/cron/*`) | Secret. Sent by the Worker's cron triggers as `x-cron-secret`; without it scheduled jobs don't run |
+| `FIREBASE_SERVICE_ACCOUNT` | Price/player/Twitch/review/score/release history, the crons' queue | Secret, server-only. Base64 of the service-account JSON; `npx wrangler secret put FIREBASE_SERVICE_ACCOUNT` |
 
 If you add Firebase after the first deploy, remember step 6 above — add the
 `workers.dev` (or custom) domain to Firebase's authorised domains or Google
@@ -136,6 +143,71 @@ infrastructure the free tiers don't comfortably cover: a scheduler to scan
 releases for every user, and Resend requires a
 sending domain you own. An inbox that always works beats a delivery pipeline
 that half-works, so alerts live in the app and nowhere else.
+
+---
+
+## Where data lives
+
+Everything persistent is in **Firestore** (project `ludex-7170f`); Cloudflare
+holds no database any more (the D1 tables were migrated with
+[`scripts/migrate-d1-to-firestore.ts`](./scripts/migrate-d1-to-firestore.ts)).
+
+| Data | Location | Who reads | Who writes |
+| --- | --- | --- | --- |
+| Profile, library/watchlist, reviews | `users/{uid}`, `users/{uid}/watchlist/*`, `reviews/*` | Owner (reviews: everyone) | Owner, shape-checked by the rules |
+| Preferences: motion, poster sizes, alerts, theme, price region, PC specs, recent searches, wishlist budget | device `localStorage` + `users/{uid}/settings/preferences` | Owner | Owner. The device copy is read first; the account mirrors it and restores it on a new device |
+| Player / Twitch / review / critic-score history | `playerHistory/*`, `twitchHistory/*`, `reviewHistory/*`, `scoreHistory/*` (one document per series) | Everyone, **directly from the browser** | Server only (crons) |
+| Price history, release-date history (delay tracker) | `priceHistory/{game}`, `releaseHistory/s0…s3` | Everyone | Server only |
+| The crons' work queue | `trackedGames/index` | Server only | Server only |
+
+The server talks to Firestore over REST with the service account
+(`src/lib/firebase/server/`, RS256 signing via `crypto.subtle`, no Admin SDK).
+The model in [`src/lib/games/stats-docs.ts`](./src/lib/games/stats-docs.ts) is
+built for the free Spark quotas (50k reads / 20k writes a day): a whole series
+is one document of `{ time: value }` fields, so a chart is one read, a sample is
+one field write, and pruning happens inside that same write.
+
+---
+
+## Cloudflare usage
+
+The Workers Free plan allows 100,000 requests a day, ~10 ms CPU per request and
+50 outbound requests per invocation. Two facts shape the design: **every** page
+view, API call and link prefetch that reaches the Worker counts, and on
+`workers.dev` Cloudflare does not edge-cache Worker responses, so `s-maxage`
+alone saves nothing (the `max-age` part does, in the browser). The work went
+into making fewer requests:
+
+| | Before | After |
+| --- | --- | --- |
+| Game page, after the HTML | 8 API calls (`/live`, `/market`, `/players`, `/pc`, `/patches`, `/reviews`, `/scores`, `/twitch`) | 1 (`/api/game/[id]/insights`); history charts read Firestore directly |
+| Live numbers on an open game page | `/live` every 2 min, indefinitely | every 5 min while visible, at most 6 times per view |
+| Links in view (game cards, rails, calendars) | prefetched on sight, a request or more per link | prefetched on hover/touch only (`prefetch={false}`) |
+| Default price region | `/api/region` per new device | `ag-cc` cookie set by `worker.mjs` on page loads |
+| Search suggestions, recommendations, time-to-beat | every page load / home visit | cached on the device (15 min / 6 h / 7 days) |
+| API responses on back/forward and reloads | refetched | browser `max-age` on search, insights, live, market, PC |
+| Database calls | D1 (free binding) | Firestore over HTTPS: batched (one commit per cron run; one batch read for the release shards) and cached in the R2 data cache where repeated (price and release history, 30 min) |
+
+Estimated Worker requests for a visitor who opens the home page, three game
+pages and one other page (estimates, not measurements: prefetch counts depend
+on how many links are on screen):
+
+| | Before | After |
+| --- | --- | --- |
+| Home | ~30 (HTML + prefetches + suggestions + recommendations) | ~2 |
+| Game page ×3 | ~23 each ≈ 69 (HTML + 8 API + ~2 polls + ~12 prefetches) | ~3 each ≈ 9 |
+| Other page | ~15 | ~2 |
+| **Per visitor** | **~115** | **~13** |
+| Visitors/day before hitting 100k | ~850 | ~7,500 |
+
+Crons add ~360 requests a day either way (one `*/10` trigger: players every
+run, Twitch twice an hour, reviews hourly, prices and scores daily), and each run
+stays within 45 outbound requests including its Firestore read and single
+commit. Firestore at the cron caps: about 5.9k writes/day for players, 2k for
+Twitch, at most 1k for reviews, 0.3k for prices and 1k for scores, and ~220
+reads; plus page-view bookkeeping (a write only when a release date or price
+actually changed, and a "viewed" mark at most once per game per Worker isolate
+per 6 h). A game page view costs up to 4 Firestore reads in the browser.
 
 ---
 
@@ -247,7 +319,7 @@ npm run preview     # build for Cloudflare and serve locally in the Workers runt
 npm run deploy      # build for Cloudflare and deploy
 npm run check:types # TypeScript without emitting files
 npm run lint        # eslint
-npm run check:data  # self-checks for date parsing, slug round-trips, platform mapping
+npm run check:data  # self-checks for date parsing, slug round-trips, platform mapping, Firestore value encoding
 npm run quality:static  # types + lint + provider/domain contracts
 npm run quality:runtime # audit a production server at http://127.0.0.1:3137
 npm run test:e2e        # 24 Chromium, responsive, keyboard and Axe checks

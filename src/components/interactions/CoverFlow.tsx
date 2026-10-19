@@ -254,7 +254,7 @@ export function CoverFlow({
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className="absolute inset-x-0 top-0"
           >
-            <Link
+            <Link prefetch={false}
               href={`/game/${current.slug}`}
               className="block truncate font-display text-[17px] font-semibold tracking-[-0.015em] text-text"
             >

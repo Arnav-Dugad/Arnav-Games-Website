@@ -83,7 +83,7 @@ export function CompanyGrid({ companies }: { companies: CompanyRef[] }) {
             ) : (
               <Initial name={company.name} />
             )}
-            <Link href={`/studio/${company.slug}`} className="min-w-0 flex-1 group/company">
+            <Link prefetch={false} href={`/studio/${company.slug}`} className="min-w-0 flex-1 group/company">
               <p className="truncate text-sm font-semibold transition-colors group-hover/company:text-brand-soft">
                 {company.name}
               </p>
@@ -190,7 +190,7 @@ export function CharacterRail({ characters }: { characters: CharacterRef[] }) {
     <ul className="snap-rail gap-3 pb-2 sm:gap-4">
       {characters.map((character) => (
         <li key={character.id} className="w-[132px] sm:w-[148px]">
-          <Link
+          <Link prefetch={false}
             href={`/character/${character.slug}`}
             className="group block overflow-hidden rounded-2xl border border-line bg-panel/40 transition-colors hover:border-line-strong"
           >

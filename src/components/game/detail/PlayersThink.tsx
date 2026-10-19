@@ -18,10 +18,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import { compactNumber, formatDate } from "@/lib/utils/format";
-import type { PatchNote, ReviewVelocity, ScoreTimeline } from "@/lib/games/types";
-import { patchesUrl, reviewsUrl, scoresUrl, useEndpoint, type GameIds } from "./endpoint";
+import type { PatchNote } from "@/lib/games/types";
+import type { GameIds } from "./endpoint";
+import { useReviewVelocity, useScoreTimeline } from "./history";
 import { InfoTip } from "./InfoTip";
-import { useLiveField } from "./live";
+import { useInsightPart, useLiveField } from "./live";
 import { TimeChart } from "./TimeChart";
 
 const full = new Intl.NumberFormat("en-US");
@@ -134,9 +135,11 @@ export function ScoresSummary({ data }: { data: ScoresData }) {
  * Review velocity and the critic score's drift, as one "how opinion moved"
  * card. Either half shows only when it has two or more days to draw.
  */
-export function OpinionTrends({ ids, launch }: { ids: GameIds; launch: string | null }) {
-  const velocity = useEndpoint<ReviewVelocity>(ids.steam ? reviewsUrl(ids) : null);
-  const scores = useEndpoint<ScoreTimeline>(scoresUrl(ids));
+export function OpinionTrends({ ids, igdbId, launch }: { ids: GameIds; igdbId: number | null; launch: string | null }) {
+  // Both read straight from Firestore (no Worker request).
+  const velocity = useReviewVelocity(ids.steam, launch);
+  // Critic scores are keyed by IGDB id; a Steam-only title's id is an appid.
+  const scores = useScoreTimeline(igdbId);
   const launchMs = launch ? Date.parse(`${launch}T00:00:00Z`) : null;
 
   const reviewPoints = useMemo(
@@ -247,7 +250,7 @@ export function OpinionTrends({ ids, launch }: { ids: GameIds; launch: string | 
  * same feed, so showing both would repeat every update twice.
  */
 export function LatestUpdates({ ids, expected }: { ids: GameIds; expected: boolean }) {
-  const patches = useEndpoint<PatchNote[]>(ids.steam ? patchesUrl(ids) : null);
+  const patches = useInsightPart(ids.steam ? ids : null, "patches") ?? ({ status: "missing" } as const);
   const news = useLiveField((live) => live.news);
   const [showAll, setShowAll] = useState(false);
   const notes = patches.status === "ready" ? patches.data.filter((note) => note.highlights.length > 0 || note.totalItems > 0) : [];
