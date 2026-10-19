@@ -174,7 +174,7 @@ function useNow(): number | null {
   return useSyncExternalStore(noop, () => Math.floor(Date.now() / 3_600_000) * 3_600_000, () => null);
 }
 
-const MEMBER_SINCE = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
+const MEMBER_SINCE = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
 
 export function ProfileScreen({
   data,

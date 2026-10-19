@@ -316,7 +316,11 @@ export function CountdownInline({ date }: { date: string | null }) {
   const parts = useCountdown(date);
   if (!date || !parts) return null;
   if (parts.done) return <span className="text-mint">Out now</span>;
-  if (parts.days > 0) return <span>{parts.days}d to go</span>;
+  // Hours ride along inside the week: a bare "1d to go" for a launch two
+  // calendar days out sat right under a "In 2 days" heading and read as a
+  // contradiction. "1d 10h" makes it unmistakably a clock.
+  if (parts.days > 0)
+    return <span className="tabular-nums">{parts.days < 7 ? `${parts.days}d ${parts.hours}h` : `${parts.days}d`} to go</span>;
   return (
     <span className="tabular-nums">
       {pad(parts.hours)}:{pad(parts.minutes)}:{pad(parts.seconds)}

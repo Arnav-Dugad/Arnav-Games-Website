@@ -25,11 +25,12 @@ export function SectionHeading({
     <Reveal className={cn("flex items-end justify-between gap-6", className)} amount={0.4}>
       <div className="min-w-0">
         {eyebrow && (
-          <p className="mb-1.5 text-[13px] font-semibold tracking-[-0.005em] text-brand-soft sm:text-sm">
-            {eyebrow}
-          </p>
+          <p className="mb-1 text-[13px] font-semibold text-brand-soft">{eyebrow}</p>
         )}
-        <h2 className="text-[26px] font-bold leading-tight sm:text-3xl lg:text-[2.25rem]">{title}</h2>
+        {/* The design system's one section scale (22/28px), shared with the
+            game page's DetailHeading so a shelf on the home page and a block
+            on a detail page read as the same kind of thing. */}
+        <h2 className="text-[22px] font-bold leading-tight tracking-[-0.02em] sm:text-[28px]">{title}</h2>
         {description && (
           <p className="mt-1.5 max-w-xl text-[15px] leading-snug text-muted sm:text-[17px]">{description}</p>
         )}
@@ -40,7 +41,10 @@ export function SectionHeading({
           href={href}
           className={cn(
             // Phones: App Store-style accent text link. Desktop: a glass pill.
-            "press group inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-brand-soft",
+            // The phone text link is 23px tall; the invisible `after` slop
+            // makes it a 44px target without moving the heading's baseline.
+            "press group relative inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-brand-soft",
+            "after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] sm:after:hidden",
             "sm:gap-2 sm:rounded-full sm:border sm:border-fg/10 sm:bg-fg/[0.06] sm:px-4 sm:py-2.5 sm:text-sm sm:text-text",
             "transition-colors duration-300 sm:hover:bg-fg/[0.11]",
           )}

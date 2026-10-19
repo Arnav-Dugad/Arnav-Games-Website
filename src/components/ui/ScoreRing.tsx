@@ -104,7 +104,8 @@ export function ScorePill({
   /**
    * Over cover art. The light theme's darkened score hues are tuned for white
    * paper and turn muddy on artwork, so the pill keeps the bright dark-theme
-   * hues and, in the light theme, gains a dark backing to sit on.
+   * hues and gains a dark backing to sit on — in both themes, since a 16%
+   * tint alone vanished on bright covers (BioShock Infinite, Portal).
    */
   onImage?: boolean;
 }) {
@@ -114,7 +115,7 @@ export function ScorePill({
     <span
       className={cn(
         "inline-flex items-center justify-center rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums leading-none",
-        onImage && "light:backdrop-blur-md light:[--pill-backing:rgb(0_0_0/0.55)]",
+        onImage && "backdrop-blur-md [--pill-backing:rgb(0_0_0/0.55)]",
         className,
       )}
       style={{

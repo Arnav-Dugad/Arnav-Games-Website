@@ -51,7 +51,8 @@ export function JoinCta() {
                 ))}
               </ul>
             </div>
-            <div className="mt-8 flex flex-wrap gap-3 lg:mt-0 lg:shrink-0 lg:flex-col lg:items-stretch">
+            {/* Phones: full-width stacked buttons, like every other phone CTA pair, instead of two ragged left-aligned pills. */}
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:mt-0 lg:shrink-0 lg:flex-col lg:items-stretch">
               <Button href={enabled ? "/signup" : "/browse"} size="lg" iconRight={<ArrowRight size={17} />}>
                 {enabled ? "Create a free account" : "Start exploring"}
               </Button>

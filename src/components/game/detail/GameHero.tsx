@@ -101,7 +101,7 @@ export function GameHero({
           <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-2 text-xs text-white/65 sm:mb-8">
             <Link
               href="/browse"
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/10 bg-black/25 px-3 backdrop-blur-md transition-colors hover:border-white/20 hover:text-white"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/10 bg-black/25 px-3 coarse:min-h-11 backdrop-blur-md transition-colors hover:border-white/20 hover:text-white"
             >
               <ArrowLeft size={13} />
               Browse
@@ -109,7 +109,7 @@ export function GameHero({
             {franchise && (
               <Link
                 href={`/franchise/${franchise.slug}`}
-                className="inline-flex min-h-9 items-center rounded-full border border-white/10 bg-black/25 px-3 backdrop-blur-md transition-colors hover:border-[var(--game-accent)] hover:text-white"
+                className="inline-flex min-h-9 items-center rounded-full border border-white/10 bg-black/25 px-3 coarse:min-h-11 backdrop-blur-md transition-colors hover:border-[var(--game-accent)] hover:text-white"
               >
                 {franchise.name}
               </Link>

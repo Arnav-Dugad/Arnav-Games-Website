@@ -50,7 +50,7 @@ export function PlatformPicker({
         aria-expanded={open}
         aria-label={`Where ${gameName} is played`}
         className={cn(
-          "inline-flex min-h-9 max-w-[min(16rem,65vw)] items-center gap-1.5 rounded-full border px-2.5 text-[12px] transition-colors",
+          "inline-flex min-h-9 max-w-[min(16rem,65vw)] items-center gap-1.5 rounded-full border px-2.5 text-[12px] transition-colors coarse:min-h-11",
           selected
             ? "border-brand/40 bg-brand/12 text-text"
             : "border-line bg-fg/[0.04] text-faint hover:text-muted",

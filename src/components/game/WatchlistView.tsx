@@ -12,7 +12,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { BookmarkX, Check, PencilLine } from "lucide-react";
+import { BookmarkX, Check, ChevronDown, PencilLine } from "lucide-react";
 import { FilterToolbar, SearchField, SegmentedControl, SortMenu, type FacetDef } from "@/components/filters";
 import { GameCover } from "./GameCover";
 import { Countdown, CountdownInline } from "./Countdown";
@@ -349,6 +349,9 @@ export function WatchlistView({
                     <label className="sr-only" htmlFor={`status-${entry.gameId}`}>
                       Play status for {entry.name}
                     </label>
+                    {/* Native select (the right picker on phones), drawn like the
+                        platform pill beside it: same chevron, same height. */}
+                    <span className="relative inline-flex">
                     <select
                       id={`status-${entry.gameId}`}
                       value={entry.status}
@@ -359,7 +362,7 @@ export function WatchlistView({
                           toast("Couldn't update the status.", "error");
                         }
                       }}
-                      className="min-h-9 rounded-full border border-line bg-fg/[0.04] px-3 text-[12px] text-muted outline-none transition-colors focus-visible:border-brand"
+                      className="min-h-9 appearance-none rounded-full border border-line bg-fg/[0.04] pl-3 pr-7 text-[12px] text-muted outline-none transition-colors focus-visible:border-brand coarse:min-h-11"
                     >
                       {(Object.keys(STATUS_LABEL) as WatchStatus[]).filter((status) =>
                         releaseState(entry) !== "upcoming" || status === "none" || status === "want",
@@ -369,6 +372,8 @@ export function WatchlistView({
                         </option>
                       ))}
                     </select>
+                    <ChevronDown size={12} aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                    </span>
 
                     {/* Only meaningful once they're actually playing it. */}
                     {(entry.status === "playing" || entry.status === "played") && (
@@ -416,7 +421,7 @@ function SelectionToggle({ selected, name, onToggle }: { selected: boolean; name
   return <button type="button" onClick={onToggle} aria-label={`${selected ? "Deselect" : "Select"} ${name}`} aria-pressed={selected} className={cn("absolute inset-0 z-30 rounded-2xl p-2 text-left transition-shadow", selected && "ring-2 ring-inset ring-brand")}><span className={cn("grid h-10 w-10 place-items-center rounded-full border shadow-xl backdrop-blur-xl transition-colors", selected ? "border-brand/60 bg-brand text-white" : "border-white/20 bg-black/75 text-white hover:bg-black")}><Check size={16} className={cn(!selected && "opacity-0")} /></span></button>;
 }
 
-const LONG_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const LONG_DATE = new Intl.DateTimeFormat("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
 /**
  * The page's one hero: the soonest dated release you're tracking, counting

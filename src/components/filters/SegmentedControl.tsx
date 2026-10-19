@@ -92,7 +92,9 @@ export function SegmentedControl<T extends string>({
         <div
           ref={trackRef}
           className={cn(
-            "no-scrollbar relative flex overflow-x-auto rounded-full border border-fg/[0.08] bg-fg/[0.06] p-1 shadow-[inset_0_1px_2px_#00000040] light:shadow-[inset_0_1px_2px_#0000000f]",
+            "no-scrollbar relative flex overflow-x-auto rounded-full border border-fg/[0.08] bg-fg/[0.06] p-1 shadow-[inset_0_1px_2px_#00000040] sm:light:shadow-[inset_0_1px_2px_#0000000f]",
+            // The light inset is `sm:`-scoped because `light:` outranks `max-sm:shadow-none`
+            // in the cascade and drew a full-bleed hairline band behind the phone pills.
             // Phones: no enclosing track. A track that scrolls inside its own
             // rounded ends crops labels mid-word; separate pills running off
             // the screen edge read as "there's more" instead.

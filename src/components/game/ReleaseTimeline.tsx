@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   ROW_DATE,
+  DAY_MONTH,
   WEEKDAY_SHORT,
   groupCalendar,
   isoOf,
@@ -120,9 +121,21 @@ function DayBlock({ day, today, signals }: { day: DayGroup; today: string | null
         ) : (
           <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-dashed border-line-strong text-[15px] text-faint">≈</span>
         )}
-        <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold sm:text-[17px]">
-          {day.label}
-          {relative && <span className="ml-2 font-medium text-brand-soft">{relative}</span>}
+        {/* Phones drop the weekday (the badge beside it already says "TUE")
+            and the relative day never truncates — "Tomorrow" is the part
+            people read; at 320px it used to end up as "Tom…". */}
+        <h3 className="flex min-w-0 flex-1 items-baseline gap-2 text-[15px] font-semibold sm:text-[17px]">
+          <span className="min-w-0 truncate">
+            {date ? (
+              <>
+                <span className="sm:hidden">{DAY_MONTH.format(date)}</span>
+                <span className="max-sm:hidden">{day.label}</span>
+              </>
+            ) : (
+              day.label
+            )}
+          </span>
+          {relative && <span className="shrink-0 font-medium text-brand-soft">{relative}</span>}
         </h3>
         <span className="shrink-0 rounded-full bg-fg/[0.06] px-2 py-0.5 text-[12px] font-medium tabular-nums text-muted">
           {day.games.length}
@@ -267,6 +280,10 @@ function SectionJump({ sections }: { sections: CalendarSection[] }) {
         const first = nodes.find((node) => visible.has(node));
         const section = first && sections.find((item) => sectionId(item.key) === first.id);
         if (section) setActive(section.key);
+        // Scrolled back above the first month: nothing is in the band, and
+        // the last month seen (e.g. November) used to stay highlighted over
+        // October's heading.
+        else if (nodes[0].getBoundingClientRect().top > window.innerHeight * 0.22) setActive(sections[0].key);
       },
       { rootMargin: "-22% 0px -70% 0px" },
     );

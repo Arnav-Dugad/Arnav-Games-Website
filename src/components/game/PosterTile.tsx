@@ -17,6 +17,7 @@
  */
 
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { useMemo } from "react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { GameCover } from "./GameCover";
@@ -77,9 +78,13 @@ export function PosterTile({
             <span className="flex items-center gap-1 rounded-full bg-[#30d158]/90 px-1.5 py-1 text-black shadow-lg">
               {owned.slice(0, 2).map((slug) => {
                 const platform = OWNERSHIP_PLATFORMS.find((p) => p.slug === slug);
+                // Physical, direct-download and "other" have no brand mark; a
+                // check keeps the pill from rendering as an empty green blob.
                 return platform?.icon ? (
                   <BrandIcon key={slug} name={platform.icon} size={11} title={platform.name} />
-                ) : null;
+                ) : (
+                  <Check key={slug} size={11} strokeWidth={3} aria-label={platform?.name ?? "Owned"} />
+                );
               })}
               {owned.length > 2 && (
                 <span className="text-[9px] font-bold tabular-nums">+{owned.length - 2}</span>

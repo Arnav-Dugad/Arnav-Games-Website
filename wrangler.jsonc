@@ -41,8 +41,9 @@
     { "tag": "v1-presence", "new_sqlite_classes": ["PresenceRoom"] }
   ],
   "triggers": {
-    // Each schedule maps to an /api/cron/<job> route in worker.mjs.
-    "crons": ["*/10 * * * *", "20 4 * * *", "0 8 * * 1"]
+    // One trigger (the Free plan allows 5 per account, shared with other
+    // Workers); worker.mjs decides which jobs are due on each run.
+    "crons": ["*/10 * * * *"]
   },
   "observability": {
     "enabled": true

@@ -752,14 +752,14 @@ function Tooltip({
           <div className="mt-2.5 flex gap-2">
             <Link
               href={`/game/${game.slug}`}
-              className="press inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-fg/[0.1] text-[12.5px] font-semibold text-text"
+              className="press inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-fg/[0.1] text-[12.5px] font-semibold text-text"
             >
               View game <ArrowUpRight size={14} />
             </Link>
             <button
               type="button"
               onClick={onClose}
-              className="press h-9 rounded-xl px-3 text-[12.5px] font-medium text-muted"
+              className="press h-11 rounded-xl px-3 text-[12.5px] font-medium text-muted"
             >
               Close
             </button>

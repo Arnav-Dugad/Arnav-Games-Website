@@ -77,18 +77,20 @@ export function LiveNowStrip() {
   return (
     <section aria-labelledby="live-now" className="min-w-0">
       <div className="mb-4 flex items-end justify-between gap-3">
-        <h2 id="live-now" className="flex items-center gap-2.5 text-[20px] font-bold tracking-[-0.02em] sm:text-[22px]">
+        <h2 id="live-now" className="flex items-center gap-2.5 text-[22px] font-bold leading-tight tracking-[-0.02em] sm:text-[28px]">
           <span aria-hidden className="relative flex h-2.5 w-2.5">
             <span className="absolute inset-0 animate-ping rounded-full bg-flare/70 [animation-duration:1.8s]" />
             <span className="relative h-2.5 w-2.5 rounded-full bg-flare" />
           </span>
           Live now
         </h2>
-        <p className="flex items-center gap-1.5 text-xs text-muted">
+        <p className="flex items-center gap-1.5 text-[13px] tabular-nums text-muted">
           <BrandIcon name="twitch" size={12} title={null} tinted /> {compactNumber(twitch.value.viewers)} watching
         </p>
       </div>
-      <ul className="snap-rail -mx-4 flex gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:px-0">
+      {/* `scroll-px-4` matches the inset: with mandatory snapping and no
+          scroll padding, the first stream snapped flush to the screen edge. */}
+      <ul className="snap-rail -mx-4 flex scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:scroll-px-0 lg:px-0">
         {twitch.value.top.map((stream) => (
           <li key={stream.url} className="w-[240px] sm:w-[260px]">
             <a href={stream.url} target="_blank" rel="noopener noreferrer" className="group block">

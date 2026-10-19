@@ -42,7 +42,16 @@ const playersLabel = (n: number) => (n >= 100_000 ? compactNumber(n) : full.form
 const HOUR_FMT = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric" });
 const AXIS_HOUR = new Intl.DateTimeFormat("en-US", { hour: "numeric" });
 const AXIS_DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-const SINCE_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+// UTC like every other calendar date on the site: `since` is a UTC day, and a
+// local-zone format showed it a day early west of Greenwich.
+const SINCE_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const SINCE_SHORT_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+/** "since Oct 19" this year, "since Oct 19, 2025" otherwise — the tile's note truncated with the year. */
+function sinceLabel(iso: string): string {
+  const date = new Date(iso);
+  const sameYear = date.getUTCFullYear() === new Date().getUTCFullYear();
+  return `since ${(sameYear ? SINCE_SHORT_FMT : SINCE_FMT).format(date)}`;
+}
 
 export function StatsSection({ ids }: { ids: GameIds }) {
   // Same cached requests the cards make; read here only to know whether
@@ -127,7 +136,7 @@ function PlayersCard({ ids }: { ids: GameIds }) {
           label="Tracked peak"
           value={data?.peakTracked != null ? playersLabel(data.peakTracked) : null}
           loading={history.status === "loading"}
-          note={data?.since ? `since ${SINCE_FMT.format(new Date(data.since))}` : undefined}
+          note={data?.since ? sinceLabel(data.since) : undefined}
         />
       </div>
 

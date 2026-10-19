@@ -242,7 +242,8 @@ export function BrowseControls({
     <FilterToolbar
       pending={pending}
       summary={
-        <p>
+        // nowrap: at 320px "309,186 games" broke onto two lines beside the sort menu.
+        <p className="whitespace-nowrap">
           <span className="font-semibold tabular-nums text-text">{formatted}</span> {plural}
         </p>
       }

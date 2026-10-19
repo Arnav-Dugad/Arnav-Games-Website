@@ -29,7 +29,7 @@ export function GameGridSkeleton({ count = 12 }: { count?: number }) {
       role="status"
       aria-label="Loading games"
       // Mirrors GameGrid's own column and gap scale exactly.
-      className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 lg:gap-5 xl:grid-cols-5"
+      className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 lg:gap-5 xl:grid-cols-6"
     >
       {Array.from({ length: count }, (_, i) => (
         <GameCardSkeleton key={i} />

@@ -313,6 +313,8 @@ function ColumnHead({ game, onRemove }: { game: CompareGame; onRemove: () => voi
               image={game.image}
               imageFallback={game.imageFallback}
               width={400}
+              // The column covers are the page's LCP, always above the fold.
+              priority
               sizes="(max-width: 640px) 45vw, 200px"
               className="transition-transform duration-500 fine:group-hover:scale-[1.03]"
             />

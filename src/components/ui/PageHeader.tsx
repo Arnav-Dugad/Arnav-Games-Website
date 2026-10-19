@@ -26,7 +26,7 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "relative isolate overflow-hidden pb-6 pt-24 sm:pb-8 lg:pb-12 lg:pt-36",
+        "relative isolate overflow-hidden pb-6 pt-24 sm:pb-8 lg:pb-12 lg:pt-32",
         className,
       )}
     >
@@ -39,7 +39,7 @@ export function PageHeader({
       <Container>
         {eyebrow && (
           <Reveal>
-            <p className="mb-2.5 text-[13px] font-semibold tracking-[-0.005em] text-brand-soft sm:text-[15px]">
+            <p className="mb-2 text-[13px] font-semibold text-brand-soft sm:text-[15px]">
               {eyebrow}
             </p>
           </Reveal>
@@ -48,12 +48,15 @@ export function PageHeader({
         <TextReveal
           as="h1"
           text={title}
-          className="font-display text-[clamp(2.125rem,7vw,4rem)] font-bold leading-[1.04] tracking-[-0.032em]"
+          // The design system's page large title (34/48px), the same scale
+          // search, compare and offline set by hand — so every route's title
+          // sits at one size and one top offset.
+          className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] sm:text-5xl"
         />
 
         {description && (
           <Reveal delay={0.15}>
-            <p className="mt-4 max-w-2xl text-[17px] leading-[1.47] text-muted sm:text-[19px]">
+            <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted sm:text-[17px]">
               {description}
             </p>
           </Reveal>

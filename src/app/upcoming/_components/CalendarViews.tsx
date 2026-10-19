@@ -19,9 +19,8 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { HypeBadge, ReleaseList, useUtcToday } from "@/components/game/ReleaseTimeline";
 import {
-  DAY_MONTH,
+  DAY_LONG,
   MONTH_TITLE,
-  WEEKDAY_LONG,
   WEEKDAY_SHORT,
   addDays,
   groupCalendar,
@@ -76,7 +75,7 @@ export function WeekView({
 
   return (
     <div>
-      <ViewNav title={title} subtitle={`${games.length} ${games.length === 1 ? "release" : "releases"}`} unit="week" {...nav} />
+      <ViewNav title={title} unit="week" {...nav} />
 
       {/* Phones and tablets: the iOS week strip, then the chosen day. */}
       <div className="lg:hidden">
@@ -90,7 +89,7 @@ export function WeekView({
                 key={day}
                 type="button"
                 aria-pressed={isSelected}
-                aria-label={`${WEEKDAY_LONG.format(utcDate(day))} ${DAY_MONTH.format(utcDate(day))}, ${count} ${count === 1 ? "release" : "releases"}`}
+                aria-label={`${DAY_LONG.format(utcDate(day))}, ${count} ${count === 1 ? "release" : "releases"}`}
                 onClick={() => {
                   haptic("selection");
                   setPicked(day);
@@ -121,7 +120,7 @@ export function WeekView({
           const list = days.get(day) ?? [];
           const past = Boolean(today && day < today);
           return (
-            <section key={day} aria-label={`${WEEKDAY_LONG.format(utcDate(day))} ${DAY_MONTH.format(utcDate(day))}`} className={cn("min-w-0 rounded-2xl border border-line bg-panel/45 p-2 light:bg-panel", past && "opacity-50")}>
+            <section key={day} aria-label={DAY_LONG.format(utcDate(day))} className={cn("min-w-0 rounded-2xl border border-line bg-panel/45 p-2 light:bg-panel", past && "opacity-50")}>
               <header className="flex items-baseline justify-between px-1.5 pb-2 pt-1">
                 <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-faint">{WEEKDAY_SHORT.format(utcDate(day))}</span>
                 <span className={cn("font-display text-[22px] font-bold tabular-nums", day === today && "text-flare")}>{utcDate(day).getUTCDate()}</span>
@@ -195,7 +194,7 @@ export function MonthView({
 
   return (
     <div>
-      <ViewNav title={MONTH_TITLE.format(utcDate(first))} subtitle={`${games.length} ${games.length === 1 ? "release" : "releases"}`} unit="month" {...nav} />
+      <ViewNav title={MONTH_TITLE.format(utcDate(first))} unit="month" {...nav} />
 
       {truncated !== null && (
         <p className="mb-4 rounded-2xl bg-gold/[0.08] px-4 py-3 text-[13px] text-muted">
@@ -220,7 +219,7 @@ export function MonthView({
               key={day}
               type="button"
               aria-pressed={isSelected}
-              aria-label={`${WEEKDAY_LONG.format(utcDate(day))} ${DAY_MONTH.format(utcDate(day))}, ${list.length} ${list.length === 1 ? "release" : "releases"}`}
+              aria-label={`${DAY_LONG.format(utcDate(day))}, ${list.length} ${list.length === 1 ? "release" : "releases"}`}
               onClick={() => {
                 haptic("selection");
                 setPicked(day);
@@ -276,7 +275,7 @@ function SelectedDay({ day, games, signals, today }: { day: string; games: GameS
   return (
     <section aria-live="polite" className="mt-6">
       <h3 className="flex items-baseline gap-2 text-[17px] font-semibold">
-        {WEEKDAY_LONG.format(utcDate(day))} {DAY_MONTH.format(utcDate(day))}
+        {DAY_LONG.format(utcDate(day))}
         {relative && <span className="text-[15px] font-medium text-brand-soft">{relative}</span>}
       </h3>
       {games.length > 0 ? (
@@ -311,12 +310,13 @@ function BusyDots({ count, inverted }: { count: number; inverted: boolean }) {
   );
 }
 
-function ViewNav({ title, subtitle, unit, prevHref, nextHref }: { title: string; subtitle: string; unit: "week" | "month" } & Nav) {
+// No count under the title: the toolbar above already says "18 releases",
+// and the week/month boards printed it a second time a few lines below.
+function ViewNav({ title, unit, prevHref, nextHref }: { title: string; unit: "week" | "month" } & Nav) {
   return (
     <div className="mb-5 flex items-center gap-3">
       <div className="min-w-0 flex-1">
         <h2 className="truncate font-display text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">{title}</h2>
-        <p className="text-[13px] tabular-nums text-faint">{subtitle}</p>
       </div>
       <NavArrow href={prevHref} label={`Previous ${unit}`}>
         <ChevronLeft size={18} />

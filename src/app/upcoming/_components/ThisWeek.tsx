@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { CountdownInline } from "@/components/game/Countdown";
 import { PlatformIcons } from "@/components/game/PlatformIcons";
@@ -47,10 +47,10 @@ export function ThisWeek({
         </div>
         <Link
           href={weekHref}
-          className="press inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-full text-[15px] font-medium text-brand-soft fine:hover:text-text"
+          className="press group inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full text-[15px] font-medium text-brand-soft fine:hover:text-text"
         >
           Week view
-          <ChevronRight size={17} aria-hidden />
+          <ArrowRight size={15} aria-hidden className="transition-transform group-hover:translate-x-0.5" />
         </Link>
       </Container>
 

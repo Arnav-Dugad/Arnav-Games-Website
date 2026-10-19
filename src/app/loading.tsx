@@ -10,7 +10,7 @@ export default function Loading() {
       <Skeleton className="mt-4 h-4 w-full max-w-lg rounded" />
 
       <div className="mt-12">
-        <GameGridSkeleton count={10} />
+        <GameGridSkeleton count={12} />
       </div>
     </Container>
   );

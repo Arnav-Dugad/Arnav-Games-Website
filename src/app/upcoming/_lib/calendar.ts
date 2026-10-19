@@ -17,12 +17,16 @@ import { releaseState, releaseWindowInfo } from "@/lib/games/release-state";
  * here is pinned to UTC. Mixing in the viewer's zone would file a midnight
  * launch under the wrong day for half the planet.
  */
-const fmt = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" });
+// en-US like the rest of the site (`lib/utils/format.ts`): the calendar used
+// to say "Tuesday 20 October" next to the home page's "Oct 20, 2026".
+const fmt = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { ...options, timeZone: "UTC" });
 export const MONTH_TITLE = fmt({ month: "long", year: "numeric" });
 export const MONTH_NAME = fmt({ month: "long" });
 export const WEEKDAY_LONG = fmt({ weekday: "long" });
 export const WEEKDAY_SHORT = fmt({ weekday: "short" });
 export const DAY_MONTH = fmt({ day: "numeric", month: "long" });
+/** "Tuesday, October 20" — a day heading. */
+export const DAY_LONG = fmt({ weekday: "long", day: "numeric", month: "long" });
 export const DAY_MONTH_SHORT = fmt({ day: "numeric", month: "short" });
 export const ROW_DATE = fmt({ weekday: "short", day: "numeric", month: "short" });
 
@@ -33,10 +37,10 @@ export const dayDiff = (from: string, to: string) => Math.round((utcDate(to).get
 /** Monday of the ISO week containing `iso`. */
 export const weekStartOf = (iso: string) => addDays(iso, -((utcDate(iso).getUTCDay() + 6) % 7));
 
-/** "20–26 October", or "28 Oct – 3 Nov" across a month boundary. */
+/** "October 20–26", or "Oct 28 – Nov 3" across a month boundary. */
 export function rangeLabel(from: string, to: string): string {
   return from.slice(0, 7) === to.slice(0, 7)
-    ? `${utcDate(from).getUTCDate()}–${DAY_MONTH.format(utcDate(to))}`
+    ? `${DAY_MONTH.format(utcDate(from))}–${utcDate(to).getUTCDate()}`
     : `${DAY_MONTH_SHORT.format(utcDate(from))} – ${DAY_MONTH_SHORT.format(utcDate(to))}`;
 }
 
@@ -107,7 +111,7 @@ export function groupCalendar(games: GameSummary[]): CalendarSection[] {
       let group = month.days.get(day);
       if (!group) {
         const date = utcDate(day);
-        group = { key: day, date: day, label: `${WEEKDAY_LONG.format(date)} ${DAY_MONTH.format(date)}`, games: [] };
+        group = { key: day, date: day, label: DAY_LONG.format(date), games: [] };
         month.days.set(day, group);
       }
       group.games.push(game);

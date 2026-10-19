@@ -50,7 +50,7 @@ import type {
 } from "../types";
 import { REQUEST_TIMEOUT_MS, TTL, type GameProvider } from "./types";
 import { platformKey, type PlatformKey } from "@/lib/utils/format";
-import { storeFromUrl } from "../stores";
+import { classifyUrl, storeFromUrl } from "../stores";
 import { buildDirectoryWhere, type DirectoryOrder } from "../directory";
 import type { SearchHit } from "../search";
 import { searchQueryVariants } from "../fuzzy-search";
@@ -1107,7 +1107,8 @@ function toCompanies(game: IgdbGame): CompanyRef[] {
       publisher: Boolean(entry.publisher),
       porting: Boolean(entry.porting),
       supporting: Boolean(entry.supporting),
-      website: company.websites?.[0]?.url ?? null,
+      // The studio's own domain, not whichever social profile IGDB lists first.
+      website: company.websites?.find((site) => site.url && !classifyUrl(site.url))?.url ?? company.websites?.[0]?.url ?? null,
     });
   }
   return out;
@@ -1389,7 +1390,9 @@ function mapDetail(game: IgdbGame): GameDetail {
       if (classified.slug === "steam" && classified.steamAppId) {
         steamAppId = classified.steamAppId;
       }
-    } else if (!officialSite) {
+    } else if (!officialSite && !classifyUrl(site.url)) {
+      // Socials and wikis are known hosts too; only an unrecognised domain is
+      // the publisher's own site (Elden Ring's "Website" read "twitch.tv").
       officialSite = site.url;
     }
     websites.push({ kind: classified?.slug ?? "official", url: site.url });

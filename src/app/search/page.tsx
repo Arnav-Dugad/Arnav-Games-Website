@@ -229,7 +229,8 @@ function AllResults({
   const sections = buildSections(hits, query, { franchise: 6, company: 6, character: 6, taxonomy: 6 }).filter(
     (section) => section.id !== "top",
   );
-  const gameGrid = games.filter((game) => game.id !== top?.id).slice(0, 10);
+  // 12 fills whole rows of the 2/3/4/6-column grid.
+  const gameGrid = games.filter((game) => game.id !== top?.id).slice(0, 12);
 
   return (
     <div className="space-y-12 lg:space-y-16">
@@ -252,7 +253,7 @@ function AllResults({
               {(section.id === "game" ? total > gameGrid.length + (topGame ? 1 : 0) : section.more > 0) && (
                 <Link
                   href={hrefFor(section.id)}
-                  className="press group inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-brand-soft"
+                  className="press group relative inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-brand-soft after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']"
                 >
                   See all <ArrowRight size={15} aria-hidden className="transition-transform group-hover:translate-x-0.5" />
                 </Link>

@@ -221,7 +221,9 @@ export function Parallax({ children, className, distance = 80, scale = false }: 
 
   return (
     <div ref={ref} className={cn("relative", className)}>
-      <motion.div style={{ y: smoothY, scale: scale ? s : 1 }} className="h-full w-full will-change-transform">
+      {/* `relative` here too: this is the direct parent of `fill` images
+          (the game hero's backdrop), which need a positioned containing block. */}
+      <motion.div style={{ y: smoothY, scale: scale ? s : 1 }} className="relative h-full w-full will-change-transform">
         {children}
       </motion.div>
     </div>

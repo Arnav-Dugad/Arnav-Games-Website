@@ -23,7 +23,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Children, useMemo, useRef, useState, type ReactNode } from "react";
-import { Boxes, Check, ChevronRight, LayoutGrid, PackageOpen, PencilLine, Rows3 } from "lucide-react";
+import { ArrowRight, Boxes, Check, LayoutGrid, PackageOpen, PencilLine, Rows3 } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { GameCover } from "@/components/game/GameCover";
 import { ScorePill } from "@/components/ui/ScoreRing";
@@ -579,9 +579,10 @@ function SmartRail({
           {subtitle && <p className="text-[13px] text-muted sm:text-[15px]">{subtitle}</p>}
         </div>
         {onSeeAll && (
-          <button type="button" onClick={onSeeAll} className="press inline-flex min-h-11 shrink-0 items-center gap-0.5 text-[15px] font-medium text-brand-soft fine:hover:text-text">
+          <button type="button" onClick={onSeeAll} className="press group inline-flex min-h-11 shrink-0 items-center gap-1 text-[15px] font-medium text-brand-soft fine:hover:text-text">
             See all
-            <ChevronRight size={17} aria-hidden />
+            {/* Same arrow as every other section's "See all" (SectionHeading, search). */}
+            <ArrowRight size={15} aria-hidden className="transition-transform group-hover:translate-x-0.5" />
           </button>
         )}
       </Container>
@@ -643,7 +644,7 @@ function BacklogByPlatform({ platforms, hours }: { platforms: PlatformBacklog[];
   );
 }
 
-const MONTH_YEAR = new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" });
+const MONTH_YEAR = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" });
 
 function finishedLabel(entry: WatchlistEntry): string | undefined {
   return entry.finishedAt ? `Finished ${MONTH_YEAR.format(new Date(entry.finishedAt))}` : undefined;

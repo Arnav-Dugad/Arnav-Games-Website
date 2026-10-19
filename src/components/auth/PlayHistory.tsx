@@ -44,7 +44,7 @@ function relative(at: number, now: number): string {
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days} days ago`;
   if (days < 35) return `${Math.round(days / 7)} wk ago`;
-  return new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(at));
+  return new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" }).format(new Date(at));
 }
 
 export function PlayHistory({ entries, reviews, now, limit = 8 }: { entries: WatchlistEntry[]; reviews: Review[]; now: number; limit?: number }) {

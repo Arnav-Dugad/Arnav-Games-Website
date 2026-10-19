@@ -103,7 +103,7 @@ export async function EntityPage({
           <Reveal>
             <Link
               href={copy.directory[0]}
-              className="material-thin press mb-7 inline-flex h-9 items-center gap-1 rounded-full pl-2.5 pr-3.5 text-[13px] font-medium text-text/90 transition-colors fine:hover:text-text sm:mb-9"
+              className="material-thin press mb-7 inline-flex h-9 items-center coarse:h-11 gap-1 rounded-full pl-2.5 pr-3.5 text-[13px] font-medium text-text/90 transition-colors fine:hover:text-text sm:mb-9"
             >
               <ChevronLeft size={16} className="text-brand-soft" />
               {copy.directory[1]}
@@ -277,7 +277,7 @@ function FranchisePosterStack({ games }: { games: GameSummary[] }) {
   );
 }
 
-const TRACKING_SINCE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const TRACKING_SINCE = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
 /**
  * Below this many watched games, or this many days of watching, a percentage

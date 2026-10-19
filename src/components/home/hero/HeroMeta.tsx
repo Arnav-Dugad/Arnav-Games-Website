@@ -60,10 +60,12 @@ export function HeroMeta({ game, className }: { game: GameSummary; className?: s
       )}
       {game.parentPlatforms.length > 0 && (
         <>
-          {DOT}
-          {/* `--color-faint` is re-pointed to white/55 inside the hero, so
+          {/* No separator dot here: the glyphs read as their own group, and
+              when they wrap on a narrow phone a dot was left dangling at the
+              end of the line above.
+              `--color-faint` is re-pointed to white/55 inside the hero, so
               the untinted glyphs sit at the same weight as the text. */}
-          <PlatformIcons platforms={game.parentPlatforms} size={14} max={5} className="gap-2" />
+          <PlatformIcons platforms={game.parentPlatforms} size={14} max={5} className="ml-1 gap-2" />
         </>
       )}
       {game.metacritic !== null && (

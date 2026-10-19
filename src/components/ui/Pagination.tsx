@@ -59,7 +59,9 @@ export function Pagination({
           numbered strip doesn't fit a 320px screen. */}
       <p className="min-w-0 px-2 text-center text-sm text-muted tabular-nums sm:hidden" aria-live="polite">
         Page <span className="font-semibold text-text">{page.toLocaleString("en-US")}</span>
-        {totalPages ? <> of {totalPages.toLocaleString("en-US")}</> : null}
+        {/* Capped like the desktop strip, so the two never disagree ("of 500"
+            on desktop, "of 12,883" on a phone for the same results). */}
+        {totalPages ? <> of {Math.min(totalPages, MAX_PAGES).toLocaleString("en-US")}</> : null}
       </p>
 
       <ul className="hidden items-center gap-1.5 sm:flex">
@@ -158,9 +160,12 @@ function PendingOverlay() {
   );
 }
 
+/** The deepest page the strip offers; both layouts cap at the same place. */
+const MAX_PAGES = 500;
+
 /** First, last, current ±1, with gaps collapsed. */
 function pageWindow(page: number, total: number): (number | "gap")[] {
-  const capped = Math.min(total, 500);
+  const capped = Math.min(total, MAX_PAGES);
   if (capped <= 7) return Array.from({ length: capped }, (_, i) => i + 1);
 
   const out: (number | "gap")[] = [1];

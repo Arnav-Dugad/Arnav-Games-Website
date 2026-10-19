@@ -71,7 +71,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: Searc
             <EmptyResults search={search} />
           ) : (
             <>
-              <GameGrid games={data.results} priorityCount={5} />
+              <GameGrid games={data.results} priorityCount={6} />
               <Pagination
                 page={page}
                 hasNext={data.hasNext}

@@ -104,7 +104,8 @@ export function EntityDirectory({
               name="q"
               value={draft}
               onChange={(value) => (value ? setDraft(value) : updateQuery(""))}
-              placeholder={isStudio ? "Search every studio" : "Search every franchise"}
+              // Short enough to fit beside the sort menu at 320px ("Search every st…" was clipped).
+              placeholder={isStudio ? "Search studios" : "Search franchises"}
               label={`Search ${isStudio ? "studios" : "franchises"}`}
             />
           </form>

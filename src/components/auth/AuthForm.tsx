@@ -116,7 +116,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   return (
     <div className="w-full max-w-md">
-      <h1 className="font-display text-3xl font-black tracking-[-0.03em] sm:text-4xl">
+      <h1 className="font-display text-[34px] font-bold leading-[1.05] tracking-[-0.03em] sm:text-4xl">
         {mode === "login" ? "Welcome back" : "Create your account"}
       </h1>
       <p className="mt-2.5 text-[15px] text-muted">
@@ -175,7 +175,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
               type="button"
               onClick={() => setShowPassword((s) => !s)}
               aria-label={showPassword ? "Hide password" : "Show password"}
-              className="grid h-9 w-9 place-items-center rounded-lg text-faint transition-colors hover:text-text"
+              className="grid h-9 w-9 place-items-center rounded-lg text-faint transition-colors hover:text-text coarse:h-11 coarse:w-11"
             >
               {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>

@@ -54,7 +54,8 @@ export function TopHitCard({ hit, game }: { hit: SearchHit; game: GameSummary | 
 
         <div className="flex min-h-[340px] flex-col justify-end gap-5 p-5 sm:min-h-[360px] sm:flex-row sm:items-end sm:p-8 lg:min-h-[400px] lg:p-10">
           <span className="relative hidden w-[132px] shrink-0 overflow-hidden rounded-2xl shadow-[0_20px_40px_-16px_#000] ring-1 ring-white/15 sm:block lg:w-[152px]">
-            <span className="block aspect-[3/4]">
+            {/* `relative`: the cover is a `fill` image and needs a positioned parent. */}
+            <span className="relative block aspect-[3/4]">
               <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={320} sizes="152px" />
             </span>
           </span>
@@ -143,7 +144,7 @@ export function RecentSearchChips() {
     <section aria-labelledby="recent-searches-title" className="mb-10">
       <div className="flex items-center justify-between">
         <h2 id="recent-searches-title" className="text-[13px] font-semibold text-muted">Recent searches</h2>
-        <button type="button" onClick={clear} className="min-h-9 text-[13px] font-medium text-brand-soft hover:underline">
+        <button type="button" onClick={clear} className="min-h-9 text-[13px] font-medium text-brand-soft hover:underline coarse:min-h-11">
           Clear
         </button>
       </div>

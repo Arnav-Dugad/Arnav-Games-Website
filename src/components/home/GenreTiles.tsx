@@ -52,7 +52,10 @@ export function GenreTiles({ tiles }: { tiles: { genre: Ref; games: GameSummary[
               className="hue-tile group relative isolate flex h-[132px] overflow-hidden rounded-2xl p-4 sm:h-[140px] lg:h-[156px] lg:p-5 press"
               style={{ "--tile-hue": hue, "--tile-hue-2": (hue + 45) % 360 } as CSSProperties}
             >
-              <span className="relative z-10 max-w-[62%] font-display text-[17px] font-bold leading-[1.1] tracking-[-0.02em] [overflow-wrap:anywhere] lg:text-[19px]">
+              {/* Full width on phones: the fanned covers sit in the bottom
+                  corner, below two lines of title. The 62% cap plus
+                  `overflow-wrap:anywhere` split "Advent-ure" mid-word at 320px. */}
+              <span className="relative z-10 max-w-full font-display text-[17px] font-bold leading-[1.1] tracking-[-0.02em] [overflow-wrap:break-word] sm:max-w-[62%] lg:text-[19px]">
                 {genre.name}
               </span>
               {/* A soft light from the corner, brightening on hover. */}

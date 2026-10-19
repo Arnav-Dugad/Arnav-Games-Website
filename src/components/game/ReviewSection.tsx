@@ -11,7 +11,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { MessageSquare, MessagesSquare, Pencil, Star, Trash2 } from "lucide-react";
+import { MessagesSquare, Pencil, Star, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import {
   averageRating,
@@ -87,7 +87,11 @@ export function ReviewSection({ game }: { game: GameDetail }) {
           </p>
           <h2 className="text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">Community reviews</h2>
           <p className="mt-1.5 text-[15px] text-muted">
-            {reviews.length === 0
+            {/* Neutral while loading, so "No reviews yet" never flashes over a
+                list that is about to arrive. */}
+            {loading
+              ? "Ratings and reviews from players."
+              : reviews.length === 0
               ? "No reviews yet — be the first."
               : `${reviews.length} ${reviews.length === 1 ? "review" : "reviews"} from players.`}
           </p>
@@ -157,10 +161,10 @@ export function ReviewSection({ game }: { game: GameDetail }) {
           ))}
         </div>
       ) : reviews.length === 0 ? (
-        <div className="flex flex-col items-center rounded-3xl border border-dashed border-line py-16 text-center">
-          <MessageSquare size={22} className="text-faint" />
-          <p className="mt-3 text-sm text-muted">Nothing here yet.</p>
-        </div>
+        // The heading already says "No reviews yet — be the first" and the
+        // compose / sign-in row above is the action; a second dashed "Nothing
+        // here yet" box under it only repeated that.
+        null
       ) : (
         <ul className="space-y-3">
           <AnimatePresence initial={false}>

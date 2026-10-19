@@ -96,5 +96,5 @@ function Metric({ icon, label, value, tone }: { icon: React.ReactNode; label: st
 }
 
 function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button type="button" aria-pressed={active} onClick={onClick} className={cn("flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition-colors", active ? "bg-fg/10 text-text" : "text-muted hover:text-text", "[&_span]:text-[10px] [&_span]:text-faint [&_span]:tabular-nums")}>{children}</button>;
+  return <button type="button" aria-pressed={active} onClick={onClick} className={cn("flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 coarse:min-h-11 text-xs font-semibold transition-colors", active ? "bg-fg/10 text-text" : "text-muted hover:text-text", "[&_span]:text-[10px] [&_span]:text-faint [&_span]:tabular-nums")}>{children}</button>;
 }

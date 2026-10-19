@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   CalendarRange,
@@ -326,8 +326,32 @@ function Insight({
   return <>{lead}{taste}{tail}</>;
 }
 
-/** Sticky jump bar for the four chart groups. */
+/**
+ * Sticky jump bar for the four chart groups. It also marks the group you are
+ * reading (like the game page's dock) — without that, a sticky bar of four
+ * identical pills says nothing about where you are on a long page.
+ */
 function JumpBar() {
+  const [active, setActive] = useState<string | null>(null);
+  useEffect(() => {
+    const sections = GROUPS.map((group) => document.getElementById(`stats-${group.id}`)).filter(
+      (section): section is HTMLElement => section !== null,
+    );
+    if (sections.length === 0) return;
+    // The band below the sticky chrome down to 40% of the viewport: the group
+    // whose content sits there is the one being read.
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) if (entry.isIntersecting) setActive(entry.target.id.replace("stats-", ""));
+        // Back above the first group (the summary at the top): nothing is current.
+        if (sections[0].getBoundingClientRect().top > window.innerHeight * 0.4) setActive(null);
+      },
+      { rootMargin: "-140px 0px -60% 0px" },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <nav aria-label="Stats sections" className="sticky top-16 z-20 -mx-4 mt-6 bg-bg/85 px-4 py-2 backdrop-blur-xl sm:-mx-2 sm:px-2 lg:top-[76px]">
       <ul className="no-scrollbar flex gap-1.5 overflow-x-auto">
@@ -335,7 +359,8 @@ function JumpBar() {
           <li key={group.id} className="shrink-0">
             <a
               href={`#stats-${group.id}`}
-              className="press inline-flex min-h-9 items-center rounded-full bg-fg/[0.06] px-3.5 text-[13px] font-semibold text-muted transition-colors coarse:min-h-11 fine:hover:bg-fg/[0.1] fine:hover:text-text"
+              aria-current={active === group.id ? "location" : undefined}
+              className="press inline-flex min-h-9 items-center rounded-full bg-fg/[0.06] px-3.5 text-[13px] font-semibold text-muted transition-colors coarse:min-h-11 fine:hover:bg-fg/[0.1] fine:hover:text-text aria-[current=location]:bg-fg/[0.16] aria-[current=location]:text-text"
             >
               {group.label}
             </a>
