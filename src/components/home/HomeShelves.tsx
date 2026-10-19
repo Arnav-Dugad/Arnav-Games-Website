@@ -65,21 +65,18 @@ export async function ChartsShelf({ trending, topRated }: { trending: GameSummar
     {
       id: "trending",
       label: "Trending",
-      description: "What players worldwide are playing right now, from IGDB’s live signal.",
       href: "/browse?ordering=-added",
       rows: trending.map((game) => ({ game })),
     },
     {
       id: "anticipated",
       label: "Most anticipated",
-      description: "Upcoming games ranked by follows, want-to-play lists and attention on IGDB.",
       href: "/upcoming?ordering=-hypes",
       rows: anticipated.data.map(({ game, hype }) => ({ game, hype })),
     },
     {
       id: "top",
       label: "Top rated",
-      description: "The highest critic scores in the database.",
       href: "/browse?ordering=-metacritic",
       rows: topRated.map((game) => ({ game })),
     },

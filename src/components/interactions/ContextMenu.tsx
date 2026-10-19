@@ -378,7 +378,7 @@ function MenuLayer({ state, onClose }: { state: MenuState; onClose: () => void }
   const lifted = mode === "lift";
 
   return (
-    <div className="fixed inset-0 z-[260]" data-context-menu-layer>
+    <div className="fixed inset-0 z-(--z-menu)" data-context-menu-layer>
       <motion.div
         aria-hidden
         className={cn("absolute inset-0", lifted ? "bg-black/45 backdrop-blur-md light:bg-black/20" : "bg-transparent")}

@@ -5,18 +5,14 @@ import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata: Metadata = {
   title: "Notifications",
-  description: "Your personal watchlist release reminders and delivery history.",
+  description: "Release reminders for the games you follow.",
   robots: { index: false, follow: false },
 };
 
 export default function NotificationsPage() {
   return (
     <>
-      <PageHeader
-        eyebrow="Your game radar"
-        title="Notification center"
-        description="Release days, approaching launches, and recent arrivals across the games you track."
-      />
+      <PageHeader title="Notifications" className="pb-4 sm:pb-6 lg:pb-8" />
       <AuthGate>
         <NotificationsView />
       </AuthGate>

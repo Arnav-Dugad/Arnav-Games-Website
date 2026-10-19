@@ -16,7 +16,7 @@ const SIGNED_OUT = [
   { label: "Create account", href: "/signup" },
   { label: "Your watchlist", href: "/watchlist" },
   { label: "Personal stats", href: "/stats" },
-  { label: "Your profile", href: "/profile" },
+  { label: "Notifications", href: "/notifications" },
   { label: "Settings", href: "/settings" },
 ];
 
@@ -34,10 +34,10 @@ export function AccountLinks() {
   const links = user ? SIGNED_IN : SIGNED_OUT;
 
   return (
-    <ul className="mt-4 space-y-2.5">
+    <ul className="mt-4 space-y-2.5 coarse:mt-2 coarse:space-y-0">
       {links.map((link) => (
         <li key={link.href + link.label}>
-          <Link href={link.href} className="group inline-flex text-sm text-muted transition-colors hover:text-text">
+          <Link href={link.href} className="group inline-flex items-center text-sm text-muted transition-colors hover:text-text coarse:min-h-11">
             <span className="relative">
               {link.label}
               <span

@@ -264,6 +264,7 @@ async function main() {
     write(out("src/app", "favicon.ico"), ico(frames));
 
     const shortcuts: [string, string][] = [
+      ["today", "sunrise"],
       ["upcoming", "calendar-clock"],
       ["library", "library-big"],
       ["search", "search"],

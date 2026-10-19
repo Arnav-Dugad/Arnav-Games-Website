@@ -76,6 +76,11 @@ function measure(width: number, height: number, count: number): Layout {
 function shelfHeight(width: number) {
   if (typeof window === "undefined") return 520;
   const viewport = window.innerHeight;
+  // On touch screens keep the page scrollable around the shelf: at most ~60%
+  // of the viewport, and a lower floor so a landscape phone isn't all shelf.
+  if (window.matchMedia("(hover: none) and (pointer: coarse)").matches) {
+    return Math.round(Math.min(560, Math.max(260, viewport * 0.6)));
+  }
   return Math.round(Math.min(640, Math.max(380, width < 640 ? viewport * 0.62 : viewport * 0.66)));
 }
 
@@ -319,7 +324,7 @@ function LiveShelf({ entries }: { entries: WatchlistEntry[] }) {
         onPointerCancel={(event) => endGesture(event, true)}
         onDragStart={(event) => event.preventDefault()}
         style={{ height }}
-        className="relative touch-pan-y select-none overflow-hidden rounded-3xl border border-line bg-[radial-gradient(120%_80%_at_50%_0%,color-mix(in_oklab,var(--color-brand)_10%,transparent),transparent_70%),linear-gradient(180deg,color-mix(in_oklab,var(--color-fg)_2%,transparent),color-mix(in_oklab,var(--color-fg)_6%,transparent))]"
+        className="relative isolate touch-pan-y select-none overflow-hidden rounded-3xl border border-line bg-[radial-gradient(120%_80%_at_50%_0%,color-mix(in_oklab,var(--color-brand)_10%,transparent),transparent_70%),linear-gradient(180deg,color-mix(in_oklab,var(--color-fg)_2%,transparent),color-mix(in_oklab,var(--color-fg)_6%,transparent))]"
       >
         {entries.map((entry, index) => (
           <Link
@@ -341,7 +346,9 @@ function LiveShelf({ entries }: { entries: WatchlistEntry[] }) {
             }}
             style={{ width: cover?.w, height: cover?.h }}
             className={cn(
-              "absolute left-0 top-0 touch-none outline-none will-change-transform focus-visible:z-[999]",
+              // Touch: vertical swipes stay page scrolls (the browser cancels the drag),
+              // sideways drags still toss. Mouse/pen keep full control.
+              "absolute left-0 top-0 outline-none will-change-transform focus-visible:z-10 fine:touch-none coarse:touch-pan-y",
               cover ? "opacity-100" : "opacity-0",
               held === index ? "cursor-grabbing" : "cursor-grab",
             )}

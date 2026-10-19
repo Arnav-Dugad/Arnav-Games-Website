@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * Stats: who is playing (our own hourly Steam samples), and how it runs on
- * PC handhelds and Linux (Steam Deck, ProtonDB) plus what finishing it asks
- * of you (achievements).
+ * The game page's "how many people" and "how it runs" cards: who is playing
+ * (our own hourly Steam samples, or Twitch viewers — one chart, toggled, so
+ * the line morphs between the two), Steam Deck and Linux, and achievements.
+ * The cards are placed by the page: players under "What players think", the
+ * rest under "For PC players".
  *
  * Everything here is from sources we can name, and "since" dates are shown
  * wherever the data is our own recording — a 90-day chart over nine days of
@@ -13,16 +15,17 @@
 
 import { LayoutGroup, motion } from "motion/react";
 import { useId, useMemo, useState, type ReactNode } from "react";
-import { Activity, BadgeCheck, CircleAlert, CircleHelp, CircleSlash, Trophy, Users } from "lucide-react";
+import { BadgeCheck, CircleAlert, CircleHelp, CircleSlash, Trophy, Users } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import { compactNumber } from "@/lib/utils/format";
-import type { AchievementStats, DeckStatus, GamePcInfo, PlayerHistory, ProtonTier } from "@/lib/games/types";
-import { DetailSection } from "./DetailSection";
-import { pcUrl, playersUrl, useEndpoint, type GameIds } from "./endpoint";
+import type { AchievementStats, DeckStatus, PlayerHistory, ProtonTier, TwitchHistory } from "@/lib/games/types";
+import { Disclosure } from "./Disclosure";
+import { playersUrl, twitchUrl, useEndpoint, type GameIds } from "./endpoint";
+import { InfoTip } from "./InfoTip";
 import { useLiveField } from "./live";
 import { TimeChart } from "./TimeChart";
 
@@ -53,51 +56,36 @@ function sinceLabel(iso: string): string {
   return `since ${(sameYear ? SINCE_SHORT_FMT : SINCE_FMT).format(date)}`;
 }
 
-export function StatsSection({ ids }: { ids: GameIds }) {
-  // Same cached requests the cards make; read here only to know whether
-  // there's anything at all, so an empty section explains itself instead of
-  // leaving a bare heading.
-  const history = useEndpoint<PlayerHistory>(playersUrl(ids));
-  const pc = useEndpoint<GamePcInfo>(pcUrl(ids));
-  const live = useLiveField((data) => data.steamPlayers);
-  const noPlayers =
-    history.status !== "loading" && live.state === "empty" && !(history.status === "ready" && history.data.points.length > 0);
-  const noPc =
-    pc.status !== "loading" && (pc.status !== "ready" || (!pc.data.deck && !pc.data.proton && !pc.data.achievements));
-
-  return (
-    <DetailSection
-      id="stats"
-      eyebrow="Stats"
-      icon={<Activity size={14} />}
-      title="Players and PC"
-      description="Live Steam numbers we record every hour, plus how it runs on Steam Deck and Linux."
-    >
-      {noPlayers && noPc ? (
-        <p className="glass rounded-3xl p-5 text-[15px] text-muted sm:p-6">
-          Steam isn&rsquo;t sharing player numbers or PC compatibility for this game yet.
-        </p>
-      ) : (
-        <div className="space-y-4">
-          <PlayersCard ids={ids} />
-          <PcCards ids={ids} />
-        </div>
-      )}
-    </DetailSection>
-  );
-}
-
 /* ------------------------------------------------------------------------ */
 
-function PlayersCard({ ids }: { ids: GameIds }) {
-  const history = useEndpoint<PlayerHistory>(playersUrl(ids));
-  const live = useLiveField((data) => data.steamPlayers);
-  const [range, setRange] = useState<RangeKey>("7d");
+type Series = "players" | "twitch";
 
-  const points = useMemo(
+/**
+ * Concurrent players on Steam, or Twitch viewers, over time. Each series is
+ * offered only when we have recorded enough of it to draw; with both, a
+ * toggle switches the chart (and the stats above it) between them.
+ */
+export function PlayersCard({ ids, twitchId }: { ids: GameIds; twitchId: string | null }) {
+  const history = useEndpoint<PlayerHistory>(ids.steam ? playersUrl(ids) : null);
+  const twitchHistory = useEndpoint<TwitchHistory>(twitchId ? twitchUrl(ids, twitchId) : null);
+  const live = useLiveField((data) => data.steamPlayers);
+  const liveTwitch = useLiveField((data) => (data.twitch ? data.twitch.viewers : null));
+  const [range, setRange] = useState<RangeKey>("7d");
+  const [chosen, setChosen] = useState<Series>("players");
+
+  const playerPoints = useMemo(
     () => (history.status === "ready" ? history.data.points.map((point) => ({ t: point.t * 1000, v: point.players })) : []),
     [history],
   );
+  const twitchPoints = useMemo(
+    () => (twitchHistory.status === "ready" ? twitchHistory.data.points.map((point) => ({ t: point.t * 1000, v: point.viewers })) : []),
+    [twitchHistory],
+  );
+  const hasPlayers = Boolean(ids.steam) && (playerPoints.length > 0 || live.state === "ready" || history.status === "loading");
+  const hasTwitch = twitchPoints.length >= 3;
+  const series: Series = chosen === "twitch" && hasTwitch ? "twitch" : hasPlayers ? "players" : "twitch";
+  const points = series === "twitch" ? twitchPoints : playerPoints;
+
   const recorded = points.length > 1 ? points[points.length - 1].t - points[0].t : 0;
   // A range is offered once we've recorded at least half of it.
   const available = RANGES.filter((option, index) => index === 0 || recorded >= option.ms / 2);
@@ -109,47 +97,68 @@ function PlayersCard({ ids }: { ids: GameIds }) {
     return points.filter((point) => point.t >= cutoff);
   }, [points, rangeMs]);
 
-  const now = live.state === "ready" ? live.value : points.length ? points[points.length - 1].v : null;
-  const data = history.status === "ready" ? history.data : null;
-  const loading = history.status === "loading" && live.state === "loading";
+  const loading = series === "players" ? history.status === "loading" && live.state === "loading" : twitchHistory.status === "loading";
+  if (!hasPlayers && !hasTwitch) return null;
 
-  if (!loading && now === null && points.length === 0) return null;
-
+  const playerData = history.status === "ready" ? history.data : null;
+  const twitchData = twitchHistory.status === "ready" ? twitchHistory.data : null;
+  const isTwitch = series === "twitch";
+  const now = isTwitch
+    ? liveTwitch.state === "ready" ? liveTwitch.value : twitchPoints.at(-1)?.v ?? null
+    : live.state === "ready" ? live.value : playerPoints.at(-1)?.v ?? null;
+  const peak24h = isTwitch ? twitchData?.peak24h : playerData?.peak24h;
+  const peakTracked = isTwitch ? twitchData?.peakTracked : playerData?.peakTracked;
+  const since = isTwitch ? twitchData?.since : playerData?.since;
+  const unit = isTwitch ? "viewers" : "players";
   const peakInRange = visible.length ? Math.max(...visible.map((point) => point.v)) : null;
+  const historyLoading = isTwitch ? twitchHistory.status === "loading" : history.status === "loading";
 
   return (
     <div className="glass rounded-3xl p-5 sm:p-6">
-      <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:gap-x-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="flex items-center gap-1.5 text-[17px] font-semibold text-text">
+          {isTwitch ? "Watching on Twitch" : "Playing on Steam"}
+          <InfoTip topic={isTwitch ? "twitch" : "playingNow"} />
+        </h3>
+        {hasPlayers && hasTwitch && (
+          <RangeControl
+            options={[
+              { value: "players", label: "Players" },
+              { value: "twitch", label: "Twitch viewers" },
+            ]}
+            value={series}
+            onChange={(value) => setChosen(value as Series)}
+            label="Chart series"
+          />
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-4 sm:gap-x-4">
         <Stat
-          label="Playing now"
-          icon={live.state === "ready" ? <LiveDot /> : <Users size={13} />}
+          label={isTwitch ? "Watching now" : "Playing now"}
+          icon={(isTwitch ? liveTwitch : live).state === "ready" ? <LiveDot /> : <Users size={13} />}
           value={now !== null ? playersLabel(now) : null}
           loading={loading}
-          note="on Steam"
+          note={isTwitch ? "on Twitch" : "on Steam"}
         />
+        <Stat label="24-hour peak" value={peak24h != null ? playersLabel(peak24h) : null} loading={historyLoading} />
         <Stat
-          label="24-hour peak"
-          value={data?.peak24h != null ? playersLabel(data.peak24h) : null}
-          loading={history.status === "loading"}
-        />
-        <Stat
-          label="Tracked peak"
-          value={data?.peakTracked != null ? playersLabel(data.peakTracked) : null}
-          loading={history.status === "loading"}
-          note={data?.since ? sinceLabel(data.since) : undefined}
+          label="Peak tracked"
+          help="peak"
+          value={peakTracked != null ? playersLabel(peakTracked) : null}
+          loading={historyLoading}
+          note={since ? sinceLabel(since) : undefined}
         />
       </div>
 
-      {history.status === "loading" ? (
+      {historyLoading ? (
         <Skeleton className="mt-6 h-[200px] w-full rounded-2xl" />
       ) : points.length >= 3 ? (
         <div className="mt-6 border-t border-line pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-[13px] text-muted">
-              Concurrent players
-              {peakInRange !== null && (
-                <span className="text-faint"> · peak {playersLabel(peakInRange)} in this range</span>
-              )}
+              {isTwitch ? "Viewers" : "Players at once"}
+              {peakInRange !== null && <span className="text-faint"> · peak {playersLabel(peakInRange)} in this range</span>}
             </p>
             {available.length > 1 && (
               <RangeControl
@@ -164,17 +173,17 @@ function PlayersCard({ ids }: { ids: GameIds }) {
             className="mt-4"
             points={visible}
             height={200}
-            formatValue={(v) => `${full.format(Math.round(v))} players`}
+            formatValue={(v) => `${full.format(Math.round(v))} ${unit}`}
             formatTick={(v) => compactNumber(Math.round(v))}
             formatTime={(t) => HOUR_FMT.format(new Date(t))}
             formatAxisTime={(t) => (rangeMs <= DAY ? AXIS_HOUR : AXIS_DAY).format(new Date(t))}
-            label="Steam concurrent players"
-            summary={`Hourly Steam player counts over the last ${effective}. Latest ${playersLabel(visible[visible.length - 1]?.v ?? 0)}, peak ${playersLabel(peakInRange ?? 0)}.`}
+            label={isTwitch ? "Twitch viewers over time" : "Steam players over time"}
+            summary={`${isTwitch ? "Twitch viewers" : "Hourly Steam player counts"} over the last ${effective}. Latest ${playersLabel(visible[visible.length - 1]?.v ?? 0)}, peak ${playersLabel(peakInRange ?? 0)}.`}
           />
         </div>
       ) : (
         <p className="mt-5 border-t border-line pt-4 text-[13px] leading-relaxed text-muted">
-          We&rsquo;ve only just started recording players for this game. The chart fills in hour by hour.
+          We&rsquo;ve only just started recording {unit} for this game. The chart fills in hour by hour.
         </p>
       )}
     </div>
@@ -187,6 +196,7 @@ function Stat({
   loading,
   note,
   icon,
+  help,
   className,
 }: {
   label: string;
@@ -194,6 +204,7 @@ function Stat({
   loading: boolean;
   note?: string;
   icon?: ReactNode;
+  help?: "peak";
   className?: string;
 }) {
   if (!loading && value === null) return null;
@@ -202,6 +213,7 @@ function Stat({
       <p className="flex items-center gap-1.5 text-[12px] font-medium text-muted">
         {icon}
         {label}
+        {help && <InfoTip topic={help} />}
       </p>
       {loading || value === null ? (
         <Skeleton className="mt-2 h-8 w-24 rounded-lg" />
@@ -313,74 +325,57 @@ const PROTON: Record<ProtonTier, { label: string; dot: string }> = {
   pending: { label: "Pending", dot: "bg-fg/30" },
 };
 
-function PcCards({ ids }: { ids: GameIds }) {
-  const pc = useEndpoint<GamePcInfo>(pcUrl(ids));
-  if (pc.status === "loading") {
-    return (
-      <div aria-hidden className="grid gap-4 md:grid-cols-2">
-        <Skeleton className="h-[168px] rounded-3xl" />
-        <Skeleton className="h-[168px] rounded-3xl" />
-      </div>
-    );
-  }
-  if (pc.status !== "ready") return null;
-  const { deck, proton, achievements } = pc.data;
-  const hasCompat = Boolean(deck || proton);
-  if (!hasCompat && !achievements) return null;
-
+/** Steam Deck and ProtonDB, as one card. Renders nothing without either. */
+export function DeckLinuxCard({ deck, proton }: { deck: DeckStatus | null; proton: { tier: ProtonTier; reports: number; confidence: string | null } | null }) {
+  if (!deck && !proton) return null;
   return (
-    <div className={cn("grid gap-4", hasCompat && achievements && "md:grid-cols-2")}>
-      {hasCompat && (
-        <div className="glass rounded-3xl p-5 sm:p-6">
-          <h3 className="text-[17px] font-semibold text-text">Handheld &amp; Linux</h3>
-          <dl className="mt-4 divide-y divide-line">
-            {deck && (
-              <div className="flex items-start gap-3 pb-3.5">
-                <dt className="sr-only">Steam Deck</dt>
-                <span className={cn("mt-0.5 shrink-0", DECK[deck].className)} aria-hidden>
-                  {DECK[deck].icon}
+    <div className="glass rounded-3xl p-5 sm:p-6">
+      <h3 className="text-[17px] font-semibold text-text">Steam Deck and Linux</h3>
+      <dl className="mt-4 divide-y divide-line">
+        {deck && (
+          <div className="flex items-start gap-3 pb-3.5">
+            <span className={cn("mt-0.5 shrink-0", DECK[deck].className)} aria-hidden>
+              {DECK[deck].icon}
+            </span>
+            <div className="min-w-0">
+              <dt className="flex items-center gap-1.5 text-[15px] font-semibold text-text">
+                Steam Deck <span className={DECK[deck].className}>{DECK[deck].label}</span>
+                <InfoTip topic="deck" />
+              </dt>
+              <dd className="mt-0.5 text-[13px] leading-snug text-muted">{DECK[deck].detail}</dd>
+            </div>
+          </div>
+        )}
+        {proton && (
+          <div className={cn("flex items-start gap-3", deck && "pt-3.5")}>
+            <span className="mt-0.5 shrink-0 text-muted" aria-hidden>
+              <BrandIcon name="linux" size={16} title={null} />
+            </span>
+            <div className="min-w-0">
+              <dt className="flex flex-wrap items-center gap-x-2 text-[15px] font-semibold text-text">
+                Linux
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className={cn("h-2.5 w-2.5 rounded-full", PROTON[proton.tier].dot)} />
+                  {PROTON[proton.tier].label}
                 </span>
-                <dd className="min-w-0">
-                  <p className="text-[15px] font-semibold text-text">
-                    Steam Deck <span className={DECK[deck].className}>{DECK[deck].label}</span>
-                  </p>
-                  <p className="mt-0.5 text-[13px] leading-snug text-muted">{DECK[deck].detail}</p>
-                </dd>
-              </div>
-            )}
-            {proton && (
-              <div className={cn("flex items-start gap-3", deck && "pt-3.5")}>
-                <dt className="sr-only">ProtonDB</dt>
-                <span className="mt-0.5 shrink-0 text-muted" aria-hidden>
-                  <BrandIcon name="linux" size={16} title={null} />
-                </span>
-                <dd className="min-w-0">
-                  <p className="flex flex-wrap items-center gap-x-2 text-[15px] font-semibold text-text">
-                    ProtonDB
-                    <span className="inline-flex items-center gap-1.5">
-                      <span aria-hidden className={cn("h-2.5 w-2.5 rounded-full", PROTON[proton.tier].dot)} />
-                      {PROTON[proton.tier].label}
-                    </span>
-                  </p>
-                  <p className="mt-0.5 text-[13px] leading-snug text-muted">
-                    {proton.tier === "native"
-                      ? "Has a native Linux build."
-                      : proton.reports > 0
-                        ? `From ${full.format(proton.reports)} player ${proton.reports === 1 ? "report" : "reports"}${proton.confidence ? ` · ${proton.confidence} confidence` : ""}`
-                        : "Not enough reports yet."}
-                  </p>
-                </dd>
-              </div>
-            )}
-          </dl>
-        </div>
-      )}
-      {achievements && <AchievementsCard stats={achievements} />}
+                <InfoTip topic="proton" />
+              </dt>
+              <dd className="mt-0.5 text-[13px] leading-snug text-muted">
+                {proton.tier === "native"
+                  ? "Has a native Linux build."
+                  : proton.reports > 0
+                    ? `ProtonDB, from ${full.format(proton.reports)} player ${proton.reports === 1 ? "report" : "reports"}${proton.confidence ? ` · ${proton.confidence} confidence` : ""}`
+                    : "Not enough ProtonDB reports yet."}
+              </dd>
+            </div>
+          </div>
+        )}
+      </dl>
     </div>
   );
 }
 
-function AchievementsCard({ stats }: { stats: AchievementStats }) {
+export function AchievementsCard({ stats }: { stats: AchievementStats }) {
   // One hue, light → dark as achievements get rarer (a sequential ramp);
   // counts are also in the legend, so colour never carries meaning alone.
   const bands = [
@@ -410,9 +405,11 @@ function AchievementsCard({ stats }: { stats: AchievementStats }) {
         )}
       </div>
 
+      {(counted > 0 || stats.highlighted.length > 0) && (
+        <Disclosure bare className="mt-3" title="Rarity breakdown" help="achievements">
       {counted > 0 && (
         <>
-          <div className="mt-5 flex h-2.5 gap-[2px] overflow-hidden rounded-full" role="img" aria-label={bands.map((band) => `${band.count} ${band.label.toLowerCase()}`).join(", ")}>
+          <div className="mt-2 flex h-2.5 gap-[2px] overflow-hidden rounded-full" role="img" aria-label={bands.map((band) => `${band.count} ${band.label.toLowerCase()}`).join(", ")}>
             {bands
               .filter((band) => band.count > 0)
               .map((band) => (
@@ -450,6 +447,8 @@ function AchievementsCard({ stats }: { stats: AchievementStats }) {
             </li>
           ))}
         </ul>
+      )}
+        </Disclosure>
       )}
     </div>
   );

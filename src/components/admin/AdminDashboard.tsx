@@ -242,7 +242,7 @@ export function AdminDashboard() {
 
       {/* Filters scope everything below them, in one bar above the content.
           A blurred material, so it stays legible while panels scroll under. */}
-      <div className="sticky top-[4.5rem] z-30 -mx-1 px-1 py-2 lg:top-[5.25rem]">
+      <div className="sticky top-[calc(var(--chrome-top)+0.5rem)] z-30 -mx-1 px-1 py-2 lg:top-[5.25rem]">
         <div className="material flex items-center gap-1 rounded-full p-1 shadow-[0_12px_40px_-20px_rgba(0,0,0,0.5)]">
           <RangeControl value={range} onChange={setRange} />
           <span aria-hidden className="mx-1 hidden h-5 w-px shrink-0 bg-line-strong md:block" />

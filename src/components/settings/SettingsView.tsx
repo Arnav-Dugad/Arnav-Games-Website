@@ -18,6 +18,7 @@ import {
   Gauge,
   Globe2,
   LogOut,
+  MonitorCog,
   Sparkles,
   UserRound,
   Wifi,
@@ -29,6 +30,8 @@ import { useThemePreference, type ThemePreference } from "@/lib/preferences/them
 import { PRICE_REGIONS, usePriceRegion } from "@/lib/preferences/region";
 import { STORAGE_PREFIX } from "@/lib/utils/storage-keys";
 import { InstallAppRow } from "@/components/pwa/InstallAppRow";
+import { MyPcSheet } from "@/components/pc/MyPcSheet";
+import { usePcSpecs } from "@/lib/preferences/pc";
 import { SearchField } from "@/components/filters";
 import { Sheet } from "@/components/ui/Sheet";
 import { Container } from "@/components/ui/SectionHeading";
@@ -54,7 +57,8 @@ export function SettingsView() {
           </div>
         </Group>
         <PricesGroup />
-        <Group title="Notifications" footer="Release reminders run from 14 days before launch to three days after.">
+        <GamingGroup />
+        <Group id="notifications" title="Notifications" footer="Release reminders run from 14 days before launch to three days after.">
           <NotificationRow />
         </Group>
         <Group title="Motion" footer="Also follows your device's reduced-motion setting when that is on.">
@@ -471,6 +475,41 @@ function RegionOption({ selected, onClick, label, detail }: { selected: boolean;
       </span>
       {selected && <Check size={18} strokeWidth={2.5} aria-hidden className="shrink-0 text-brand-soft" />}
     </button>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gaming                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * "My PC" — the same sheet the game page's "Will it run?" opens, so specs
+ * entered in either place are the one saved set. The row's value is a short
+ * summary of what's saved; on the server (and before entry) it reads "Add".
+ */
+function GamingGroup() {
+  useArrivalHighlight("my-pc");
+  const [specs] = usePcSpecs();
+  const [open, setOpen] = useState(false);
+  const summary = specs
+    ? [specs.gpu || specs.cpu, `${specs.ramGb} GB`].filter(Boolean).join(" · ")
+    : "Add";
+
+  return (
+    <Group id="my-pc" title="Gaming" footer="Your PC's parts let game pages say whether a game will run. Saved on this device only.">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        className={cn(rowClass, "press transition-colors fine:hover:bg-fg/[0.04]")}
+      >
+        <RowIcon tone="brand"><MonitorCog size={17} /></RowIcon>
+        <span className="flex-1 whitespace-nowrap text-[15px] sm:text-[16px]">My PC</span>
+        <span className="min-w-0 truncate text-[15px] text-muted">{summary}</span>
+        <ChevronRight size={17} aria-hidden className="shrink-0 text-faint" />
+      </button>
+      <MyPcSheet open={open} onClose={() => setOpen(false)} />
+    </Group>
   );
 }
 

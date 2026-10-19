@@ -1,100 +1,152 @@
 "use client";
 
+/**
+ * The notification inbox: grouped like iOS — what's happening today, what's
+ * coming, what just landed — each group a single inset list.
+ *
+ * Alerts are derived on this device from the games you follow, so there is
+ * nothing to configure here beyond the one switch in Settings, linked at the
+ * foot of the page.
+ */
+
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Bell, BellRing, CalendarClock, CheckCheck, Radio } from "lucide-react";
+import { Bell, CheckCheck } from "lucide-react";
 import { NotificationItem } from "./NotificationItem";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/SectionHeading";
-import { Reveal, Stagger, StaggerItem } from "@/components/motion/Reveal";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { SegmentedControl } from "@/components/filters";
 import { useNotifications } from "@/lib/notifications/NotificationsProvider";
-import { cn } from "@/lib/utils/cn";
+import type { AppNotification, NotificationKind } from "@/lib/notifications/model";
+import { haptic } from "@/lib/haptics";
 
 type Filter = "all" | "unread";
+
+const GROUPS: { title: string; kinds: NotificationKind[] }[] = [
+  { title: "Today", kinds: ["release-today", "dlc-today"] },
+  { title: "Coming up", kinds: ["release-soon", "dlc-soon"] },
+  { title: "Recently released", kinds: ["released", "dlc-released"] },
+];
 
 export function NotificationsView() {
   const { notifications, unreadCount, loading, isRead, markRead, markAllRead } = useNotifications();
   const [filter, setFilter] = useState<Filter>("all");
-  const releaseCount = notifications.length;
-  const dlcCount = notifications.filter((item) => item.kind.startsWith("dlc-")).length;
-  const visible = useMemo(
-    () =>
-      notifications.filter((item) => {
-        if (filter === "unread") return !isRead(item.id);
-        return true;
-      }),
-    [notifications, filter, isRead],
-  );
+
+  const groups = useMemo(() => {
+    const visible = filter === "unread" ? notifications.filter((item) => !isRead(item.id)) : notifications;
+    return GROUPS.map((group) => ({
+      title: group.title,
+      items: visible.filter((item) => group.kinds.includes(item.kind)),
+    })).filter((group) => group.items.length > 0);
+  }, [notifications, filter, isRead]);
 
   if (loading) {
     return (
-      <Container className="py-10 lg:py-14">
-        <div className="grid gap-3 sm:grid-cols-3">
-          {Array.from({ length: 3 }, (_, index) => <div key={index} className="shimmer-bg h-28 rounded-3xl" />)}
+      <Container className="pb-12">
+        <div className="max-w-3xl space-y-3" aria-hidden>
+          <Skeleton className="h-11 w-56 rounded-full" />
+          <Skeleton className="mt-6 h-4 w-24 rounded" />
+          <Skeleton className="h-[228px] w-full rounded-2xl" />
         </div>
-        <div className="mt-8 space-y-3">{Array.from({ length: 5 }, (_, index) => <div key={index} className="shimmer-bg h-28 rounded-2xl" />)}</div>
+      </Container>
+    );
+  }
+
+  if (notifications.length === 0) {
+    return (
+      <Container className="pb-12">
+        <EmptyState
+          className="max-w-3xl"
+          icon={<Bell size={24} />}
+          title="No notifications yet"
+          body="Follow a game and you'll hear about it here when release day is close."
+          action={{ href: "/upcoming", label: "Find games to follow" }}
+        />
       </Container>
     );
   }
 
   return (
-    <Container className="py-8 lg:py-12">
-      <Stagger className="grid gap-3 sm:grid-cols-3" onMount gap={0.05}>
-        <StaggerItem><Metric icon={<BellRing size={18} />} label="Unread" value={unreadCount} tone="brand" /></StaggerItem>
-        <StaggerItem><Metric icon={<CalendarClock size={18} />} label={dlcCount ? `Release updates · ${dlcCount} DLC` : "Release updates"} value={releaseCount} tone="mint" /></StaggerItem>
-        <StaggerItem><Metric icon={<CheckCheck size={18} />} label="Read" value={releaseCount - unreadCount} tone="gold" /></StaggerItem>
-      </Stagger>
-
-      <Reveal onMount className="mt-8 flex flex-col gap-3 rounded-2xl border border-line bg-panel/40 p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex overflow-x-auto rounded-xl border border-line bg-fg/[0.04] p-1 no-scrollbar">
-          <FilterButton active={filter === "all"} onClick={() => setFilter("all")}>All <span>{notifications.length}</span></FilterButton>
-          <FilterButton active={filter === "unread"} onClick={() => setFilter("unread")}>Unread <span>{unreadCount}</span></FilterButton>
-        </div>
-        {unreadCount > 0 && <Button variant="secondary" size="sm" icon={<CheckCheck size={15} />} onClick={markAllRead}>Mark all read</Button>}
-      </Reveal>
-
-      <section className="mt-7" aria-live="polite">
-        {visible.length === 0 ? (
-          <EmptyState
-            icon={filter === "all" ? <Bell size={23} /> : <CheckCheck size={23} />}
-            title={notifications.length === 0 ? "Nothing needs your attention" : "You're caught up here"}
-            body={notifications.length === 0 ? "Follow games to receive only their release and new DLC reminders." : "There are no notifications matching this filter."}
-            action={notifications.length === 0 ? { href: "/upcoming", label: "Find upcoming games" } : { onClick: () => setFilter("all"), label: "Show everything" }}
+    <Container className="pb-12 lg:pb-16">
+      <div className="max-w-3xl">
+        <div className="flex items-center justify-between gap-3">
+          <SegmentedControl
+            label="Show"
+            value={filter}
+            onChange={setFilter}
+            fill={false}
+            segments={[
+              { value: "all", label: "All", count: notifications.length },
+              { value: "unread", label: "Unread", count: unreadCount },
+            ]}
           />
-        ) : (
-          <Stagger as="ul" onMount className="space-y-2.5" gap={0.035}>
-            {visible.map((notification) => (
-              <StaggerItem as="li" key={notification.id}>
-                <NotificationItem notification={notification} read={isRead(notification.id)} onOpen={() => markRead(notification.id)} />
-              </StaggerItem>
-            ))}
-          </Stagger>
-        )}
-      </section>
-
-      <Reveal className="mt-10 overflow-hidden rounded-3xl border border-brand/20 bg-[radial-gradient(circle_at_0%_0%,rgba(124,92,255,0.16),transparent_44%),color-mix(in_oklab,var(--color-panel)_55%,transparent)] p-5 sm:p-7">
-        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-          <div className="flex gap-4">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-mint/20 bg-mint/10 text-mint"><Radio size={18} /></span>
-            <div><h2 className="font-display text-lg font-bold">Alerts, computed on your device</h2><p className="mt-1 max-w-xl text-sm leading-relaxed text-muted">This inbox is derived from the games you follow, so it needs no server, no permissions and no configuration. Choose which kinds you see in Settings.</p></div>
-          </div>
-          <Button href="/settings#notifications" variant="secondary" size="sm">Notification settings</Button>
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                haptic("success");
+                markAllRead();
+              }}
+              className="press inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-[15px] font-medium text-brand-soft transition-colors fine:hover:bg-brand/10"
+            >
+              <CheckCheck size={16} aria-hidden />
+              Mark all read
+            </button>
+          )}
         </div>
-      </Reveal>
+
+        <div aria-live="polite" className="mt-6 space-y-7">
+          {groups.length === 0 ? (
+            <EmptyState
+              icon={<CheckCheck size={24} />}
+              title="You're all caught up"
+              action={{ onClick: () => setFilter("all"), label: "Show all" }}
+            />
+          ) : (
+            groups.map((group) => (
+              <Group key={group.title} title={group.title} items={group.items} isRead={isRead} markRead={markRead} />
+            ))
+          )}
+        </div>
+
+        <p className="mt-8 px-4 text-[13px] text-muted">
+          Reminders run from two weeks before release to three days after.{" "}
+          <Link href="/settings#notifications" className="font-medium text-brand-soft">
+            Change in Settings
+          </Link>
+        </p>
+      </div>
     </Container>
   );
 }
 
-function Metric({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone: "brand" | "mint" | "gold" }) {
+function Group({
+  title,
+  items,
+  isRead,
+  markRead,
+}: {
+  title: string;
+  items: AppNotification[];
+  isRead: (id: string) => boolean;
+  markRead: (id: string) => void;
+}) {
   return (
-    <div className="glass rounded-3xl p-5">
-      <span className={cn("grid h-10 w-10 place-items-center rounded-2xl", tone === "mint" ? "bg-mint/10 text-mint" : tone === "gold" ? "bg-gold/10 text-gold" : "bg-brand/10 text-brand-soft")}>{icon}</span>
-      <p className="mt-4 font-display text-3xl font-black tabular-nums">{value}</p>
-      <p className="mt-1 text-xs text-muted">{label}</p>
-    </div>
+    <section aria-label={title}>
+      <h2 className="mb-2 px-4 text-[13px] font-medium uppercase tracking-[0.04em] text-faint">{title}</h2>
+      <ul className="overflow-hidden rounded-2xl border border-line bg-panel/55 light:bg-panel [&>*+*]:border-t [&>*+*]:border-line">
+        {items.map((notification) => (
+          <li key={notification.id}>
+            <NotificationItem
+              notification={notification}
+              read={isRead(notification.id)}
+              onOpen={() => markRead(notification.id)}
+              onMarkRead={() => markRead(notification.id)}
+            />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
-}
-
-function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button type="button" aria-pressed={active} onClick={onClick} className={cn("flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 coarse:min-h-11 text-xs font-semibold transition-colors", active ? "bg-fg/10 text-text" : "text-muted hover:text-text", "[&_span]:text-[10px] [&_span]:text-faint [&_span]:tabular-nums")}>{children}</button>;
 }

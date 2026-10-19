@@ -110,7 +110,7 @@ function DayBlock({ day, today, signals }: { day: DayGroup; today: string | null
         Sticky under the floating header. The backdrop is opaque enough that
         rows scrolling beneath never collide with the date text.
       */}
-      <div className="sticky top-16 z-20 -mx-4 flex items-center gap-3 bg-bg/90 px-4 py-2.5 backdrop-blur-xl sm:-mx-2 sm:px-2 lg:top-[72px]">
+      <div className="sticky top-(--chrome-top) z-20 -mx-4 flex items-center gap-3 bg-bg/90 px-4 py-2.5 backdrop-blur-xl sm:-mx-2 sm:px-2 lg:top-[72px]">
         {date ? (
           <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-fg/[0.06] text-center leading-none">
             <span>

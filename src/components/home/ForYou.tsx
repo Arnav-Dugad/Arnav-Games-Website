@@ -144,8 +144,7 @@ export function ForYou({
             <p className="text-[13px] font-semibold text-brand-soft">{eyebrow}</p>
             <h2 className="mt-1.5 text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">Make this page yours</h2>
             <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-muted">
-              Follow or mark a game you own, and this space fills with what you’re playing, what’s landing next
-              and picks based on what you finish.
+              Follow a game or mark one you own to fill this with your releases and picks.
             </p>
             <div className="mt-5 flex flex-wrap gap-2.5">
               <Button href="/browse">Find games</Button>
@@ -163,7 +162,6 @@ export function ForYou({
         <SectionHeading
           eyebrow={eyebrow}
           title={<span id="home-for-you-title">For you</span>}
-          description="From your library: what you’re playing and what lands next."
           href="/library"
           linkLabel="Library"
         />
@@ -192,7 +190,6 @@ export function ForYou({
               <Sparkles size={16} className="text-brand-soft" aria-hidden />
               {recommendations.title}
             </h3>
-            <p className="mt-1 text-[13px] text-muted sm:text-[15px]">Everything already in your library is left out.</p>
           </Container>
           <div className="mt-4 sm:mt-5">
             {recommendations.state === "loading" ? (

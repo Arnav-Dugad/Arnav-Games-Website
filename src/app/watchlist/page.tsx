@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function WatchlistPage() {
   return (
     <>
-      <PageHeader title="Watchlist" description="Everything you're tracking, with the next release up top." />
+      <PageHeader title="Watchlist" />
       <CollectionGate
         title="Never miss a release"
         body="Save the games you're waiting for and the watchlist keeps count for you."

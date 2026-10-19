@@ -3,16 +3,24 @@
 /**
  * The homepage hero: a full-bleed, Apple TV-style featured carousel.
  *
- * Per slide, the key art appears instantly and drifts (Ken Burns), then — on
- * desktop, after a beat — the muted trailer dissolves in over it once the
- * player has *proven* it is playing real footage (see `BackdropTrailer`).
- * Art-first is deliberate: a video that has to buffer before anything appears
- * reads as a slow page, whereas a still that dissolves into motion reads as
- * intentional. A blocked, age-gated or refused trailer is simply never shown.
+ * Per slide, the key art appears instantly and drifts (Ken Burns), then —
+ * after a beat — the muted trailer dissolves in over it once the player has
+ * *proven* it is playing real footage (see `BackdropTrailer`). Art-first is
+ * deliberate: a video that has to buffer before anything appears reads as a
+ * slow page, whereas a still that dissolves into motion reads as intentional.
+ * A blocked, age-gated or refused trailer is simply never shown.
  *
- * Trailer autoplay is desktop-only (fine pointer, wide viewport, no reduced
- * motion): on a phone it costs data and battery for something the reader
- * didn't ask for, so touch devices get the artwork.
+ * Phones get the trailer too — muted, inline, inside the portrait art frame
+ * (cover-cropped, fading into the copy field like the still does) — because
+ * the hero is the one place on the site where motion *is* the content. It is
+ * withheld whenever the reader has signalled a budget: reduced motion (OS or
+ * the in-app switch), Save-Data, or a 2G-class connection. It only loads
+ * while the hero is on screen and the tab visible, pauses when either stops
+ * being true, and never takes a touch: swipes still reach the carousel.
+ *
+ * A slide flagged `takeover` (a big game out today, which the data layer puts
+ * first) gets an "Out today" badge, one light sweep across the stage, and a
+ * purchase-minded primary action.
  *
  * The rest, briefly:
  *  - The game's official logo replaces a typeset title (a visually hidden h2
@@ -58,10 +66,11 @@ import { GameCover } from "@/components/game/GameCover";
 import { GameLogo } from "@/components/game/GameLogo";
 import { OwnershipPicker } from "@/components/game/OwnershipPicker";
 import { WatchButton } from "@/components/game/WatchButton";
+import { useConstrainedData } from "@/components/game/BackdropTrailer";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/SectionHeading";
-import { useIsMobile, useRichMotion } from "@/hooks";
+import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { isIgdbImage, sizedImage } from "@/lib/games/image";
 import { cn } from "@/lib/utils/cn";
 import type { SpotlightGame } from "@/lib/games/types";
@@ -161,8 +170,9 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
    */
   const hydrated = useSyncExternalStore(subscribeNothing, () => true, () => false);
   const calm = useCalmMotion() && hydrated;
-  const richMotion = useRichMotion();
-  const isMobile = useIsMobile();
+  // Server snapshot is "constrained", so no trailer is ever in server HTML.
+  const constrained = useConstrainedData();
+  const { ownershipOf } = useWatchlist();
 
   const active = featured[index] as SpotlightGame | undefined;
   const next = count > 1 ? featured[(index + 1) % count] : undefined;
@@ -170,14 +180,18 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
   const activeId = active?.id ?? null;
 
   const trailer = active?.heroTrailer ?? null;
+  // `hydrated` first: before it, `calm` is forced false to match the server,
+  // and a trailer must never be cleared to load on that provisional value.
   const canAutoplay =
-    richMotion && !isMobile && !calm && Boolean(trailer) && activeId !== null && !failed.includes(activeId);
+    hydrated && !calm && !constrained && Boolean(trailer) && activeId !== null && !failed.includes(activeId);
   const trailerPlaying = activeId !== null && playingFor === activeId;
   const showTrailer = canAutoplay && trailerReadyFor === activeId;
   const visible = inView && !tabHidden;
   const slideMs = canAutoplay || trailerPlaying ? TRAILER_SLIDE_MS : ARTWORK_SLIDE_MS;
 
   const tint = heroTint(active?.palette);
+  const takeover = active ? isTakeover(active, hydrated) : false;
+  const owned = active ? ownershipOf(active.id).length > 0 : false;
 
   /* --- Navigation --------------------------------------------------------- */
 
@@ -472,12 +486,14 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
                         muted={muted}
                         paused={trailerPaused}
                         delayMs={0}
+                        touch
                         onPlayingChange={onPlayingChange}
                         onUnavailable={onUnavailable}
                       />
                     ) : null
                   }
                 />
+                {takeover && !calm && <TakeoverSweep />}
               </motion.div>
             </AnimatePresence>
 
@@ -528,6 +544,15 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
               >
                 <h2 className="sr-only">{active.name}</h2>
 
+                {takeover && (
+                  <motion.p variants={itemVariants} className="mb-3 sm:mb-4">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-black shadow-[0_8px_24px_-10px_rgba(0,0,0,0.7)]">
+                      <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tint.accent }} />
+                      Out today
+                    </span>
+                  </motion.p>
+                )}
+
                 <motion.div
                   variants={itemVariants}
                   aria-hidden
@@ -551,13 +576,16 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
                 </motion.div>
 
                 <motion.div variants={itemVariants} className="mt-4 sm:mt-5">
-                  <HeroMeta game={active} />
+                  {/* The badge already says when; the line keeps the rest. */}
+                  <HeroMeta game={active} showRelease={!takeover} />
                 </motion.div>
 
+                {/* Desktop only: on a phone the logo, facts and actions say
+                    enough, and the art (or trailer) gets the room instead. */}
                 {active.tagline && (
                   <motion.p
                     variants={itemVariants}
-                    className="mt-3 line-clamp-2 max-w-xl text-[15px] leading-snug text-white/80 max-[359px]:hidden sm:text-[17px]"
+                    className="mt-3 line-clamp-2 max-w-xl text-[15px] leading-snug text-white/80 max-sm:hidden sm:text-[17px]"
                   >
                     {active.tagline}
                   </motion.p>
@@ -571,14 +599,16 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
                   {...hoverHandlers}
                 >
                   <Link
-                    href={`/game/${active.slug}`}
+                    // Release day: owners go straight in, everyone else to
+                    // where it can be bought.
+                    href={takeover && !owned ? `/game/${active.slug}#prices` : `/game/${active.slug}`}
                     className={cn(
                       "press col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-7 text-[16px] font-semibold text-black sm:col-span-1 sm:min-h-[52px] sm:text-[17px]",
                       "shadow-[0_12px_32px_-14px_rgba(0,0,0,0.8)] transition-[background-color] duration-300 fine:hover:bg-white/88",
                       "focus-visible:outline-white",
                     )}
                   >
-                    View details
+                    {takeover ? (owned ? "Play now" : "Get it") : "View details"}
                     <ArrowRight size={17} aria-hidden />
                   </Link>
                   <WatchButton
@@ -648,6 +678,48 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
 }
 
 /* -------------------------------------------------------------------------- */
+
+/** Today's date in the reader's own calendar, as `YYYY-MM-DD`. */
+function localToday(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
+ * A release-day slide: the data layer's `takeover` flag, or — once hydrated,
+ * so server and client agree — a day-precise release date that is today in
+ * the reader's own timezone (the flag is computed in UTC).
+ */
+function isTakeover(game: SpotlightGame, hydrated: boolean): boolean {
+  if (game.takeover) return true;
+  return hydrated && game.released === localToday();
+}
+
+/**
+ * One soft band of light across the stage when a release-day slide arrives —
+ * the "delight once" kind of motion. Keyed with the slide, so it plays once per
+ * visit to it, and skipped entirely under calm motion (the caller checks).
+ */
+function TakeoverSweep() {
+  return (
+    <>
+      <style href="hero-sweep" precedence="default">
+        {"@keyframes hero-sweep{from{transform:translateX(-110%) skewX(-12deg)}to{transform:translateX(110%) skewX(-12deg)}}"}
+      </style>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-[3] mix-blend-screen"
+        style={{
+          background:
+            "linear-gradient(100deg, transparent 34%, rgb(255 255 255 / 0.1) 44%, rgb(255 255 255 / 0.3) 50%, rgb(255 255 255 / 0.1) 56%, transparent 66%)",
+          // Starts once the key art has had a moment to land.
+          animation: "hero-sweep 1.7s cubic-bezier(0.45, 0, 0.2, 1) 1.2s both",
+        }}
+      />
+    </>
+  );
+}
 
 function ControlButton({
   label,
@@ -770,20 +842,19 @@ function HeroEmpty() {
         className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_24%,rgba(124,92,255,0.24),transparent_36%),radial-gradient(circle_at_82%_12%,rgba(34,211,238,0.12),transparent_32%)]"
       />
       <Container className="pb-14 pt-32 sm:pb-18 lg:pb-24 lg:pt-44">
-        <p className="text-sm font-semibold text-brand-soft">Your game universe, one place</p>
-        <h1 className="mt-4 max-w-4xl font-display text-[clamp(2.6rem,8vw,5.8rem)] font-black leading-[0.92] tracking-[-0.05em]">
+        <h1 className="max-w-4xl font-display text-[clamp(2.6rem,8vw,5.8rem)] font-black leading-[0.92] tracking-[-0.05em]">
           Never miss the game worth waiting for.
         </h1>
+        {/* Honest about why the stage is empty, in one line. */}
         <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted sm:text-lg">
-          Explore releases, build your collection, and follow only the games whose launches and DLC matter to you.
-          Live discovery will refill automatically when the catalogue reconnects.
+          Featured games return as soon as the catalogue reconnects.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Button href="/browse" size="lg" iconRight={<ArrowRight size={17} />}>
-            Explore the catalogue
+            Browse games
           </Button>
-          <Button href="/stats" size="lg" variant="secondary">
-            Open personal stats
+          <Button href="/upcoming" size="lg" variant="secondary">
+            Upcoming
           </Button>
         </div>
       </Container>

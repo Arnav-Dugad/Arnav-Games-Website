@@ -30,6 +30,8 @@ interface Position {
   width: number;
   /** Set when the popover had to flip above the anchor to stay on screen. */
   above: boolean;
+  /** Room on the chosen side; the panel scrolls inside it. */
+  maxHeight: number;
 }
 
 export function Popover({
@@ -60,12 +62,20 @@ export function Popover({
     if (!anchor) return;
 
     const rect = anchor.getBoundingClientRect();
-    const panelHeight = panelRef.current?.offsetHeight ?? 320;
+    // scrollHeight, not offsetHeight: the natural size, even while a previous
+    // placement has the panel capped and scrolling.
+    const panelHeight = panelRef.current?.scrollHeight ?? 320;
 
     // Flip above the anchor when there isn't room below — on a phone the
     // ownership button often sits low in the viewport.
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const above = spaceBelow < panelHeight + GAP + MARGIN && rect.top > panelHeight + GAP;
+    const spaceBelow = window.innerHeight - rect.bottom - GAP - MARGIN;
+    const spaceAbove = rect.top - GAP - MARGIN;
+    // When it fits on neither side (a landscape phone is 390px tall), take
+    // the roomier side and scroll inside it rather than run off the screen
+    // with the bottom rows unreachable.
+    const above = spaceBelow < panelHeight && (rect.top > panelHeight + GAP || spaceAbove > spaceBelow);
+    const maxHeight = Math.max(160, above ? spaceAbove : spaceBelow);
+    const shown = Math.min(panelHeight, maxHeight);
 
     /*
      * Clamp the width before positioning.
@@ -84,10 +94,11 @@ export function Popover({
     const left = Math.max(MARGIN, Math.min(preferred, maxLeft));
 
     setPosition({
-      top: above ? rect.top - panelHeight - GAP : rect.bottom + GAP,
+      top: above ? rect.top - shown - GAP : rect.bottom + GAP,
       left,
       width: clampedWidth,
       above,
+      maxHeight,
     });
   }, [anchorRef, width, align]);
 
@@ -149,11 +160,12 @@ export function Popover({
             left: position?.left ?? -9999,
             // The measured width, not the requested one — see `place()`.
             width: position?.width ?? width,
+            maxHeight: position?.maxHeight,
             // Hidden until measured, so it never flashes at the fallback spot.
             visibility: position ? "visible" : "hidden",
           }}
           className={cn(
-            "material material-menu fixed z-[300] overflow-hidden rounded-[22px] p-1.5",
+            "material material-menu fixed z-(--z-popover) overflow-y-auto overscroll-contain rounded-[22px] p-1.5",
             className,
           )}
         >

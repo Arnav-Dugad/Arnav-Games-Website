@@ -23,7 +23,7 @@ import {
   getUpcoming,
   isDegraded,
 } from "@/lib/games/source";
-import type { GameSummary } from "@/lib/games/types";
+import type { GameSummary, SpotlightGame } from "@/lib/games/types";
 
 // Render from cached provider data at request time so an upstream outage is
 // never baked into the homepage HTML during deployment.
@@ -76,12 +76,13 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   ]);
 
   const preview = await devPreview(searchParams, [...trending.data, ...upcomingGames, ...topRated.data]);
+  const heroGames = await devTakeover(searchParams, spotlight.data);
 
   return (
     <>
       {/* The hero is deliberately IGDB-only. It never falls back to a
           storefront or an unrelated upcoming shelf. */}
-      <CinematicHero games={spotlight.data} />
+      <CinematicHero games={heroGames} />
 
       {source === "unavailable" && (
         <Container className="pt-8">
@@ -104,13 +105,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       </Suspense>
 
       {weekCount >= MIN_WEEK_GAMES ? (
-        <HomeSection
-          id="this-week"
-          eyebrow="Release calendar"
-          title="This week"
-          description={`${weekCount} notable ${weekCount === 1 ? "game" : "games"} out in the next seven days.`}
-          href="/upcoming"
-        >
+        <HomeSection id="this-week" title="This week" href="/upcoming">
           <Container>
             <ThisWeek days={week} />
           </Container>
@@ -119,13 +114,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         upcomingGames.length > 0 && (
           // A quiet week falls back to the calendar's next arrivals rather
           // than a grid of empty days.
-          <HomeSection
-            id="this-week"
-            eyebrow="Release calendar"
-            title="Landing soon"
-            description="The next notable releases, in date order."
-            href="/upcoming"
-          >
+          <HomeSection id="this-week" title="Landing soon" href="/upcoming">
             <ComingSoon games={upcomingGames.slice(0, 18)} label="Landing soon" />
           </HomeSection>
         )
@@ -136,13 +125,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       </Suspense>
 
       {newReleases.data.length > 0 && (
-        <HomeSection
-          id="new-releases"
-          eyebrow="Just released"
-          title="New releases"
-          description="Out in the last two months."
-          href="/browse?ordering=-released"
-        >
+        <HomeSection id="new-releases" title="New releases" href="/browse?ordering=-released">
           <ComingSoon games={newReleases.data} label="New releases" />
         </HomeSection>
       )}
@@ -152,13 +135,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       </Suspense>
 
       {genreTiles.length > 0 && (
-        <HomeSection
-          id="genres"
-          eyebrow="Find your lane"
-          title="Browse by genre"
-          href="/genres"
-          linkLabel="All genres"
-        >
+        <HomeSection id="genres" title="Genres" href="/genres" linkLabel="All genres">
           <Container>
             <GenreTiles tiles={genreTiles} />
           </Container>
@@ -200,6 +177,17 @@ function TodayFallback() {
       </Container>
     </section>
   );
+}
+
+/**
+ * DEV PREVIEW ONLY: `/?preview=takeover` dresses the first hero slide as a
+ * release-day takeover, so the treatment can be reviewed on a day when
+ * nothing big launches. Returns the data untouched outside `next dev`.
+ */
+async function devTakeover(searchParams: SearchParams, games: SpotlightGame[]): Promise<SpotlightGame[]> {
+  if (process.env.NODE_ENV !== "development" || games.length === 0) return games;
+  if ((await searchParams).preview !== "takeover") return games;
+  return [{ ...games[0], takeover: true }, ...games.slice(1)];
 }
 
 /**

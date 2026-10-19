@@ -10,6 +10,7 @@
 import type { AchievementStats, GamePcInfo, ProtonTier } from "./types";
 import { deckStatusFromCategory, rarityBands } from "./market-rules";
 import { steamFullDetails } from "./steam-store";
+import { parsePcRequirements } from "./pc-requirements";
 
 const DAY = 60 * 60 * 24;
 const TIMEOUT_MS = 3500;
@@ -67,9 +68,12 @@ const httpsUrl = (raw: string | undefined) => {
  * unlock percentages. Hidden achievements are left out of the showcase —
  * their names are often ending spoilers.
  */
-async function achievements(appid: number): Promise<AchievementStats | null> {
+async function achievements(
+  appid: number,
+  record: ReturnType<typeof steamFullDetails>,
+): Promise<AchievementStats | null> {
   const [details, global] = await Promise.all([
-    steamFullDetails(appid),
+    record,
     getJson<{ achievementpercentages?: { achievements?: Array<{ percent?: string | number }> } }>(
       `https://api.steampowered.com/ISteamUserStats/GetGlobalAchievementPercentagesForApp/v2/?gameid=${appid}`,
     ),
@@ -89,11 +93,17 @@ async function achievements(appid: number): Promise<AchievementStats | null> {
   return { total, highlighted, ...rarityBands(percents) };
 }
 
+/**
+ * The store record is read once and shared by achievements and requirements
+ * (a parallel second read would be a second request on a cold cache).
+ */
 export async function pcInfoFor(appid: number): Promise<GamePcInfo> {
-  const [deck, proton, stats] = await Promise.all([
+  const details = steamFullDetails(appid).catch(() => null);
+  const [deck, proton, stats, record] = await Promise.all([
     deckStatus(appid).catch(() => null),
     protonSummary(appid).catch(() => null),
-    achievements(appid).catch(() => null),
+    achievements(appid, details).catch(() => null),
+    details,
   ]);
-  return { deck, proton, achievements: stats };
+  return { deck, proton, achievements: stats, requirements: parsePcRequirements(record?.pc_requirements) };
 }

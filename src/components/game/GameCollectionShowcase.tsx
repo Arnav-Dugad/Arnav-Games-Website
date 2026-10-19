@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { GameCover } from "./GameCover";
 import { DARK_STAGE_STYLE } from "./detail/theme";
-import { DetailHeading } from "./detail/DetailSection";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { Badge } from "@/components/ui/Badge";
 import { ScorePill } from "@/components/ui/ScoreRing";
@@ -122,19 +121,8 @@ export function GameCollectionShowcase({ game }: { game: GameDetail }) {
   if (!hasUniverse && groups.length === 0 && !game.parentGame) return null;
 
   return (
-    <section id="collection" aria-labelledby="collection-title" className="scroll-mt-36 space-y-10 sm:space-y-12">
-      <DetailHeading
-        titleId="collection-title"
-        eyebrow="DLC & more"
-        icon={<Boxes size={14} />}
-        title={groups.length > 0 ? "Add-ons, editions and the wider series" : "Part of a bigger world"}
-        description={
-          groups.length > 0
-            ? "DLC, expansions, editions and bundles are different products, so each keeps its own shelf."
-            : undefined
-        }
-      />
-
+    // Headed by the page's "More from this series" section; no title of its own.
+    <div id="collection" className="scroll-mt-36 space-y-10 sm:space-y-12">
       {hasUniverse && <UniverseShowcase game={game} />}
 
       {(groups.length > 0 || game.parentGame) && (
@@ -164,7 +152,7 @@ export function GameCollectionShowcase({ game }: { game: GameDetail }) {
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
 }
 

@@ -9,15 +9,38 @@
  *
  * Presentation is the shared collapsed toolbar: a result count and sort menu,
  * then one pill per facet that opens a popover (desktop) or sheet (touch),
- * plus an "All filters" sheet. The previous design showed every genre and
- * platform as an always-expanded wall of chips on desktop, which pushed the
- * actual results below the fold before anyone had chosen anything.
+ * plus an "All filters" sheet. /browse adds a search field and a rail of
+ * curated shortcuts above it — the App Store pattern of "type, or start
+ * from a suggestion".
  */
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useCallback, useMemo, useState, useTransition } from "react";
-import { CalendarDays, Gamepad2, Gauge, Shapes } from "lucide-react";
-import { FilterToolbar, SortMenu, type ActiveFilterPill, type FacetDef } from "@/components/filters";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+  type ReactNode,
+  type TransitionStartFunction,
+} from "react";
+import {
+  CalendarDays,
+  Gamepad2,
+  Gauge,
+  Gem,
+  Joystick,
+  Shapes,
+  Sparkles,
+  Star,
+  Swords,
+  Trophy,
+} from "lucide-react";
+import { FilterToolbar, SearchField, SortMenu, type FacetDef } from "@/components/filters";
+import { SYSTEM_NAMES } from "@/components/filters/platform-systems";
+import { cn } from "@/lib/utils/cn";
 import type { Ref, SortKey } from "@/lib/games/types";
 
 export interface SortOption {
@@ -57,16 +80,75 @@ const SCORE_PRESETS = [
 ];
 
 const YEAR = new Date().getUTCFullYear();
+const THIS_YEAR = `${YEAR}-01-01,${YEAR}-12-31`;
+const RETRO = "1970-01-01,1999-12-31";
 const DATE_PRESETS = [
-  { value: `${YEAR}-01-01,${YEAR}-12-31`, label: `${YEAR} releases`, short: String(YEAR) },
+  { value: THIS_YEAR, label: `${YEAR} releases`, short: String(YEAR) },
   { value: `2020-01-01,${YEAR - 1}-12-31`, label: `2020–${YEAR - 1}`, short: `2020–${String(YEAR - 1).slice(2)}` },
   { value: "2010-01-01,2019-12-31", label: "2010s" },
   { value: "2000-01-01,2009-12-31", label: "2000s" },
-  { value: "1970-01-01,1999-12-31", label: "Classics (pre-2000)", short: "Classics" },
+  { value: RETRO, label: "Classics (pre-2000)", short: "Classics" },
+];
+
+/**
+ * Curated starting points for /browse.
+ *
+ * Every one is an ordinary combination of the filters below — tapping it sets
+ * those params, tapping again removes them — so it can never promise
+ * something the catalogue can't filter on. ("Free to play" and "couch co-op"
+ * would need price and multiplayer-mode filters the provider doesn't expose,
+ * so they're deliberately absent rather than approximated.)
+ */
+const QUICK_FILTERS: { id: string; label: string; icon: ReactNode; params: Record<string, string> }[] = [
+  { id: "rated", label: "Highly rated", icon: <Star size={14} />, params: { metacritic: "80,100" } },
+  { id: "year", label: `${YEAR} releases`, icon: <Sparkles size={14} />, params: { dates: THIS_YEAR } },
+  { id: "greats", label: "All-time greats", icon: <Trophy size={14} />, params: { metacritic: "90,100", ordering: "-metacritic" } },
+  { id: "indie", label: "Indie gems", icon: <Gem size={14} />, params: { genres: "indie", metacritic: "80,100" } },
+  { id: "rpg", label: "Role-playing", icon: <Swords size={14} />, params: { genres: "role-playing-rpg" } },
+  { id: "retro", label: "Retro classics", icon: <Joystick size={14} />, params: { dates: RETRO, metacritic: "80,100" } },
+  { id: "switch2", label: "On Switch 2", icon: <Gamepad2 size={14} />, params: { platforms: "switch-2" } },
 ];
 
 /** The params this control owns. Everything else in the URL is left alone. */
 const FILTER_KEYS = ["genres", "platforms", "metacritic", "dates"] as const;
+
+/* -------------------------------------------------------------------------- */
+/* Shared pending state                                                       */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Every change here is a navigation that waits on a provider query, and the
+ * results grid is server-rendered — outside this component. Sharing the
+ * transition lets the grid dim while the next page is on its way, instead of
+ * sitting there looking current. Optional: without the provider (as on
+ * /upcoming) the controls keep their own transition and nothing changes.
+ */
+const PendingContext = createContext<{ pending: boolean; start: TransitionStartFunction } | null>(null);
+
+export function BrowsePendingProvider({ children }: { children: ReactNode }) {
+  const [pending, start] = useTransition();
+  const value = useMemo(() => ({ pending, start }), [pending, start]);
+  return <PendingContext value={value}>{children}</PendingContext>;
+}
+
+/** Dims (but never blocks) the results while a filter change is loading. */
+export function BrowsePendingRegion({ children }: { children: ReactNode }) {
+  const pending = useContext(PendingContext)?.pending ?? false;
+  return (
+    <div
+      aria-busy={pending}
+      className={cn(
+        "transition-opacity duration-300",
+        // A short delay so a fast, cached answer doesn't flicker.
+        pending && "opacity-50 delay-150",
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 
 interface BrowseControlsProps {
   genres: Ref[];
@@ -86,6 +168,10 @@ interface BrowseControlsProps {
   showScore?: boolean;
   /** Off where the list order is fixed by the view (calendar week/month grids). */
   showSort?: boolean;
+  /** A search field above the toolbar, writing `search` to the URL. */
+  searchable?: boolean;
+  /** The curated shortcut rail (/browse). */
+  showQuickFilters?: boolean;
 }
 
 export function BrowseControls({
@@ -98,11 +184,15 @@ export function BrowseControls({
   showDatePresets = true,
   showScore = true,
   showSort = true,
+  searchable = false,
+  showQuickFilters = false,
 }: BrowseControlsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const urlParams = useSearchParams();
-  const [pending, startTransition] = useTransition();
+  const shared = useContext(PendingContext);
+  const own = useTransition();
+  const [pending, startTransition] = shared ? [shared.pending, shared.start] : own;
 
   /*
    * Optimistic query string.
@@ -127,24 +217,26 @@ export function BrowseControls({
   const search = params.get("search") ?? "";
 
   const push = useCallback(
-    (next: URLSearchParams) => {
+    (next: URLSearchParams, replace = false) => {
       // Any filter change invalidates the current page offset.
       next.delete("page");
       const qs = next.toString();
       setOptimisticQs(qs);
       startTransition(() => {
-        router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+        const href = qs ? `${pathname}?${qs}` : pathname;
+        if (replace) router.replace(href, { scroll: false });
+        else router.push(href, { scroll: false });
       });
     },
-    [router, pathname],
+    [router, pathname, startTransition],
   );
 
   const setParam = useCallback(
-    (key: string, value: string | null) => {
+    (key: string, value: string | null, replace = false) => {
       const next = new URLSearchParams(params.toString());
       if (value) next.set(key, value);
       else next.delete(key);
-      push(next);
+      push(next, replace);
     },
     [params, push],
   );
@@ -187,13 +279,21 @@ export function BrowseControls({
       });
     }
     if (platforms.length > 0) {
+      const selected = listParam("platforms");
+      const options = platforms.map((platform) => ({ value: platform.slug, label: platform.name }));
+      // A single system chosen from /platforms ("ps5") isn't a family option;
+      // give its pill a real name instead of the raw slug.
+      for (const slug of selected) {
+        const name = SYSTEM_NAMES.get(slug);
+        if (name && !options.some((option) => option.value === slug)) options.push({ value: slug, label: name });
+      }
       list.push({
         id: "platforms",
         label: "Platform",
         icon: <Gamepad2 size={15} />,
         mode: "multi",
-        options: platforms.map((platform) => ({ value: platform.slug, label: platform.name })),
-        selected: listParam("platforms"),
+        options,
+        selected,
         onChange: multi("platforms"),
       });
     }
@@ -231,7 +331,9 @@ export function BrowseControls({
     return list;
   }, [genres, platforms, params, setParam, showScore, showDatePresets]);
 
-  const extraPills: ActiveFilterPill[] = search
+  // With a search field on the page the term is already visible and
+  // editable; a removable pill repeating it was noise.
+  const extraPills = search && !searchable
     ? [{ key: "search", label: `“${search}”`, onRemove: () => setParam("search", null) }]
     : [];
 
@@ -239,28 +341,137 @@ export function BrowseControls({
   const formatted = totalCount.toLocaleString("en-US");
 
   return (
-    <FilterToolbar
-      pending={pending}
-      summary={
-        // nowrap: at 320px "309,186 games" broke onto two lines beside the sort menu.
-        <p className="whitespace-nowrap">
-          <span className="font-semibold tabular-nums text-text">{formatted}</span> {plural}
-        </p>
-      }
-      actions={showSort &&
-        <SortMenu
-          options={sorts}
-          value={activeSort}
-          onChange={setSort}
-          label={`Sort ${noun}s`}
-          className="max-w-[11.5rem] sm:max-w-none"
+    <div className="space-y-3">
+      {searchable && (
+        <BrowseSearch
+          value={search}
+          onCommit={(term, replace) => setParam("search", term || null, replace)}
         />
-      }
-      facets={facets}
-      extraPills={extraPills}
-      onClearAll={clearAll}
-      resultLabel={`Show ${formatted} ${plural}`}
-      sheetDescription={`${formatted} ${plural} match`}
-    />
+      )}
+      {showQuickFilters && (
+        <QuickFilterRail
+          params={params}
+          onToggle={(filter, on) => {
+            const next = new URLSearchParams(params.toString());
+            for (const [key, value] of Object.entries(filter.params)) {
+              if (on) next.set(key, value);
+              else next.delete(key);
+            }
+            push(next);
+          }}
+        />
+      )}
+      <FilterToolbar
+        className={cn((searchable || showQuickFilters) && "pt-2")}
+        pending={pending}
+        summary={
+          // nowrap: at 320px "309,186 games" broke onto two lines beside the sort menu.
+          <p className="whitespace-nowrap">
+            <span className="font-semibold tabular-nums text-text">{formatted}</span>{" "}
+            {search && searchable ? (totalCount === 1 ? "result" : "results") : plural}
+          </p>
+        }
+        actions={showSort &&
+          <SortMenu
+            options={sorts}
+            value={activeSort}
+            onChange={setSort}
+            label={`Sort ${noun}s`}
+            className="max-w-[11.5rem] sm:max-w-none"
+          />
+        }
+        facets={facets}
+        extraPills={extraPills}
+        onClearAll={clearAll}
+        resultLabel={`Show ${formatted} ${plural}`}
+        sheetDescription={`${formatted} ${plural} match`}
+      />
+    </div>
+  );
+}
+
+/**
+ * Search within the catalogue. Typing settles for a moment before it
+ * navigates (replacing, not pushing, so the back button isn't a keystroke
+ * log); Enter commits at once.
+ */
+function BrowseSearch({ value, onCommit }: { value: string; onCommit: (term: string, replace: boolean) => void }) {
+  const [draft, setDraft] = useState(value);
+  // Follow the URL (back/forward, a removed pill) without an effect, so the
+  // field never paints the stale term.
+  const [lastValue, setLastValue] = useState(value);
+  if (value !== lastValue) {
+    setLastValue(value);
+    // Our own debounced commit lands here too; keep the reader's trailing
+    // space mid-word instead of trimming it out from under the cursor.
+    if (draft.trim() !== value) setDraft(value);
+  }
+
+  useEffect(() => {
+    const term = draft.trim();
+    if (term === value) return;
+    const timer = window.setTimeout(() => onCommit(term, true), 450);
+    return () => window.clearTimeout(timer);
+  }, [draft, value, onCommit]);
+
+  return (
+    <form
+      role="search"
+      action="/browse"
+      className="sm:max-w-xl"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (draft.trim() !== value) onCommit(draft.trim(), false);
+        // Dismiss the phone keyboard so the results are visible.
+        (document.activeElement as HTMLElement | null)?.blur();
+      }}
+    >
+      <SearchField
+        name="search"
+        value={draft}
+        onChange={setDraft}
+        placeholder="Search games"
+        label="Search games"
+        className="[&_input]:h-12 [&_input]:text-base"
+      />
+    </form>
+  );
+}
+
+function QuickFilterRail({
+  params,
+  onToggle,
+}: {
+  params: URLSearchParams;
+  onToggle: (filter: (typeof QUICK_FILTERS)[number], on: boolean) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Suggestions"
+      // Bleeds to the screen edge on phones so the rail visibly continues.
+      className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 py-0.5 sm:mx-0 sm:flex-wrap sm:px-0"
+    >
+      {QUICK_FILTERS.map((filter) => {
+        const on = Object.entries(filter.params).every(([key, value]) => params.get(key) === value);
+        return (
+          <button
+            key={filter.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onToggle(filter, !on)}
+            className={cn(
+              "press inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold transition-colors coarse:min-h-11 coarse:px-4 coarse:text-[14px]",
+              on
+                ? "bg-text text-bg"
+                : "bg-fg/[0.07] text-text fine:hover:bg-fg/[0.12]",
+            )}
+          >
+            <span aria-hidden className={on ? "text-bg" : "text-brand-soft"}>{filter.icon}</span>
+            {filter.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

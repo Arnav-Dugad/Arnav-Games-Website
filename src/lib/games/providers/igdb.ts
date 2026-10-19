@@ -735,7 +735,7 @@ async function detailFields(): Promise<string> {
  */
 const SAFE_GAMES = "themes != (42)";
 
-const MAIN_GAMES = `parent_game = null & version_parent = null & ${SAFE_GAMES}`;
+export const MAIN_GAMES = `parent_game = null & version_parent = null & ${SAFE_GAMES}`;
 
 /**
  * Keeps collection ids from colliding with franchise ids in search results.
@@ -2668,6 +2668,41 @@ export async function igdbSpotlight(limit = 6): Promise<GameSummary[] | null> {
     return recent.slice(0, limit);
   } catch (err) {
     warn("spotlight", err);
+    return null;
+  }
+}
+
+/** Pre-release follows a launch needs to take over the hero (see `igdbReleasingToday`). */
+export const RELEASE_DAY_MIN_HYPES = 25;
+
+/**
+ * Notable games releasing today (UTC calendar day), most anticipated first,
+ * for the hero's release-day takeover.
+ *
+ * "Notable" is IGDB's `hypes` — follows gathered before release, the one
+ * audience signal a brand-new game has — at or above 25, which in practice
+ * admits the launches people were waiting for (Gears of War: E-Day 115,
+ * Castlevania: Belmont's Curse 81) and leaves out the long tail. One cached
+ * query (plus its batched wordmarks); the day-aligned bounds make the cache
+ * key roll over at midnight UTC.
+ */
+export async function igdbReleasingToday(limit = 1): Promise<GameSummary[] | null> {
+  if (!igdbConfigured()) return null;
+  try {
+    const start = todayStartSeconds();
+    const today = new Date(start * 1000).toISOString().slice(0, 10);
+    const games = await listGames(
+      {
+        where: `${MAIN_GAMES} & first_release_date >= ${start} & first_release_date < ${start + 86_400} & hypes >= ${RELEASE_DAY_MIN_HYPES} & cover != null`,
+        sort: "hypes desc",
+        limit: Math.max(1, Math.min(limit, 5)),
+      },
+      TTL.list,
+      "720p",
+    );
+    return games.filter((game) => game.released === today && (game.image || game.screenshots.length > 0));
+  } catch (err) {
+    warn("releasingToday", err);
     return null;
   }
 }

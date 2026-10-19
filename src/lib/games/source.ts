@@ -27,6 +27,7 @@
 
 import {
   igdbProvider,
+  igdbReleasingToday,
   igdbSpotlight,
   igdbSteamCharts,
   igdbTotalGames,
@@ -182,7 +183,11 @@ export async function getUpcoming(
  * it still fills from the chain as usual.
  */
 export async function getSpotlight(limit = 6): Promise<Sourced<SpotlightGame[]>> {
-  const data = await igdbSpotlight(limit);
+  const [popular, launches] = await Promise.all([igdbSpotlight(limit), igdbReleasingToday(1)]);
+  // Release-day takeover: a notable launch today leads the hero, whether or
+  // not it has climbed the "playing" ranking yet (on day one it rarely has).
+  const launch = launches?.[0] ?? null;
+  const data = launch ? [launch, ...(popular ?? []).filter((game) => game.id !== launch.id)].slice(0, limit) : popular;
   if (!data || data.length === 0) return { data: [], source: UNAVAILABLE };
 
   /*
@@ -202,6 +207,7 @@ export async function getSpotlight(limit = 6): Promise<Sourced<SpotlightGame[]>>
       ...game,
       palette: palettes[i] ?? null,
       tagline: heroTagline(summaries.get(game.id)),
+      ...(launch && game.id === launch.id ? { takeover: true } : {}),
     })),
     source: "igdb",
   };

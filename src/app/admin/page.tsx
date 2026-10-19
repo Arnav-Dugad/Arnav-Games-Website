@@ -20,7 +20,6 @@ export default function AdminPage() {
       <PageHeader
         eyebrow="Private · owner only"
         title="Analytics"
-        description="First-party and cookieless: live visitors, traffic, search, attribution, retention and real-visitor Web Vitals."
       />
       {/* AdminDashboard reads `useSearchParams` (dev-only bypass flag). */}
       <Suspense fallback={null}>

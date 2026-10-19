@@ -1,17 +1,19 @@
-import { ArrowRight, CalendarClock, History, MapPin } from "lucide-react";
-import { Reveal } from "@/components/motion/Reveal";
+import { ArrowRight, CalendarClock, History } from "lucide-react";
 import { isDelay } from "@/lib/games/release-value";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/format";
 import type { ReleaseChange, ReleaseEvent } from "@/lib/games/types";
-import { DetailHeading } from "./DetailSection";
+import { Disclosure } from "./Disclosure";
 import { groupReleases, releaseValueLabel, shortPlatform, slipDays } from "./release";
 
 /**
- * Regional release dates and the record of how the date has moved.
+ * Regional release dates and the record of how the date has moved, folded
+ * into "Where to play & price" behind "Show": the headline date is already
+ * in the hero and "At a glance", so the table is reference, not news.
  *
  * The reader's region (from Cloudflare's country header) is highlighted, since
- * "when can *I* play it" is the question this table exists to answer.
+ * "when can *I* play it" is the question this table exists to answer. Links to
+ * `#release-dates` (the "Delayed 2×" badges) open it.
  */
 export function ReleaseDates({
   releases,
@@ -27,76 +29,65 @@ export function ReleaseDates({
   const groups = groupReleases(releases);
   const showTable = releases.length > 1;
   if (!showTable && changes.length === 0) return null;
+  const delays = changes.filter((change) => isDelay(change.from, change.to)).length;
+  const subtitle = [
+    showTable ? `${groups.length} ${groups.length === 1 ? "region" : "regions"}` : null,
+    delays > 0 ? `delayed ${delays}×` : changes.length > 0 ? `${changes.length} date ${changes.length === 1 ? "change" : "changes"}` : null,
+    visitorRegion && countryName ? `${countryName} is under ${visitorRegion}` : null,
+  ].filter(Boolean).join(" · ");
 
   return (
-    <section id="release-dates" aria-labelledby="release-dates-title" className="scroll-mt-36 space-y-5 sm:space-y-6">
-      <DetailHeading
-        titleId="release-dates-title"
-        eyebrow="Release dates"
-        icon={<CalendarClock size={14} />}
-        title={showTable ? "When it lands, where" : "How the date has moved"}
-        description={
-          visitorRegion && countryName ? (
-            <span className="flex items-center gap-1.5">
-              <MapPin size={14} className="shrink-0 text-[var(--game-accent)]" />
-              <span>
-                Showing {countryName} under <strong className="font-semibold text-text">{visitorRegion}</strong>
-              </span>
-            </span>
-          ) : undefined
-        }
-      />
-
-      {showTable && (
-        <Reveal className="overflow-hidden rounded-3xl border border-line bg-panel/40">
-          <table className="w-full border-collapse text-left text-sm">
-            <caption className="sr-only">Release dates by region and platform</caption>
-            <thead className="border-b border-line text-[11px] font-semibold text-muted">
-              <tr>
-                <th scope="col" className="px-4 py-3 font-semibold sm:px-5">Region</th>
-                <th scope="col" className="px-2 py-3 font-semibold">Date</th>
-                <th scope="col" className="px-4 py-3 font-semibold sm:px-5">Platforms</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((group) =>
-                group.rows.map((row, index) => {
-                  const mine = group.region === visitorRegion;
-                  return (
-                    <tr
-                      key={`${group.region}-${row.label}`}
-                      className={cn(
-                        "border-b border-line last:border-b-0 align-top",
-                        mine && "bg-[color-mix(in_oklab,var(--game-accent)_10%,transparent)]",
-                      )}
-                    >
-                      <th scope="row" className="px-4 py-3 font-medium sm:px-5">
-                        {index === 0 && (
-                          <span className="flex flex-wrap items-center gap-1.5">
-                            {group.region}
-                            {mine && (
-                              <span className="rounded-full bg-[var(--game-accent)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-[var(--game-on-accent)]">
-                                You
-                              </span>
-                            )}
-                          </span>
+    <Disclosure id="release-dates" icon={<CalendarClock size={17} />} title={showTable ? "Release dates by region" : "How the date has moved"} subtitle={subtitle}>
+      <div className="space-y-5">
+        {showTable && (
+          <div className="-mx-1 overflow-hidden rounded-2xl border border-line">
+            <table className="w-full border-collapse text-left text-sm">
+              <caption className="sr-only">Release dates by region and platform</caption>
+              <thead className="border-b border-line text-[11px] font-semibold text-muted">
+                <tr>
+                  <th scope="col" className="px-4 py-3 font-semibold">Region</th>
+                  <th scope="col" className="px-2 py-3 font-semibold">Date</th>
+                  <th scope="col" className="px-4 py-3 font-semibold">Platforms</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((group) =>
+                  group.rows.map((row, index) => {
+                    const mine = group.region === visitorRegion;
+                    return (
+                      <tr
+                        key={`${group.region}-${row.label}`}
+                        className={cn(
+                          "border-b border-line align-top last:border-b-0",
+                          mine && "bg-[color-mix(in_oklab,var(--game-accent)_10%,transparent)]",
                         )}
-                      </th>
-                      <td className="whitespace-nowrap px-2 py-3 tabular-nums text-text">{row.label}</td>
-                      <td className="px-4 py-3 text-muted sm:px-5">
-                        {row.platforms.length > 0 ? row.platforms.map(shortPlatform).join(", ") : "—"}
-                      </td>
-                    </tr>
-                  );
-                }),
-              )}
-            </tbody>
-          </table>
-        </Reveal>
-      )}
+                      >
+                        <th scope="row" className="px-4 py-3 font-medium">
+                          {index === 0 && (
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              {group.region}
+                              {mine && (
+                                <span className="rounded-full bg-[var(--game-accent)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-[var(--game-on-accent)]">
+                                  You
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </th>
+                        <td className="whitespace-nowrap px-2 py-3 tabular-nums text-text">{row.label}</td>
+                        <td className="px-4 py-3 text-muted">{row.platforms.length > 0 ? row.platforms.map(shortPlatform).join(", ") : "—"}</td>
+                      </tr>
+                    );
+                  }),
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-      {changes.length > 0 && <DateChanges changes={changes} />}
-    </section>
+        {changes.length > 0 && <DateChanges changes={changes} />}
+      </div>
+    </Disclosure>
   );
 }
 
@@ -104,8 +95,8 @@ function DateChanges({ changes }: { changes: ReleaseChange[] }) {
   // Newest first — the latest move is the one people want.
   const ordered = [...changes].reverse();
   return (
-    <Reveal className="rounded-3xl border border-line bg-panel/40 p-5 sm:p-6">
-      <h3 className="flex items-center gap-2 text-[17px] font-semibold">
+    <div>
+      <h3 className="flex items-center gap-2 text-[15px] font-semibold">
         <History size={17} className="text-[var(--game-accent)]" /> Date changes
       </h3>
       <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -142,7 +133,7 @@ function DateChanges({ changes }: { changes: ReleaseChange[] }) {
           );
         })}
       </ol>
-    </Reveal>
+    </div>
   );
 }
 

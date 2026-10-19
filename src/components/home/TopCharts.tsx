@@ -39,7 +39,6 @@ export interface ChartRow {
 export interface Chart {
   id: ChartId;
   label: string;
-  description: string;
   href: string;
   rows: ChartRow[];
 }
@@ -64,12 +63,8 @@ export function TopCharts({ charts }: { charts: Chart[] }) {
   return (
     <section data-track-src="home:charts" aria-labelledby="home-charts-title" className="py-9 sm:py-12 lg:py-14">
       <Container>
-        <SectionHeading
-          eyebrow="Top charts"
-          title={<span id="home-charts-title">{chart.label}</span>}
-          description={chart.description}
-          href={chart.href}
-        />
+        {/* The segmented control names the chart; the heading names the shelf. */}
+        <SectionHeading title={<span id="home-charts-title">Top charts</span>} href={chart.href} />
         {available.length > 1 && (
           <SegmentedControl
             label="Choose a chart"
@@ -184,8 +179,8 @@ export function TopChartsSkeleton() {
   return (
     <section aria-hidden className="py-9 sm:py-12 lg:py-14">
       <Container>
-        <div className="skeleton-glass h-4 w-24 rounded-full" />
-        <div className="skeleton-glass mt-3 h-8 w-56 rounded-xl" />
+        {/* Matches the heading without eyebrow or description. */}
+        <div className="skeleton-glass h-8 w-44 rounded-xl" />
         <div className="skeleton-glass mt-5 h-10 w-full max-w-md rounded-full" />
         <div className="mt-6 grid gap-x-10 md:grid-cols-3">
           {[0, 1, 2].map((column) => (

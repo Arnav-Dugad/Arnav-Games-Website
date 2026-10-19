@@ -232,7 +232,7 @@ export function ProfileScreen({
 
           <Showcase entries={entries} reviews={reviews} />
 
-          <ProfileSection title="Milestones" subtitle="Earned from what you've actually tracked, owned, finished and written.">
+          <ProfileSection title="Milestones">
             <Milestones entries={entries} reviews={reviews ?? []} />
           </ProfileSection>
 
@@ -422,7 +422,7 @@ function Showcase({ entries, reviews }: { entries: WatchlistEntry[]; reviews: Re
   const art = new Map(entries.map((entry) => [entry.slug, entry]));
   const loved = (reviews ?? []).filter((review) => review.rating >= 8).sort((a, b) => b.rating - a.rating || b.updatedAt - a.updatedAt);
   let title = "Favourites";
-  let subtitle = "Your highest ratings.";
+  let subtitle: string | undefined;
   let items: ShowcaseItem[] = loved.slice(0, 6).map((review) => ({
     slug: review.slug,
     name: review.gameName,
@@ -434,7 +434,7 @@ function Showcase({ entries, reviews }: { entries: WatchlistEntry[]; reviews: Re
     const finished = entries.filter((entry) => entry.status === "played" && entry.metacritic !== null).sort((a, b) => (b.metacritic ?? 0) - (a.metacritic ?? 0));
     if (finished.length >= 3) {
       title = "Best of what you've finished";
-      subtitle = "Your finished games with the highest critic scores. Rate games 8 or above to pick your own favourites.";
+      subtitle = "Rate games 8 or above to pick your own.";
       items = finished.slice(0, 6).map((entry) => ({ slug: entry.slug, name: entry.name, image: entry.image, imageFallback: entry.imageFallback, caption: `Critics: ${entry.metacritic}` }));
     }
   }

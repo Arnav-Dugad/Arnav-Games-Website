@@ -62,7 +62,7 @@ export function OfflineBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 top-[calc(max(0.5rem,env(safe-area-inset-top))+4rem)] z-[145] flex justify-center px-4 lg:top-[calc(env(titlebar-area-height,0px)+5.25rem)]"
+      className="pointer-events-none fixed inset-x-0 top-[calc(var(--chrome-top)+0.5rem)] z-(--z-offline) flex justify-center px-4"
     >
       <AnimatePresence mode="wait">
         {state && (

@@ -9,10 +9,12 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { ArrowRight, ChevronRight, Clock, X } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
+import { CoverTransition } from "@/components/interactions/CoverTransition";
 import { GameLogo } from "@/components/game/GameLogo";
 import { PlatformIcons } from "@/components/game/PlatformIcons";
 import { WatchButton } from "@/components/game/WatchButton";
 import { ScorePill } from "@/components/ui/ScoreRing";
+import { LogoMorph, useResultMorph } from "./LogoMorph";
 import { SearchHitVisual } from "./SearchHitVisual";
 import { useRecentSearches } from "./recent";
 import { SEARCH_KIND_LABELS, hrefForSearchHit, type SearchHit } from "@/lib/games/search";
@@ -27,6 +29,8 @@ import type { GameSummary } from "@/lib/games/types";
 export function TopHitCard({ hit, game }: { hit: SearchHit; game: GameSummary | null }) {
   const kind = SEARCH_KIND_LABELS[hit.kind].replace(/s$/, "");
   const href = hrefForSearchHit(hit);
+  // Opening the top hit morphs its logo and poster into the game page's.
+  const morph = useResultMorph(hit.slug, game?.image ?? hit.image);
 
   if (hit.kind === "game" && game) {
     const art = game.screenshots[0] ?? game.imageFallback ?? game.image;
@@ -56,26 +60,41 @@ export function TopHitCard({ hit, game }: { hit: SearchHit; game: GameSummary | 
           <span className="relative hidden w-[132px] shrink-0 overflow-hidden rounded-2xl shadow-[0_20px_40px_-16px_#000] ring-1 ring-white/15 sm:block lg:w-[152px]">
             {/* `relative`: the cover is a `fill` image and needs a positioned parent. */}
             <span className="relative block aspect-[3/4]">
-              <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={320} sizes="152px" />
+              <CoverTransition slug={game.slug} active={morph.coverActive}>
+                <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={320} sizes="152px" />
+              </CoverTransition>
             </span>
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/70">Top hit · {kind}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/70">Top hit</p>
             <div className="mt-3 max-w-[min(480px,100%)] [--hit-logo:clamp(56px,14vw,96px)]">
-              <GameLogo name={game.name} logo={game.logo} height="var(--hit-logo)" surface="dark" reveal priority />
+              <LogoMorph slug={game.slug} active={morph.logoActive}>
+                <GameLogo name={game.name} logo={game.logo} height="var(--hit-logo)" surface="dark" reveal priority />
+              </LogoMorph>
             </div>
             {/* A div, not a p: PlatformIcons renders a list. */}
             <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[14px] text-white/75 sm:text-[15px]">
               <span>{releaseLabelLong(game)}</span>
-              {genres && <><span aria-hidden className="h-[3px] w-[3px] rounded-full bg-white/45" /><span>{genres}</span></>}
+              {/* Each separator travels with the item after it, so a wrapped
+                  line never ends on a dangling dot. */}
+              {genres && (
+                <span className="inline-flex items-center gap-x-2.5">
+                  <span aria-hidden className="h-[3px] w-[3px] rounded-full bg-white/45" />
+                  <span>{genres}</span>
+                </span>
+              )}
               {game.parentPlatforms.length > 0 && (
-                <><span aria-hidden className="h-[3px] w-[3px] rounded-full bg-white/45" /><PlatformIcons platforms={game.parentPlatforms} size={14} max={5} className="gap-2 text-white/70" /></>
+                <span className="inline-flex items-center gap-x-2.5">
+                  <span aria-hidden className="h-[3px] w-[3px] rounded-full bg-white/45" />
+                  <PlatformIcons platforms={game.parentPlatforms} size={14} max={5} className="gap-2 text-white/70" />
+                </span>
               )}
               <ScorePill score={game.metacritic} onImage />
             </div>
             <div className="mt-5 flex flex-wrap items-center gap-2.5">
               <Link
                 href={href}
+                onClick={morph.claim}
                 className="press inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-5 text-[15px] font-semibold text-black fine:hover:bg-white/90"
               >
                 View game <ArrowRight size={16} aria-hidden />

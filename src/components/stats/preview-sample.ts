@@ -10,6 +10,7 @@
 
 import type { WatchStatus, WatchlistEntry } from "@/lib/firebase/db";
 import type { TimeToBeatLike } from "@/lib/games/stats";
+import type { BatchPrices, GamePassMatches } from "@/lib/games/types";
 
 const G = {
   rpg: { id: 12, slug: "role-playing-rpg", name: "Role-playing (RPG)" },
@@ -110,3 +111,94 @@ export function sampleLibrary(limit = ROWS.length): { entries: WatchlistEntry[];
 
 /** A plausible benchmark shape; the live page computes the real one from IGDB. */
 export const SAMPLE_BENCHMARK = { average: 84, sample: 200 };
+
+/* ---------------------------------------------------------------------------
+ * Market samples for the collection previews. Same rules as above: dev-only,
+ * illustrative, never shown to a real reader (the routes 404 in production).
+ * The sample ids are fake, so the live price and Game Pass routes can't
+ * answer for them — these stand in.
+ * ------------------------------------------------------------------------ */
+
+/** Illustrative Game Pass overlap for `/library/preview`, keyed by sample id. */
+export function sampleGamePass(entries: WatchlistEntry[]): GamePassMatches {
+  const id = (name: string) => String(entries.find((entry) => entry.name === name)?.gameId ?? "");
+  const out: GamePassMatches = {
+    [id("Metaphor: ReFantazio")]: { console: true, pc: true, leavingSoon: true, recentlyAdded: false },
+    [id("Forza Horizon 5")]: { console: true, pc: true, leavingSoon: true, recentlyAdded: false },
+    [id("Disco Elysium")]: { console: true, pc: true, leavingSoon: false, recentlyAdded: false },
+    [id("XCOM 2")]: { console: false, pc: true, leavingSoon: false, recentlyAdded: true },
+    [id("Civilization VII")]: { console: false, pc: true, leavingSoon: false, recentlyAdded: false },
+  };
+  delete out[""];
+  return out;
+}
+
+/** [name, released, metacritic, hours, price ¢, initial ¢ | null, store] — a wishlist of games not owned. */
+type WishRow = [string, string, number, number | null, number | null, number | null, "steam" | "microsoft"];
+
+const WISHLIST: WishRow[] = [
+  ["Cyberpunk 2077", "2020-12-10", 86, 25, 2999, 5999, "steam"],
+  ["Sekiro: Shadows Die Twice", "2019-03-22", 90, 30, 5999, null, "steam"],
+  ["Outer Wilds", "2019-05-28", 85, 17, 2499, null, "steam"],
+  ["Hi-Fi Rush", "2023-01-25", 89, 11, 899, 2999, "microsoft"],
+  ["Pentiment", "2022-11-15", 86, 18, 1999, null, "microsoft"],
+  ["Return of the Obra Dinn", "2018-10-18", 89, 10, 999, 1999, "steam"],
+  ["Lies of P", "2023-09-19", 80, 35, 2999, 5999, "steam"],
+  ["Starfield", "2023-09-06", 83, 40, 6999, null, "microsoft"],
+  ["Tunic", "2022-03-16", 85, 12, 2999, null, "steam"],
+  ["Vampire Survivors", "2022-10-20", 86, 15, 499, null, "steam"],
+  ["Alan Wake 2", "2023-10-27", 89, 18, null, null, "steam"],
+];
+
+/** Wishlisted, released, unowned sample games plus US store prices, for `/watchlist/preview`. */
+export function sampleWishlist(): {
+  entries: WatchlistEntry[];
+  prices: BatchPrices;
+  timeToBeat: Record<number, TimeToBeatLike>;
+} {
+  const prices: BatchPrices = {};
+  const timeToBeat: Record<number, TimeToBeatLike> = {};
+  const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+  const entries = WISHLIST.map(([name, released, metacritic, hours, price, initial, store], index): WatchlistEntry => {
+    const gameId = 950_000 + index;
+    const addedAt = Date.parse(`2026-0${(index % 9) + 1}-10T12:00:00Z`);
+    if (hours !== null) timeToBeat[gameId] = { hastily: Math.round(hours * 0.7), normally: hours, completely: Math.round(hours * 1.8) };
+    prices[String(gameId)] = price === null ? null : {
+      store,
+      country: "US",
+      currency: "USD",
+      price,
+      initial,
+      discount: initial ? Math.round((1 - price / initial) * 100) : 0,
+      formatted: usd.format(price / 100),
+      url: store === "steam" ? "https://store.steampowered.com/" : "https://www.xbox.com/games/store",
+    };
+    return {
+      gameId,
+      slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+      name,
+      image: null,
+      imageFallback: null,
+      released,
+      releaseWindow: null,
+      tba: false,
+      metacritic,
+      following: false,
+      watchlisted: true,
+      metadataVersion: 3,
+      metadataUpdatedAt: addedAt,
+      status: "want",
+      platform: null,
+      startedAt: null,
+      finishedAt: null,
+      genreIds: [],
+      genres: [],
+      platformSlugs: [],
+      ownedOn: [],
+      subscriptionAccess: [],
+      followedReleases: [],
+      addedAt,
+    };
+  });
+  return { entries, prices, timeToBeat };
+}

@@ -11,12 +11,19 @@
  *
  * On a desktop the Week view becomes a seven-column board instead, because
  * there is room to show every day at once and that is what a week planner is.
+ *
+ * Changing month turns the page like a desk calendar: going forward, the old
+ * month folds up and away over the binding to reveal the new one beneath;
+ * going back, the previous month folds down on top. Reduced motion
+ * crossfades instead.
  */
 
 import Link, { useLinkStatus } from "next/link";
+import { AnimatePresence, motion, type Variants } from "motion/react";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
+import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { HypeBadge, ReleaseList, useUtcToday } from "@/components/game/ReleaseTimeline";
 import {
   DAY_LONG,
@@ -168,6 +175,45 @@ function BoardCard({ game, hype }: { game: GameSummary; hype?: number }) {
 /* Month                                                                      */
 /* -------------------------------------------------------------------------- */
 
+interface Turn {
+  /** 1 forward, -1 back, 0 first paint. */
+  dir: number;
+  calm: boolean;
+}
+
+const TURN_S = 0.45;
+
+/*
+ * Pages hinge on their top edge. rotateX goes negative so a turning page
+ * folds *away* from the reader (a desk calendar) and never balloons over the
+ * controls above it; past -90° the back face is hidden, so it simply leaves.
+ * Every variant names every value — motion would otherwise animate an omitted
+ * one back to `initial`.
+ */
+const PAGE: Variants = {
+  enter: ({ dir, calm }: Turn) =>
+    calm ? { opacity: 0, rotateX: 0, zIndex: 1 } : dir < 0 ? { opacity: 1, rotateX: -100, zIndex: 2 } : { opacity: 1, rotateX: 0, zIndex: 1 },
+  center: ({ dir, calm }: Turn) => ({
+    opacity: 1,
+    rotateX: 0,
+    zIndex: dir < 0 ? 2 : 1,
+    transition: calm ? { duration: 0.2 } : dir < 0 ? { duration: TURN_S, ease: [0.3, 0.75, 0.35, 1] } : { duration: 0 },
+  }),
+  exit: ({ dir, calm }: Turn) =>
+    calm
+      ? { opacity: 0, rotateX: 0, zIndex: 1, transition: { duration: 0.2 } }
+      : dir > 0
+        ? { opacity: 1, rotateX: -100, zIndex: 2, transition: { duration: TURN_S, ease: [0.5, 0, 0.75, 0.35] } }
+        : { opacity: 1, rotateX: 0, zIndex: 1, transition: { duration: TURN_S } },
+};
+
+/** Light on the paper: the page underneath sits in the turning page's shadow. */
+const SHADE: Variants = {
+  enter: ({ dir, calm }: Turn) => ({ opacity: calm || dir === 0 ? 0 : 0.4 }),
+  center: { opacity: 0, transition: { duration: TURN_S, ease: "easeOut" } },
+  exit: ({ dir, calm }: Turn) => ({ opacity: calm ? 0 : dir > 0 ? 0.3 : 0.4, transition: { duration: TURN_S, ease: "easeIn" } }),
+};
+
 export function MonthView({
   games,
   signals,
@@ -191,6 +237,12 @@ export function MonthView({
   const [picked, setPicked] = useState<string | null>(null);
   const selected = picked && dates.includes(picked) ? picked : firstBusyDay(days, dates, today);
   const max = Math.max(1, ...[...days.values()].map((list) => list.length));
+  const calm = useCalmMotion();
+  // Direction comes from comparing months, adjusted during render so the
+  // very first frame of the new month already knows which way to turn.
+  const [shown, setShown] = useState({ month, dir: 0 });
+  if (shown.month !== month) setShown({ month, dir: month > shown.month ? 1 : -1 });
+  const turn: Turn = { dir: shown.month === month ? shown.dir : month > shown.month ? 1 : -1, calm };
 
   return (
     <div>
@@ -202,6 +254,18 @@ export function MonthView({
         </p>
       )}
 
+      <div className="relative" style={{ perspective: 2200 }}>
+        <AnimatePresence initial={false} mode="popLayout" custom={turn}>
+          <motion.div
+            key={month}
+            custom={turn}
+            variants={PAGE}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            style={{ transformOrigin: "50% 0%", backfaceVisibility: "hidden" }}
+            className="relative rounded-2xl bg-bg [&:not(:last-child)]:pointer-events-none"
+          >
       <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name) => (
           <div key={name} aria-hidden className="pb-1 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
@@ -258,6 +322,10 @@ export function MonthView({
           );
         })}
       </div>
+            <motion.span aria-hidden custom={turn} variants={SHADE} className="pointer-events-none absolute inset-0 rounded-2xl bg-black" />
+          </motion.div>
+        </AnimatePresence>
+      </div>
 
       <SelectedDay day={selected} games={days.get(selected) ?? []} signals={signals} today={today} />
       <WindowNote games={windowed} signals={signals} scope="month" />
@@ -294,7 +362,7 @@ function WindowNote({ games, signals, scope }: { games: GameSummary[]; signals: 
   return (
     <section className="mt-8">
       <h3 className="text-[17px] font-semibold">Also expected this {scope}</h3>
-      <p className="mt-1 text-[13px] text-muted">These have a release window rather than a day, so they aren&apos;t pinned to the grid.</p>
+      <p className="mt-1 text-[13px] text-muted">No exact day yet.</p>
       <ReleaseList games={games} signals={signals} className="mt-3" />
     </section>
   );

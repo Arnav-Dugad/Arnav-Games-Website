@@ -22,8 +22,8 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Children, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Boxes, Check, LayoutGrid, PackageOpen, PencilLine, Rows3 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Boxes, Check, LayoutGrid, PackageOpen, PencilLine, Rows3 } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { GameCover } from "@/components/game/GameCover";
 import { ScorePill } from "@/components/ui/ScoreRing";
@@ -39,6 +39,7 @@ import { entryAsGameSummary } from "@/components/interactions/game-menu-targets"
 import { useTimeToBeat } from "@/components/stats/useTimeToBeat";
 import { BatchEditPanel } from "./BatchEditPanel";
 import { BacklogRoulette } from "./BacklogRoulette";
+import { RailTabs, SmartRail } from "./SmartRail";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { usePreferences } from "@/lib/preferences/PreferencesProvider";
 import { OWNERSHIP_PLATFORMS, ownershipPlatform } from "@/lib/games/stores-catalog";
@@ -48,6 +49,7 @@ import { releaseState, type ReleaseState } from "@/lib/games/release-state";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import type { WatchlistEntry, WatchStatus } from "@/lib/firebase/db";
+import type { GamePassMatches } from "@/lib/games/types";
 
 /*
  * The shelf is a physics toy: heavy, rarely opened, and meaningless without
@@ -57,6 +59,14 @@ const PhysicsShelf = dynamic(() => import("@/components/shelf/PhysicsShelf"), {
   ssr: false,
   loading: () => <Skeleton className="h-[480px] rounded-3xl" />,
 });
+
+/*
+ * Network-backed shelves (Game Pass catalogue, device recommendations): they
+ * only mean anything for a signed-in reader's own data, so they never render
+ * on the server and stay out of the first chunk.
+ */
+const GamePassNext = dynamic(() => import("./GamePassNext"), { ssr: false });
+const DeviceRecommendations = dynamic(() => import("./DeviceRecommendations"), { ssr: false });
 
 type SortKey = "added" | "name" | "score" | "released";
 type ReleaseFilter = ReleaseState | "all";
@@ -100,10 +110,12 @@ const plural = (count: number, one: string, many = `${one}s`) => `${count.toLoca
 export function LibraryView({
   previewEntries,
   previewHours,
+  previewGamePass,
 }: {
   /** Dev-only sample data for `/library/preview`; bypasses auth. */
   previewEntries?: WatchlistEntry[];
   previewHours?: Record<number, TimeToBeatLike>;
+  previewGamePass?: GamePassMatches;
 } = {}) {
   const live = useWatchlist();
   const entries = previewEntries ?? live.entries;
@@ -248,12 +260,13 @@ export function LibraryView({
           </SmartRail>
         )}
         {groups.upNext.length > 0 && (
-          <SmartRail title="Up next" subtitle="Marked “Want to play”, and out now" count={groups.upNext.length} onSeeAll={() => showStatus("want")}>
+          <SmartRail title="Up next" count={groups.upNext.length} onSeeAll={() => showStatus("want")}>
             {groups.upNext.map((entry) => (
               <PosterTile key={entry.gameId} entry={entry} badge={hoursBadge(ttb.data?.[entry.gameId])} />
             ))}
           </SmartRail>
         )}
+        <GamePassNext entries={entries} hours={ttb.data} preview={previewGamePass} />
         {groups.backlog.length > 0 && <BacklogByPlatform platforms={groups.backlog} hours={ttb.data} />}
         {groups.finished.length > 0 && (
           <SmartRail title="Recently finished" count={groups.finished.length} onSeeAll={() => showStatus("played")}>
@@ -264,10 +277,10 @@ export function LibraryView({
         )}
 
         <Container>
-          <BacklogRoulette
-            preview={previewEntries ? { entries: previewEntries, hours: flatHours(previewHours) } : undefined}
-          />
+          <BacklogRoulette preview={previewEntries ? { entries: previewEntries, hours: previewHours } : undefined} />
         </Container>
+
+        <DeviceRecommendations entries={entries} />
       </div>
 
       <Container>
@@ -475,7 +488,7 @@ function LibraryHero({
       </dl>
       {hoursReady && hours.withData < hours.eligible && (
         <p className="mt-3 text-[12px] text-faint">
-          Hours are IGDB time-to-beat estimates for {hours.withData} of {plural(hours.eligible, "game")}; the rest have no data and count nothing.
+          Backlog hours: IGDB estimates for {hours.withData} of {plural(hours.eligible, "game")}.
         </p>
       )}
     </section>
@@ -554,48 +567,6 @@ function smartGroups(owned: WatchlistEntry[]) {
   return { playing, upNext, finished: finished.slice(0, 20), backlog };
 }
 
-function SmartRail({
-  title,
-  subtitle,
-  count,
-  onSeeAll,
-  header,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  count: number;
-  onSeeAll?: () => void;
-  header?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-label={title}>
-      <Container className="mb-3 flex items-end justify-between gap-3 sm:mb-4">
-        <div className="min-w-0">
-          <h2 className="font-display text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">
-            {title} <span className="text-[17px] font-semibold tabular-nums text-faint sm:text-[20px]">{count}</span>
-          </h2>
-          {subtitle && <p className="text-[13px] text-muted sm:text-[15px]">{subtitle}</p>}
-        </div>
-        {onSeeAll && (
-          <button type="button" onClick={onSeeAll} className="press group inline-flex min-h-11 shrink-0 items-center gap-1 text-[15px] font-medium text-brand-soft fine:hover:text-text">
-            See all
-            {/* Same arrow as every other section's "See all" (SectionHeading, search). */}
-            <ArrowRight size={15} aria-hidden className="transition-transform group-hover:translate-x-0.5" />
-          </button>
-        )}
-      </Container>
-      {header}
-      <ul className="snap-rail rail-gutter gap-3 pb-2 sm:gap-4">
-        {Children.map(children, (child) => (
-          <li className="w-[120px] sm:w-[156px]">{child}</li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 function BacklogByPlatform({ platforms, hours }: { platforms: PlatformBacklog[]; hours: Record<number, TimeToBeatLike> | null }) {
   const [active, setActive] = useState(platforms[0].slug);
   const current = platforms.find((platform) => platform.slug === active) ?? platforms[0];
@@ -604,36 +575,23 @@ function BacklogByPlatform({ platforms, hours }: { platforms: PlatformBacklog[];
   return (
     <SmartRail
       title="Backlog"
-      subtitle="Owned, out, and not started — by where you have it"
       count={total}
       header={
         platforms.length > 1 ? (
-          <Container className="mb-4">
-            <div role="group" aria-label="Backlog platform" className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-              {platforms.map((platform) => {
-                const on = platform.slug === current.slug;
-                return (
-                  <button
-                    key={platform.slug}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => {
-                      haptic("selection");
-                      setActive(platform.slug);
-                    }}
-                    className={cn(
-                      "press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition-colors coarse:min-h-11",
-                      on ? "bg-fg text-bg" : "bg-fg/[0.06] text-muted fine:hover:bg-fg/[0.1] fine:hover:text-text",
-                    )}
-                  >
-                    {platform.icon && <BrandIcon name={platform.icon} size={13} title={null} />}
-                    {platform.name}
-                    <span className={cn("tabular-nums", on ? "text-bg/60" : "text-faint")}>{platform.entries.length}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </Container>
+          <RailTabs
+            label="Backlog platform"
+            value={current.slug}
+            onChange={(slug) => {
+              haptic("selection");
+              setActive(slug);
+            }}
+            options={platforms.map((platform) => ({
+              value: platform.slug,
+              label: platform.name,
+              count: platform.entries.length,
+              icon: platform.icon ? <BrandIcon name={platform.icon} size={13} title={null} /> : undefined,
+            }))}
+          />
         ) : undefined
       }
     >
@@ -658,15 +616,6 @@ function hoursBadge(ttb: TimeToBeatLike | undefined): string | undefined {
 function playedOn(entry: WatchlistEntry): string | undefined {
   const platform = entry.platform ? OWNERSHIP_PLATFORMS.find((item) => item.slug === entry.platform) : null;
   return platform ? `On ${platform.name}` : undefined;
-}
-
-function flatHours(preview?: Record<number, TimeToBeatLike>): Record<number, number> {
-  const out: Record<number, number> = {};
-  for (const [id, ttb] of Object.entries(preview ?? {})) {
-    const hours = hoursOf(ttb);
-    if (hours) out[Number(id)] = hours;
-  }
-  return out;
 }
 
 /* -------------------------------------------------------------------------- */

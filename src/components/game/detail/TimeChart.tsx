@@ -21,10 +21,18 @@
  * Styling follows the dataviz rules: one hue (the game's accent), a 2px
  * line, a ~10% wash, hairline gridlines, labels in text tokens, a 0 baseline
  * so differences are never exaggerated.
+ *
+ * When the series is swapped for another (a new price region, another store,
+ * players <-> Twitch viewers) the line *morphs* into the new one instead of
+ * being redrawn: both series are resampled onto the same grid of x positions,
+ * so any two shapes interpolate, and a spring drives the blend. The `d`
+ * attribute is written straight to the DOM during the morph (no React render
+ * per frame) and the exact path is restored when it settles. Reduced motion
+ * swaps instantly.
  */
 
-import { motion } from "motion/react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { animate, motion } from "motion/react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
@@ -47,6 +55,8 @@ export interface TimeChartProps {
   formatTick?: (value: number) => string;
   formatTime: (t: number) => string;
   formatAxisTime: (t: number) => string;
+  /** A fixed top for bounded scales (a 0–100 score), instead of a rounded-up max. */
+  yMax?: number;
   /** A labelled point worth calling out (e.g. the lowest price). */
   marker?: { t: number; v: number; label: string } | null;
   /** Accessible name, e.g. "Steam price history". */
@@ -88,6 +98,36 @@ function thin(points: ChartPoint[], buckets: number): ChartPoint[] {
   return out;
 }
 
+/** Pixel y of the drawn line at each of `count` evenly spaced x positions. */
+function resample(
+  points: ChartPoint[],
+  geometry: { y: (v: number) => number; t0: number; t1: number },
+  step: boolean,
+  count: number,
+): number[] {
+  const out: number[] = [];
+  let index = 0;
+  for (let i = 0; i < count; i++) {
+    const t = geometry.t0 + ((geometry.t1 - geometry.t0) * i) / (count - 1);
+    while (index < points.length - 1 && points[index + 1].t <= t) index++;
+    const a = points[index];
+    const b = points[index + 1];
+    const v = step || !b || t <= a.t ? a.v : a.v + ((b.v - a.v) * (t - a.t)) / (b.t - a.t || 1);
+    out.push(geometry.y(v));
+  }
+  return out;
+}
+
+function samplePath(ys: number[], left: number, width: number, step: boolean): string {
+  const x = (i: number) => (left + (width * i) / (ys.length - 1)).toFixed(1);
+  let d = `M${x(0)},${ys[0].toFixed(1)}`;
+  for (let i = 1; i < ys.length; i++) d += step ? `H${x(i)}V${ys[i].toFixed(1)}` : `L${x(i)},${ys[i].toFixed(1)}`;
+  return d;
+}
+
+/** Throttle for scrub haptics: a fling across 90 days shouldn't rattle. */
+const HAPTIC_GAP_MS = 45;
+
 function nearest(points: ChartPoint[], t: number): number {
   let lo = 0;
   let hi = points.length - 1;
@@ -108,6 +148,7 @@ export function TimeChart({
   formatTick = formatValue,
   formatTime,
   formatAxisTime,
+  yMax: fixedMax,
   marker,
   label,
   summary,
@@ -116,7 +157,12 @@ export function TimeChart({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
+  const activeRef = useRef<number | null>(null);
+  const lastTick = useRef(0);
   const calm = useCalmMotion();
+  const lineRef = useRef<SVGPathElement>(null);
+  const areaRef = useRef<SVGPathElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const gradientId = useId().replace(/:/g, "");
   const descriptionId = `${gradientId}-desc`;
 
@@ -139,8 +185,8 @@ export function TimeChart({
     const t1 = Math.max(extendTo ?? 0, points[points.length - 1].t);
     const span = t1 - t0 || 1;
     const maxV = Math.max(...points.map((point) => point.v), marker?.v ?? 0) || 1;
-    const stepSize = niceStep(maxV, 3);
-    const yMax = Math.ceil((maxV * 1.08) / stepSize) * stepSize;
+    const stepSize = niceStep(fixedMax ?? maxV, fixedMax ? 4 : 3);
+    const yMax = fixedMax ?? Math.ceil((maxV * 1.08) / stepSize) * stepSize;
     const x = (t: number) => PAD.left + (span === 1 && points.length === 1 ? plotWidth : ((t - t0) / span) * plotWidth);
     const y = (v: number) => PAD.top + plotHeight - (v / yMax) * plotHeight;
 
@@ -164,8 +210,66 @@ export function TimeChart({
     const xCount = Math.max(2, Math.min(5, Math.floor(plotWidth / 120)));
     const xTicks = span > 1 ? Array.from({ length: xCount }, (_, index) => t0 + (span * index) / (xCount - 1)) : [t0];
 
-    return { x, y, line, area, yTicks, xTicks, lastX, t0, t1 };
-  }, [points, plotWidth, plotHeight, extendTo, step, marker]);
+    return { x, y, line, area, yTicks, xTicks, lastX, t0, t1, baseline };
+  }, [points, plotWidth, plotHeight, extendTo, step, marker, fixedMax]);
+
+  /*
+   * The morph. `shown` is what is on screen, resampled; a new `input` blends
+   * from it to the new series. A layout effect, so the first frame after the
+   * swap already shows the old shape rather than flashing the new one.
+   */
+  const shown = useRef<number[] | null>(null);
+  const lastInput = useRef(input);
+  const exact = useRef<{ line: string; area: string } | null>(null);
+  useLayoutEffect(() => {
+    exact.current = geometry ? { line: geometry.line, area: geometry.area } : null;
+    if (!geometry || points.length === 0) return;
+    const count = Math.max(24, Math.min(160, Math.round(plotWidth / 4)));
+    const target = resample(points, geometry, step, count);
+    const from = shown.current;
+    const swapped = lastInput.current !== input;
+    lastInput.current = input;
+    const line = lineRef.current;
+    const area = areaRef.current;
+    if (!swapped || calm || !from || from.length !== target.length || !line || !area) {
+      shown.current = target;
+      return;
+    }
+    const svg = svgRef.current;
+    const left = geometry.x(geometry.t0);
+    const width = geometry.lastX - left;
+    const draw = (blend: number) => {
+      const ys = from.map((y, i) => y + (target[i] - y) * blend);
+      shown.current = ys;
+      const d = samplePath(ys, left, width, step);
+      line.setAttribute("d", d);
+      area.setAttribute("d", `${d}V${geometry.baseline}H${left.toFixed(1)}Z`);
+    };
+    svg?.setAttribute("data-morphing", "");
+    draw(0);
+    const settle = () => {
+      svg?.removeAttribute("data-morphing");
+      // Back to the exact path: steps land on real days, not on the grid.
+      if (exact.current) {
+        line.setAttribute("d", exact.current.line);
+        area.setAttribute("d", exact.current.area);
+      }
+    };
+    const controls = animate(0, 1, {
+      type: "spring",
+      stiffness: 190,
+      damping: 24,
+      onUpdate: draw,
+      onComplete: () => {
+        shown.current = target;
+        settle();
+      },
+    });
+    return () => {
+      controls.stop();
+      settle();
+    };
+  }, [input, points, geometry, plotWidth, step, calm]);
 
   const pick = useCallback(
     (event: PointerEvent<SVGRectElement>) => {
@@ -174,10 +278,17 @@ export function TimeChart({
       const ratio = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
       const t = geometry.t0 + ratio * (geometry.t1 - geometry.t0);
       const index = nearest(points, t);
-      setActive((current) => {
-        if (current !== index && event.pointerType === "touch") haptic("selection");
-        return index;
-      });
+      // A tick per new sample under the finger, throttled; decided here rather
+      // than inside a state updater, which React may run twice.
+      if (index !== activeRef.current && event.pointerType === "touch") {
+        const now = performance.now();
+        if (now - lastTick.current >= HAPTIC_GAP_MS) {
+          lastTick.current = now;
+          haptic("selection");
+        }
+      }
+      activeRef.current = index;
+      setActive(index);
     },
     [geometry, points],
   );
@@ -193,6 +304,7 @@ export function TimeChart({
     };
     if (event.key in keys) {
       event.preventDefault();
+      activeRef.current = keys[event.key];
       setActive(keys[event.key]);
     }
   };
@@ -211,12 +323,22 @@ export function TimeChart({
         aria-describedby={descriptionId}
         onKeyDown={onKeyDown}
         onFocus={() => setActive((current) => current ?? (points.length ? points.length - 1 : null))}
-        onBlur={() => setActive(null)}
+        onBlur={() => {
+          activeRef.current = null;
+          setActive(null);
+        }}
         className="relative rounded-xl outline-offset-4"
         style={{ height }}
       >
         {geometry && (
-          <svg width={width} height={height} className="block overflow-visible" aria-hidden>
+          <svg
+            ref={svgRef}
+            width={width}
+            height={height}
+            // The end dot and marker sit on the exact path; mid-morph they'd float off it.
+            className="block overflow-visible [&[data-morphing]_.chart-dot]:opacity-0"
+            aria-hidden
+          >
             <defs>
               <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0%" stopColor="var(--game-accent, var(--color-brand))" stopOpacity="0.2" />
@@ -258,8 +380,9 @@ export function TimeChart({
               </text>
             ))}
 
-            <path d={geometry.area} fill={`url(#${gradientId})`} />
+            <path ref={areaRef} d={geometry.area} fill={`url(#${gradientId})`} />
             <motion.path
+              ref={lineRef}
               d={geometry.line}
               fill="none"
               stroke="var(--game-accent, var(--color-brand))"
@@ -274,7 +397,7 @@ export function TimeChart({
             />
 
             {marker && (
-              <g>
+              <g className="chart-dot transition-opacity duration-200">
                 <circle
                   cx={geometry.x(marker.t)}
                   cy={geometry.y(marker.v)}
@@ -296,6 +419,7 @@ export function TimeChart({
 
             {lastPoint && !activePoint && (
               <circle
+                className="chart-dot transition-opacity duration-200"
                 cx={geometry.lastX}
                 cy={geometry.y(lastPoint.v)}
                 r={4}
@@ -336,7 +460,10 @@ export function TimeChart({
               style={{ touchAction: "pan-y" }}
               onPointerMove={pick}
               onPointerDown={pick}
-              onPointerLeave={() => setActive(null)}
+              onPointerLeave={() => {
+                activeRef.current = null;
+                setActive(null);
+              }}
             />
           </svg>
         )}

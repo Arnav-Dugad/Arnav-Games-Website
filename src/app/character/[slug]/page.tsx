@@ -21,5 +21,5 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function CharacterPage({ params }: { params: Params }) {
   const { slug } = await params;
-  return <EntityPage entity={await igdbCharacter(slug)} kind="character" eyebrow="Character" />;
+  return <EntityPage entity={await igdbCharacter(slug)} kind="character" />;
 }

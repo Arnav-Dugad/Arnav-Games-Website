@@ -10,6 +10,7 @@
  */
 
 import { AnimatePresence, motion } from "motion/react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BookmarkX, Check, ChevronDown, PencilLine } from "lucide-react";
@@ -37,6 +38,11 @@ import { fuzzyMatches } from "@/lib/games/fuzzy-search";
 import { releaseState, type ReleaseState } from "@/lib/games/release-state";
 import type { WatchStatus, WatchlistEntry } from "@/lib/firebase/db";
 import { BatchEditPanel } from "@/components/library/BatchEditPanel";
+import type { BatchPrices } from "@/lib/games/types";
+import type { TimeToBeatLike } from "@/lib/games/stats";
+
+/* Prices are per-reader and per-region: never server-rendered, loaded after the list. */
+const WishlistBudget = dynamic(() => import("@/components/library/WishlistBudget"), { ssr: false });
 
 // Ordered the way a backlog flows, with the unsorted pile last.
 const FILTERS: { value: WatchStatus | "all"; label: string }[] = [
@@ -66,9 +72,11 @@ const SORTS: { value: WatchSort; label: string }[] = [
 
 export function WatchlistView({
   previewEntries,
+  previewBudget,
 }: {
   /** Dev-only sample data for `/watchlist/preview`; bypasses the live list. */
   previewEntries?: WatchlistEntry[];
+  previewBudget?: { region: string; prices: BatchPrices; hours?: Record<number, TimeToBeatLike> };
 } = {}) {
   const live = useWatchlist();
   const entries = previewEntries ?? live.entries;
@@ -202,6 +210,7 @@ export function WatchlistView({
   return (
     <Container className="pb-8 lg:pb-12">
       <NextUp saved={saved} alerts={saved.filter((entry) => entry.following).length} unknown={releaseCounts.unknown} />
+      <WishlistBudget saved={saved} preview={previewBudget} />
 
       <div className="mb-4 mt-10 flex items-end justify-between gap-3 sm:mt-12">
         <h2 className="font-display text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">Everything you&apos;re tracking</h2>
@@ -268,7 +277,7 @@ export function WatchlistView({
           railTrailing={<PosterSizeToggle size={posterSize} onChange={setPosterSize} />}
         />
 
-        {batchMode && <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-fg/[0.03] px-4 py-3 text-xs"><button type="button" onClick={() => setSelected(new Set(visible.map((entry) => entry.gameId)))} className="min-h-9 font-semibold text-brand-soft hover:text-text">Select all {visible.length} visible</button><button type="button" onClick={() => setSelected(new Set())} className="min-h-9 font-semibold text-faint hover:text-text">Clear selection</button><span className="ml-auto tabular-nums text-muted">{selected.size} selected</span></div>}
+        {batchMode && <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-fg/[0.03] px-4 py-3 text-xs"><button type="button" onClick={() => setSelected(new Set(visible.map((entry) => entry.gameId)))} className="min-h-9 font-semibold text-brand-soft hover:text-text coarse:min-h-11">Select all {visible.length} visible</button><button type="button" onClick={() => setSelected(new Set())} className="min-h-9 font-semibold text-faint hover:text-text coarse:min-h-11">Clear selection</button><span className="ml-auto tabular-nums text-muted">{selected.size} selected</span></div>}
       </div>
 
       {visible.length === 0 ? (

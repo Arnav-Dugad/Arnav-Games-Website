@@ -120,6 +120,9 @@ export async function steamPrice(
 interface FullDetails {
   type?: string;
   is_free?: boolean;
+  /** `{ minimum, recommended }` HTML, or `[]` when the store page lists none. */
+  pc_requirements?: unknown;
+  release_date?: { coming_soon?: boolean; date?: string };
   achievements?: {
     total?: number;
     highlighted?: Array<{ name?: string; path?: string; hidden?: number }>;

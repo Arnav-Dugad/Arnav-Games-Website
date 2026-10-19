@@ -1,98 +1,44 @@
 "use client";
 
 /**
- * The page's two live sections: the latest Steam news, and who is streaming
- * the game right now. Both are optional in the strongest sense — with nothing
- * to show, the section (heading included) doesn't render at all.
+ * "Live on Twitch", part of the Watch section: how many people are watching
+ * right now and a rail of the top streams. One block where there used to be
+ * two (a bento tile previewing three streams, then a "Live now" rail
+ * repeating them bigger). With nobody streaming it doesn't render at all.
  */
 
-import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight, Newspaper } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { useCalmMotion } from "@/components/interactions/motion-prefs";
-import { compactNumber, formatDate } from "@/lib/utils/format";
+import { compactNumber } from "@/lib/utils/format";
 import { DetailHeading } from "./DetailSection";
+import { InfoTip } from "./InfoTip";
 import { useLiveField } from "./live";
 
-export function LatestNews({ expected }: { expected: boolean }) {
-  const news = useLiveField((live) => live.news);
-  const calm = useCalmMotion();
-  if (news.state === "empty" || (news.state === "loading" && !expected)) return null;
-
-  return (
-    <section id="news" aria-labelledby="news-title" className="scroll-mt-36">
-      <DetailHeading titleId="news-title" eyebrow="From the developers" icon={<Newspaper size={14} />} title="Latest news" />
-      <ul className="mt-5 grid gap-3 sm:mt-6 sm:grid-cols-2">
-        <AnimatePresence initial={false}>
-          {news.state === "loading"
-            ? Array.from({ length: 4 }, (_, index) => (
-                <li key={`skeleton-${index}`} aria-hidden className="glass rounded-3xl p-5">
-                  <Skeleton className="h-3 w-24 rounded-full" />
-                  <Skeleton className="mt-3 h-5 w-4/5 rounded-full" />
-                  <Skeleton className="mt-3 h-3 w-full rounded-full" />
-                  <Skeleton className="mt-2 h-3 w-3/4 rounded-full" />
-                </li>
-              ))
-            : news.value.slice(0, 4).map((item, index) => (
-                <motion.li
-                  key={item.url}
-                  initial={calm ? false : { opacity: 0, y: 8, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                  transition={{ duration: 0.45, delay: calm ? 0 : index * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="glass group flex h-full flex-col rounded-3xl p-5 transition-transform duration-500 fine:hover:-translate-y-0.5"
-                  >
-                    <p className="flex items-center gap-2 text-[11px] text-faint">
-                      <time dateTime={item.date}>{formatDate(item.date.slice(0, 10))}</time>
-                      {item.source && <span className="truncate">· {item.source}</span>}
-                    </p>
-                    <h3 className="mt-2 line-clamp-2 text-base font-bold leading-snug text-text">{item.title}</h3>
-                    {item.excerpt && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted">{item.excerpt}</p>}
-                    <span className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-semibold text-[var(--game-accent)]">
-                      Read on Steam <ArrowUpRight size={13} className="transition-transform duration-300 fine:group-hover:-translate-y-0.5 fine:group-hover:translate-x-0.5" />
-                    </span>
-                  </a>
-                </motion.li>
-              ))}
-        </AnimatePresence>
-      </ul>
-    </section>
-  );
-}
-
-/**
- * "Live now": a rail of the top streams. Only shown once there are more than
- * the three the bento's Twitch tile already previews — otherwise it would just
- * repeat that tile at a bigger size.
- */
-export function LiveNowStrip() {
-  const twitch = useLiveField((live) => (live.twitch && live.twitch.top.length > 3 ? live.twitch : null));
+export function LiveOnTwitch({ standalone = false }: { standalone?: boolean }) {
+  const twitch = useLiveField((live) => (live.twitch && live.twitch.streams > 0 && live.twitch.top.length > 0 ? live.twitch : null));
   if (twitch.state !== "ready") return null;
+  const { viewers, streams, top } = twitch.value;
 
-  return (
-    <section aria-labelledby="live-now" className="min-w-0">
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <h2 id="live-now" className="flex items-center gap-2.5 text-[22px] font-bold leading-tight tracking-[-0.02em] sm:text-[28px]">
+  const body = (
+    <div>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <h3 className="flex items-center gap-2.5 text-[17px] font-semibold text-text">
           <span aria-hidden className="relative flex h-2.5 w-2.5">
-            <span className="absolute inset-0 animate-ping rounded-full bg-flare/70 [animation-duration:1.8s]" />
+            <span className="absolute inset-0 animate-ping rounded-full bg-flare/70 [animation-duration:1.8s] motion-reduce:animate-none" />
             <span className="relative h-2.5 w-2.5 rounded-full bg-flare" />
           </span>
-          Live now
-        </h2>
+          Live on Twitch
+        </h3>
         <p className="flex items-center gap-1.5 text-[13px] tabular-nums text-muted">
-          <BrandIcon name="twitch" size={12} title={null} tinted /> {compactNumber(twitch.value.viewers)} watching
+          <BrandIcon name="twitch" size={12} title={null} tinted />
+          {compactNumber(viewers)} watching · {compactNumber(streams)} {streams === 1 ? "stream" : "streams"}
+          <InfoTip topic="twitch" />
         </p>
       </div>
-      {/* `scroll-px-4` matches the inset: with mandatory snapping and no
-          scroll padding, the first stream snapped flush to the screen edge. */}
+      {/* `scroll-px-4` matches the inset, so the first stream doesn't snap flush to the screen edge. */}
       <ul className="snap-rail -mx-4 flex scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:scroll-px-0 lg:px-0">
-        {twitch.value.top.map((stream) => (
-          <li key={stream.url} className="w-[240px] sm:w-[260px]">
+        {/* Twitch can list one channel twice (a restream), so the index joins the key. */}
+        {top.map((stream, index) => (
+          <li key={`${stream.url}-${index}`} className="w-[240px] shrink-0 sm:w-[260px]">
             <a href={stream.url} target="_blank" rel="noopener noreferrer" className="group block">
               <span className="relative block aspect-video overflow-hidden rounded-2xl bg-fg/[0.06]">
                 {/* eslint-disable-next-line @next/next/no-img-element -- Twitch's preview CDN isn't a configured image host and these refresh every few minutes. */}
@@ -108,6 +54,16 @@ export function LiveNowStrip() {
           </li>
         ))}
       </ul>
+    </div>
+  );
+
+  // Without trailers or screenshots there's no server-rendered Watch section
+  // to sit in, so the block brings its own heading.
+  if (!standalone) return body;
+  return (
+    <section id="watch" aria-labelledby="watch-title" className="min-w-0 scroll-mt-36">
+      <DetailHeading titleId="watch-title" title="Watch" />
+      <div className="mt-5 sm:mt-6">{body}</div>
     </section>
   );
 }

@@ -19,5 +19,5 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function FranchisePage({ params }: { params: Params }) {
   const { slug } = await params;
-  return <EntityPage entity={await igdbFranchise(slug)} kind="franchise" eyebrow="Franchise" />;
+  return <EntityPage entity={await igdbFranchise(slug)} kind="franchise" />;
 }

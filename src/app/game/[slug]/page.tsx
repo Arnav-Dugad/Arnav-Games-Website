@@ -2,26 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import {
-  Building2,
-  CalendarDays,
-  Clapperboard,
-  Cpu,
-  ExternalLink,
-  Eye,
-  Flame,
-  Gamepad2,
-  Gauge,
-  Globe,
-  Images,
-  Languages,
-  Layers,
-  MonitorCog,
-  ShieldCheck,
-  Tag,
-  Timer,
-  Users,
-} from "lucide-react";
+import { ExternalLink, Layers } from "lucide-react";
 import { GameRail } from "@/components/game/GameRail";
 import {
   AgeRatingPanel,
@@ -33,33 +14,34 @@ import {
 import { MediaGallery } from "@/components/game/MediaGallery";
 import { ReviewSection } from "@/components/game/ReviewSection";
 import { Badge, Chip } from "@/components/ui/Badge";
-import { Container, Section, SectionHeading } from "@/components/ui/SectionHeading";
+import { Container } from "@/components/ui/SectionHeading";
 import { DataSourceNotice, SourceAttribution } from "@/components/ui/DataSourceNotice";
-import { Collapsible } from "@/components/ui/Collapsible";
-import { Reveal } from "@/components/motion/Reveal";
 import { getGame, getRelated, isDegraded } from "@/lib/games/source";
 import { sizedImage } from "@/lib/games/image";
 import { GameCollectionShowcase } from "@/components/game/GameCollectionShowcase";
 import { GameEditorialOverview } from "@/components/game/GameDetailEditorial";
 import { GameDetailDock, type DetailSectionLink } from "@/components/game/GameDetailDock";
-import { DetailSection } from "@/components/game/detail/DetailSection";
-import { PriceSection } from "@/components/game/detail/PriceSection";
-import { StatsSection } from "@/components/game/detail/StatsSection";
+import { AtAGlance, type GlanceData } from "@/components/game/detail/AtAGlance";
+import { DetailHeading, DetailSection } from "@/components/game/detail/DetailSection";
+import { Disclosure } from "@/components/game/detail/Disclosure";
+import { Elsewhere } from "@/components/game/detail/Elsewhere";
 import { GameHero } from "@/components/game/detail/GameHero";
-import { GameBento, type BentoData } from "@/components/game/detail/GameBento";
+import { LengthSection } from "@/components/game/detail/LengthSection";
 import { GameLiveProvider } from "@/components/game/detail/live";
-import { LatestNews, LiveNowStrip } from "@/components/game/detail/LiveSections";
+import { LiveOnTwitch } from "@/components/game/detail/LiveSections";
+import { PcSection } from "@/components/game/detail/PcSection";
+import { LatestUpdates, OpinionTrends, ScoresSummary } from "@/components/game/detail/PlayersThink";
+import { PriceSection } from "@/components/game/detail/PriceSection";
 import { ReleaseDates } from "@/components/game/detail/ReleaseDates";
 import { ReviewWatch } from "@/components/game/detail/ReviewWatch";
-import { Elsewhere } from "@/components/game/detail/Elsewhere";
+import { PlayersCard } from "@/components/game/detail/StatsSection";
+import { describeGame, storyHours } from "@/components/game/detail/summary";
 import { GAME_THEME_CLASS, gameTheme, gameThemeStyle } from "@/components/game/detail/theme";
 import { delayCount, localRelease, visitorRegion } from "@/components/game/detail/release";
 import {
-  compactNumber,
   daysUntil,
   formatDate,
   isUnreleased,
-  playtimeLabel,
   releaseLabelLong,
   relativeRelease,
 } from "@/lib/utils/format";
@@ -132,7 +114,8 @@ export default async function GamePage({ params, searchParams }: { params: Param
 
   // Everything here is server-rendered from the cached game record plus the
   // reader's country (a request header, so no per-user data); only the
-  // fast-moving numbers are fetched client-side, by GameLiveProvider.
+  // fast-moving numbers are fetched client-side, by GameLiveProvider and the
+  // section components.
   const theme = gameTheme(game.palette);
   const local = localRelease(game, country);
   const region = visitorRegion(game.releases, country);
@@ -145,56 +128,53 @@ export default async function GamePage({ params, searchParams }: { params: Param
   const reviewWatch = daysToLocal !== null && Math.abs(daysToLocal) <= REVIEW_WATCH_DAYS;
   const criticLabel = source === "steam" ? "Metascore" : "Critic score";
   const hasSteam = Boolean(game.steamAppId);
+  const twitchId = game.externalIds?.twitch ?? null;
 
   // Screenshots first (they show the game running), then key art. Deduped
   // because some providers list the same asset in both collections.
   const media = [...new Set([...game.screenshots, ...game.artworks])];
+  const hasMedia = game.trailers.length > 0 || media.length > 0;
   const hasCollection = Boolean(
     game.parentGame || game.series.length || game.franchises.length || game.dlcs.length ||
     game.expansions.length || game.standaloneExpansions.length || game.editions.length ||
     game.bundles.length || game.remakes.length || game.remasters.length || game.ports.length,
   );
   /**
-   * Whether the "Themes & modes" block has anything to say.
-   *
-   * Themes and game modes are what it leads with; tags are the fallback when
-   * IGDB has neither; keywords render as their own sub-list. Any one of them is
-   * enough — and `hasDetails` has to agree, or the dock offers a "Game details"
-   * link to a section that renders nothing.
+   * Whether "Themes and modes" has anything to say: themes and game modes
+   * lead, tags are the fallback when IGDB has neither, keywords render as
+   * their own sub-list. Any one of them is enough.
    */
   const hasThemeContent = Boolean(
     game.themes.length || game.gameModes.length || game.tags.length || game.keywords.length,
   );
   const hasDetails = Boolean(
-    game.characters.length || game.companies.length || game.platformDetails.length ||
-    hasThemeContent || game.requirements.length,
+    game.characters.length || game.companies.length || game.platformDetails.length || hasThemeContent,
   );
   const changes = game.releaseChanges ?? [];
-  const hasReleaseDates = game.releases.length > 1 || changes.length > 0;
-  const hasAddOns = Boolean(
-    game.parentGame || game.dlcs.length || game.expansions.length || game.standaloneExpansions.length ||
-    game.editions.length || game.bundles.length || game.remakes.length || game.remasters.length || game.ports.length,
-  );
-  const hasMedia = game.trailers.length > 0 || media.length > 0;
+  const ids = { id: game.id, steam: game.steamAppId, microsoft: game.externalIds?.microsoft ?? null };
   // Local prices come from Steam and the Microsoft Store; without a listing
-  // on either there is nothing honest to show, so the section isn't offered.
-  const marketIds = hasSteam || game.externalIds?.microsoft
-    ? { id: game.id, steam: game.steamAppId, microsoft: game.externalIds?.microsoft ?? null }
-    : null;
-  // Player counts and Deck/Proton/achievements are Steam data about a game
-  // people can already play.
-  const hasStats = hasSteam && !upcoming;
+  // on either there is no price to show (the stores still are).
+  const marketIds = hasSteam || ids.microsoft ? ids : null;
+  const mainHours = storyHours(game.timeToBeat);
+  // Main + extras stands in only when there's no main-story figure at all (not when it was ruled out as endless).
+  const lengthHours = mainHours ?? (game.timeToBeat?.hastily ? null : game.timeToBeat?.normally ?? null);
+  const hasLength = Boolean(lengthHours || game.timeToBeat?.completely || game.playtime > 0);
+  // Players and reviews over time are about a game people can already play;
+  // Twitch can have an audience before launch.
+  const hasPlayers = (hasSteam && !upcoming) || Boolean(twitchId);
+  const hasPc = hasSteam || game.requirements.length > 0;
+  const hasMore = hasCollection || related.length > 0;
+  const moreTitle = hasCollection ? "More from this series" : "More like this";
 
+  // Nav labels are the section titles, word for word.
   const sections: DetailSectionLink[] = [
     { id: "overview", label: "Overview" },
-    ...(hasMedia ? [{ id: "media", label: "Media" }] : []),
-    ...(marketIds ? [{ id: "prices", label: "Prices" }] : []),
-    ...(hasStats ? [{ id: "stats", label: "Stats" }] : []),
-    ...(hasReleaseDates ? [{ id: "release-dates", label: "Release dates" }] : []),
-    ...(hasCollection ? [{ id: "collection", label: hasAddOns ? "DLC & more" : "Series" }] : []),
-    ...(hasDetails ? [{ id: "details", label: "Details" }] : []),
-    { id: "reviews", label: "Reviews" },
-    ...(related.length > 0 ? [{ id: "related", label: "Related" }] : []),
+    ...(hasMedia ? [{ id: "watch", label: "Watch" }] : []),
+    { id: "prices", label: "Where to play & price" },
+    ...(hasLength ? [{ id: "length", label: "How long" }] : []),
+    { id: "reviews", label: "What players think" },
+    ...(hasPc ? [{ id: "pc", label: "For PC players" }] : []),
+    ...(hasMore ? [{ id: "more", label: moreTitle }] : []),
   ];
 
   const compareSuggestions = related.slice(0, 8).map((item) => ({
@@ -204,36 +184,42 @@ export default async function GamePage({ params, searchParams }: { params: Param
     year: item.released?.slice(0, 4) ?? item.releaseWindow ?? null,
   }));
 
-  const bento: BentoData = {
-    name: game.name,
-    critic: {
-      score: game.metacritic,
-      label: criticLabel,
-      caption:
-        source === "steam"
-          ? "Metacritic"
-          : game.criticCount
-            ? `${game.criticCount.toLocaleString("en-US")} critic ${game.criticCount === 1 ? "review" : "reviews"} · IGDB`
-            : "IGDB critic aggregate",
-    },
+  const criticCaption =
+    source === "steam"
+      ? "Metacritic"
+      : game.criticCount
+        ? `${game.criticCount.toLocaleString("en-US")} critic ${game.criticCount === 1 ? "review" : "reviews"}`
+        : "Critic average";
+
+  const glance: GlanceData = {
+    descriptor: describeGame(game, upcoming),
+    critic: game.metacritic !== null ? { score: game.metacritic, label: criticCaption } : null,
     userRating: game.rating > 0 ? { rating: game.rating, count: game.ratingsCount } : null,
     hasSteam,
-    canHaveGamePass: Boolean(game.externalIds?.microsoft),
-    timeToBeat: game.timeToBeat ?? null,
-    howLongToBeatUrl: game.links?.howLongToBeat ?? null,
-    hype: game.hypeIndex ?? null,
-    platforms: game.parentPlatforms,
     release: {
       label: local.date ? formatDate(local.date) : game.releaseWindow ?? "To be announced",
-      sublabel: local.date ? relativeRelease(local.date) : game.releaseWindow ? "Release window" : null,
-      region: local.region,
-      delays,
+      relative: local.date ? relativeRelease(local.date) : null,
       upcoming,
+      delays,
     },
-    stores: game.stores,
+    hours: mainHours
+      ? { value: mainHours, kind: "main" }
+      : lengthHours
+        ? { value: lengthHours, kind: "extras" }
+        : game.playtime > 0 && !game.timeToBeat?.hastily
+          ? { value: game.playtime, kind: "typical" }
+          : null,
+    hype: upcoming && game.hypeIndex ? { score: game.hypeIndex.score, follows: game.hypes } : null,
     market: marketIds,
-    hasStats,
+    platforms: game.parentPlatforms,
   };
+
+  const detailCounts = [
+    game.companies.length ? `${game.companies.length} ${game.companies.length === 1 ? "company" : "companies"}` : null,
+    game.platformDetails.length ? `${game.platformDetails.length} ${game.platformDetails.length === 1 ? "platform" : "platforms"}` : null,
+    game.characters.length ? `${game.characters.length} ${game.characters.length === 1 ? "character" : "characters"}` : null,
+    game.keywords.length ? `${game.keywords.length} tags` : null,
+  ].filter(Boolean).join(" · ");
 
   const jsonLd = videoGameJsonLd(game);
 
@@ -243,15 +229,7 @@ export default async function GamePage({ params, searchParams }: { params: Param
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
-      <GameLiveProvider
-        request={{
-          id: game.id,
-          steam: game.steamAppId,
-          twitch: game.externalIds?.twitch ?? null,
-          microsoft: game.externalIds?.microsoft ?? null,
-          name: game.name,
-        }}
-      >
+      <GameLiveProvider request={{ id: game.id, steam: game.steamAppId, twitch: twitchId, microsoft: ids.microsoft, name: game.name }}>
         <GameHero
           game={game}
           local={local}
@@ -266,49 +244,42 @@ export default async function GamePage({ params, searchParams }: { params: Param
         <div className="relative">
           {/* The cover's colour carries on past the hero as a faint ambient wash. */}
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(ellipse_at_50%_0%,var(--game-glow),transparent_70%)] opacity-40" />
-          <Container className="space-y-3 pt-6 sm:pt-8">
+          <Container className="space-y-16 pb-16 pt-7 sm:space-y-20 sm:pt-9 lg:space-y-24">
+            {/* Overview: what it is, is it good, how long, what it costs — then the story and the fact sheet. */}
             <section id="overview" aria-labelledby="overview-title" className="scroll-mt-36">
-              <h2 id="overview-title" className="sr-only">At a glance</h2>
-              <GameBento data={bento} />
+              <h2 id="overview-title" className="sr-only">Overview</h2>
+              <AtAGlance data={glance} />
+              <div className="mt-3 space-y-1">
+                <DataSourceNotice source={source} degraded={isDegraded(source)} />
+                <SourceAttribution source={source} />
+              </div>
+
+              {reviewWatch && local.date && (
+                <div className="mt-10">
+                  <ReviewWatch
+                    launchDate={local.date}
+                    critic={{ score: game.metacritic, label: criticLabel }}
+                    links={{ openCritic: game.links?.openCritic ?? null, metacritic: game.links?.metacritic ?? game.metacriticUrl }}
+                    hasSteam={hasSteam}
+                  />
+                </div>
+              )}
+
+              <div className="mt-10 grid gap-x-14 gap-y-8 sm:mt-12 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="min-w-0 space-y-6">
+                  {game.description && <GameEditorialOverview game={game} />}
+                  {hasDetails && (
+                    <Disclosure icon={<Layers size={17} />} title="Credits, platforms and tags" subtitle={detailCounts || undefined}>
+                      <GameDetails game={game} hasThemeContent={hasThemeContent} />
+                    </Disclosure>
+                  )}
+                </div>
+                <GameSidebar game={game} />
+              </div>
             </section>
-            <DataSourceNotice source={source} degraded={isDegraded(source)} />
-            <SourceAttribution source={source} />
-          </Container>
-        </div>
 
-        {/* Two columns on desktop: the story and the deep data on the left,
-            the fact sheet riding along on the right. On phones the fact sheet
-            lands straight after the overview, where people look for "who
-            made it", rather than after the reviews at the very end. */}
-        <Container className="grid gap-x-14 gap-y-16 pb-12 pt-10 sm:gap-y-20 lg:grid-cols-[minmax(0,1fr)_320px] lg:pt-14">
-          <div className="min-w-0 space-y-16 empty:hidden sm:space-y-20 lg:col-start-1">
-            {reviewWatch && local.date && (
-              <ReviewWatch
-                launchDate={local.date}
-                critic={{ score: game.metacritic, label: criticLabel }}
-                links={{ openCritic: game.links?.openCritic ?? null, metacritic: game.links?.metacritic ?? game.metacriticUrl }}
-                hasSteam={hasSteam}
-              />
-            )}
-            {game.description && <GameEditorialOverview game={game} />}
-            <LiveNowStrip />
-          </div>
-
-          <GameSidebar game={game} />
-
-          <div className="min-w-0 space-y-16 sm:space-y-20 lg:col-start-1">
-            {hasMedia && (
-              <DetailSection
-                id="media"
-                eyebrow="Media"
-                icon={<Clapperboard size={14} />}
-                title={game.trailers.length > 0 ? "Trailers and screenshots" : "Screenshots"}
-                aside={
-                  <span className="inline-flex w-fit items-center gap-2 rounded-full border border-line bg-fg/[0.03] px-3 py-1.5 text-xs text-muted">
-                    <Images size={13} /> {game.trailers.length + media.length} items
-                  </span>
-                }
-              >
+            {hasMedia ? (
+              <DetailSection id="watch" title="Watch">
                 <div className="space-y-10">
                   {game.trailers.length > 0 && (
                     <div id="trailers">
@@ -318,131 +289,101 @@ export default async function GamePage({ params, searchParams }: { params: Param
                   )}
                   {media.length > 0 && (
                     <div id="screenshots">
-                      {game.trailers.length > 0 && (
-                        <h3 className="mb-4 text-[17px] font-semibold text-text">
-                          {game.artworks.length > 0 ? "Screenshots and key art" : "Screenshots"}
-                        </h3>
-                      )}
+                      <h3 className="mb-4 text-[17px] font-semibold text-text">
+                        {game.artworks.length > 0 ? "Screenshots and key art" : "Screenshots"}
+                      </h3>
                       <MediaGallery items={media.map((src) => ({ kind: "image" as const, src }))} gameName={game.name} variant="cinematic" />
                     </div>
                   )}
+                  <LiveOnTwitch />
                 </div>
+              </DetailSection>
+            ) : (
+              <LiveOnTwitch standalone />
+            )}
+
+            <PriceSection
+              ids={marketIds}
+              name={game.name}
+              upcoming={upcoming}
+              stores={game.stores}
+              mainHours={mainHours}
+              releaseDates={<ReleaseDates releases={game.releases} changes={changes} visitorRegion={region} countryName={local.countryName} />}
+            />
+
+            {hasLength && (
+              <DetailSection id="length" title="How long">
+                <LengthSection
+                  ttb={game.timeToBeat ?? null}
+                  mainHours={mainHours}
+                  typicalHours={game.playtime > 0 ? game.playtime : null}
+                  hltbUrl={game.links?.howLongToBeat ?? null}
+                  market={marketIds}
+                />
               </DetailSection>
             )}
 
-            {marketIds && <PriceSection ids={marketIds} name={game.name} upcoming={upcoming} />}
-
-            {hasStats && <StatsSection ids={{ id: game.id, steam: game.steamAppId }} />}
-
-            <ReleaseDates releases={game.releases} changes={changes} visitorRegion={region} countryName={local.countryName} />
-
-            <GameCollectionShowcase game={game} />
-
-            <LatestNews expected={hasSteam} />
-
-            {hasDetails && (
-              <DetailSection id="details" eyebrow="Details" icon={<Layers size={14} />} title="Credits, platforms and tags">
-                <div className="space-y-10">
-                  {game.characters.length > 0 && (
-                    <div>
-                      <h3 className="mb-4 text-[17px] font-semibold text-text">Characters</h3>
-                      <CharacterRail characters={game.characters} />
-                    </div>
-                  )}
-
-                  {game.companies.length > 0 && (
-                    <div>
-                      <h3 className="mb-4 text-[17px] font-semibold text-text">Who made it</h3>
-                      <CompanyGrid companies={game.companies} />
-                      {game.engines.length > 0 && (
-                        <div className="mt-5">
-                          <h4 className="mb-3 text-[13px] font-semibold text-muted">Built with</h4>
-                          <EngineRow engines={game.engines} />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {game.platformDetails.length > 0 && (
-                    <div>
-                      <h3 className="mb-4 text-[17px] font-semibold text-text">Platforms</h3>
-                      <PlatformGrid platforms={game.platformDetails} />
-                    </div>
-                  )}
-
-                  {/* Gated on what this block actually renders: themes and
-                      modes lead, tags are the fallback, keywords get their own
-                      list. Any one of them is enough. */}
-                  {hasThemeContent && (
-                    <div>
-                      <h3 className="mb-4 text-[17px] font-semibold text-text">Themes and modes</h3>
-                      {(game.themes.length > 0 || game.gameModes.length > 0 || game.tags.length > 0) && (
-                        <div className="flex flex-wrap gap-2">
-                          {game.themes.map((theme) => (
-                            <Badge key={`theme-${theme.id}`} tone="brand">
-                              {theme.name}
-                            </Badge>
-                          ))}
-                          {game.gameModes.map((mode) => (
-                            <Badge key={`mode-${mode.id}`}>{mode.name}</Badge>
-                          ))}
-                          {game.themes.length === 0 &&
-                            game.gameModes.length === 0 &&
-                            game.tags.map((tag) => <Badge key={tag.id}>{tag.name}</Badge>)}
-                        </div>
-                      )}
-
-                      {game.keywords.length > 0 && (
-                        <div className="mt-5">
-                          <h4 className="mb-3 text-[13px] font-semibold text-muted">Tags</h4>
-                          <ul className="flex flex-wrap gap-2">
-                            {game.keywords.map((keyword) => (
-                              <li key={keyword.id}>
-                                <Chip href={`/browse?search=${encodeURIComponent(keyword.name)}`}>{keyword.name}</Chip>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Bulky, and relevant to a minority of readers, so it sits
-                      at the end, closed. */}
-                  {game.requirements.length > 0 && <Requirements game={game} />}
+            <DetailSection id="reviews" title="What players think">
+              <div className="space-y-4">
+                <ScoresSummary
+                  data={{
+                    critic: { score: game.metacritic, label: criticLabel, caption: criticCaption },
+                    userRating: game.rating > 0 ? { rating: game.rating, count: game.ratingsCount } : null,
+                    hasSteam,
+                    links: { openCritic: game.links?.openCritic ?? null, metacritic: game.links?.metacritic ?? game.metacriticUrl },
+                  }}
+                />
+                {!upcoming && <OpinionTrends ids={ids} launch={local.date} />}
+                {hasPlayers && <PlayersCard ids={ids} twitchId={twitchId} />}
+                {hasSteam && (
+                  <div className="pt-6">
+                    <LatestUpdates ids={ids} expected={!upcoming} />
+                  </div>
+                )}
+                <div className="pt-6">
+                  <ReviewSection game={game} />
                 </div>
+              </div>
+            </DetailSection>
+
+            {hasPc && (
+              <DetailSection id="pc" title="For PC players">
+                <PcSection ids={ids} rawRequirements={game.requirements} />
               </DetailSection>
             )}
+          </Container>
+        </div>
 
-            <Elsewhere game={game} />
-
-            <section id="reviews" className="scroll-mt-36">
-              <ReviewSection game={game} />
-            </section>
-          </div>
-        </Container>
-
-        {related.length > 0 && (
-          <Section id="related" className="scroll-mt-36 border-t border-line pt-12">
+        {hasMore && (
+          <section id="more" aria-labelledby="more-title" className="scroll-mt-36 border-t border-line pb-6 pt-12 sm:pt-16">
             <Container>
-              <SectionHeading
-                eyebrow="More like this"
-                title="Related games"
-                // Without genres the link would be a bare `?genres=`, which browses
-                // nothing, so the CTA is dropped rather than pointing at an empty
-                // filter.
-                href={
-                  game.genres.length > 0
-                    ? `/browse?genres=${game.genres.map((g) => g.slug).join(",")}`
-                    : undefined
-                }
-                linkLabel="Browse genre"
-              />
+              <DetailHeading titleId="more-title" title={moreTitle} />
+              {hasCollection && (
+                <div className="mt-6 sm:mt-7">
+                  <GameCollectionShowcase game={game} />
+                </div>
+              )}
             </Container>
-            <div className="mt-7">
-              <GameRail games={related} />
-            </div>
-          </Section>
+            {related.length > 0 && (
+              <div className={hasCollection ? "mt-14" : "mt-6 sm:mt-7"}>
+                <Container>
+                  <div className="mb-4 flex items-end justify-between gap-3">
+                    <h3 className="text-[17px] font-semibold text-text">{hasCollection ? "More like this" : "Similar games"}</h3>
+                    {/* Without genres the link would browse nothing, so it's dropped. */}
+                    {game.genres.length > 0 && (
+                      <Link
+                        href={`/browse?genres=${game.genres.map((g) => g.slug).join(",")}`}
+                        className="text-[13px] font-semibold text-[color-mix(in_oklab,var(--game-accent,var(--color-brand-soft))_72%,var(--color-text))] hover:underline"
+                      >
+                        Browse genre
+                      </Link>
+                    )}
+                  </div>
+                </Container>
+                <GameRail games={related} />
+              </div>
+            )}
+          </section>
         )}
       </GameLiveProvider>
     </div>
@@ -491,43 +432,18 @@ function multiplayerSummary(modes: NonNullable<GameDetail["multiplayerModes"]>):
 }
 
 /**
- * The reference column. Scores, platforms, stores and outbound links moved
- * into the bento and "Elsewhere"; what stays is the fact sheet people scan.
+ * The fact sheet beside the story: who made it and how it plays. Release
+ * date, length, platforms and popularity live in "At a glance" with their
+ * explanations, so they aren't repeated here.
  */
 function GameSidebar({ game }: { game: GameDetail }) {
   const franchises = game.franchises.length > 0 ? game.franchises : game.series;
-  const facts: { label: string; value: React.ReactNode; icon: React.ReactNode }[] = [
-    {
-      label: "Released",
-      value: releaseLabelLong(game, "To be announced"),
-      icon: <CalendarDays size={14} />,
-    },
+  const facts: { label: string; value: React.ReactNode }[] = [
     ...(game.developers.length
-      ? [
-          {
-            label: game.developers.length > 1 ? "Developers" : "Developer",
-            value: <StudioLinks studios={game.developers} />,
-            icon: <Building2 size={14} />,
-          },
-        ]
+      ? [{ label: game.developers.length > 1 ? "Developers" : "Developer", value: <StudioLinks studios={game.developers} /> }]
       : []),
     ...(game.publishers.length
-      ? [
-          {
-            label: game.publishers.length > 1 ? "Publishers" : "Publisher",
-            value: <StudioLinks studios={game.publishers} />,
-            icon: <Users size={14} />,
-          },
-        ]
-      : []),
-    ...(game.supportingStudios.length
-      ? [
-          {
-            label: "Additional work",
-            value: game.supportingStudios.map((s) => s.name).join(", "),
-            icon: <Building2 size={14} />,
-          },
-        ]
+      ? [{ label: game.publishers.length > 1 ? "Publishers" : "Publisher", value: <StudioLinks studios={game.publishers} /> }]
       : []),
     ...(franchises.length
       ? [
@@ -548,62 +464,41 @@ function GameSidebar({ game }: { game: GameDetail }) {
                 ))}
               </span>
             ),
-            icon: <Layers size={14} />,
           },
         ]
       : []),
-    ...(game.engines.length
+    ...(game.genres.length
       ? [
           {
-            label: game.engines.length > 1 ? "Engines" : "Engine",
-            value: game.engines.map((e) => e.name).join(", "),
-            icon: <Cpu size={14} />,
+            label: game.genres.length > 1 ? "Genres" : "Genre",
+            value: (
+              <span className="flex flex-wrap gap-x-1.5">
+                {game.genres.map((genre, i) => (
+                  <span key={genre.id}>
+                    <Link href={`/browse?genres=${genre.slug}`} className="underline decoration-line-strong underline-offset-2 transition-colors hover:text-[var(--game-accent)]">
+                      {genre.name}
+                    </Link>
+                    {i < game.genres.length - 1 && ","}
+                  </span>
+                ))}
+              </span>
+            ),
           },
         ]
       : []),
-    ...(game.playerPerspectives.length
+    ...(game.playerPerspectives.length ? [{ label: "Perspective", value: game.playerPerspectives.map((p) => p.name).join(", ") }] : []),
+    ...(game.gameModes.length ? [{ label: "Modes", value: game.gameModes.map((m) => m.name).join(", ") }] : []),
+    ...(game.multiplayerModes ? [{ label: "Multiplayer", value: multiplayerSummary(game.multiplayerModes) }] : []),
+    ...(game.engines.length ? [{ label: game.engines.length > 1 ? "Engines" : "Engine", value: game.engines.map((e) => e.name).join(", ") }] : []),
+    // Ratings get their own panel below when IGDB has content descriptors.
+    ...(game.ageRatings.length === 0 && game.esrb ? [{ label: "Age rating", value: game.esrb }] : []),
+    ...(game.languages.length
       ? [
           {
-            label: "Perspective",
-            value: game.playerPerspectives.map((p) => p.name).join(", "),
-            icon: <Eye size={14} />,
+            label: "Languages",
+            value: `${game.languages.slice(0, 6).join(", ")}${game.languages.length > 6 ? ` +${game.languages.length - 6} more` : ""}`,
           },
         ]
-      : []),
-    ...(game.gameModes.length
-      ? [
-          {
-            label: "Modes",
-            value: game.gameModes.map((m) => m.name).join(", "),
-            icon: <Gamepad2 size={14} />,
-          },
-        ]
-      : []),
-    ...(game.multiplayerModes
-      ? [
-          {
-            label: "Multiplayer",
-            value: multiplayerSummary(game.multiplayerModes),
-            icon: <Users size={14} />,
-          },
-        ]
-      : []),
-    // The bento's "Time to beat" tile is the better answer when IGDB has it;
-    // RAWG-style median playtime is the fallback for records without one.
-    ...(game.playtime && !game.timeToBeat
-      ? [
-          {
-            label: "Typical playtime",
-            value: playtimeLabel(game.playtime),
-            icon: <Timer size={14} />,
-          },
-        ]
-      : []),
-    // Ratings get their own panel below when IGDB has content descriptors,
-    // since the descriptors are the half people actually want. This row is the
-    // fallback for records that only carry the bare rating.
-    ...(game.ageRatings.length === 0 && game.esrb
-      ? [{ label: "Age rating", value: game.esrb, icon: <ShieldCheck size={14} /> }]
       : []),
     ...(game.website
       ? [
@@ -619,142 +514,105 @@ function GameSidebar({ game }: { game: GameDetail }) {
                 {hostname(game.website)} <ExternalLink size={11} aria-hidden />
               </a>
             ),
-            icon: <Globe size={14} />,
           },
         ]
       : []),
-    ...(game.languages.length
-      ? [
-          {
-            label: "Languages",
-            value: `${game.languages.slice(0, 6).join(", ")}${
-              game.languages.length > 6 ? ` +${game.languages.length - 6} more` : ""
-            }`,
-            icon: <Languages size={14} />,
-          },
-        ]
-      : []),
-    ...(game.alternativeNames.length
-      ? [
-          {
-            label: "Also known as",
-            value: game.alternativeNames.slice(0, 4).join(", "),
-            icon: <Tag size={14} />,
-          },
-        ]
-      : []),
-    // `popScore` is deliberately not shown: IGDB returns it as a normalised
-    // float far below 1, which is meaningful for ordering shelves and search
-    // but answers no question a reader would ask. It ranks, it doesn't display.
-    ...(game.added
-      ? [
-          {
-            label: "In player libraries",
-            value: compactNumber(game.added),
-            icon: <Gauge size={14} />,
-          },
-        ]
-      : []),
-    ...(game.hypes > 0
-      ? [
-          {
-            label: "Anticipating this",
-            value: compactNumber(game.hypes),
-            icon: <Flame size={14} />,
-          },
-        ]
-      : []),
+    ...(game.alternativeNames.length ? [{ label: "Also known as", value: game.alternativeNames.slice(0, 4).join(", ") }] : []),
   ];
 
   return (
-    <aside className="min-w-0 space-y-4 lg:sticky lg:top-36 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
-      <Reveal className="glass rounded-3xl p-5">
-        <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-          Details
-        </h2>
-        <dl className="space-y-3.5">
-          {facts.map((fact) => (
-            <div key={fact.label}>
-              <dt className="flex gap-3 text-[11px] uppercase tracking-[0.08em] text-faint">
-                <span className="mt-0.5 shrink-0" aria-hidden>{fact.icon}</span>
-                <span>{fact.label}</span>
-              </dt>
-              <dd className="mt-0.5 min-w-0 pl-7 text-sm leading-snug">{fact.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </Reveal>
+    <aside className="min-w-0 space-y-4 lg:sticky lg:top-36 lg:self-start">
+      {facts.length > 0 && (
+        <div className="glass rounded-3xl p-5">
+          <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">Details</h3>
+          {/* Two columns of short facts on tablets; one tidy list beside the story on desktop. */}
+          <dl className="grid gap-x-6 gap-y-3.5 sm:grid-cols-2 lg:grid-cols-1">
+            {facts.map((fact) => (
+              <div key={fact.label} className="min-w-0">
+                <dt className="text-[12px] text-faint">{fact.label}</dt>
+                <dd className="mt-0.5 min-w-0 text-[14px] leading-snug text-text">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
 
       {game.ageRatings.length > 0 && (
-        <Reveal delay={0.06} className="glass rounded-3xl p-5">
-          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
+        <div className="glass rounded-3xl p-5">
+          <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
             {game.ageRatings.length > 1 ? "Age ratings" : "Age rating"}
-          </h2>
+          </h3>
           <AgeRatingPanel ratings={game.ageRatings} />
-        </Reveal>
+        </div>
       )}
 
-      {game.genres.length > 0 && (
-        <Reveal delay={0.12} className="glass rounded-3xl p-5">
-          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-            Genres
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {game.genres.map((genre) => (
-              <Chip key={genre.id} href={`/browse?genres=${genre.slug}`}>
-                {genre.name}
-              </Chip>
-            ))}
-          </div>
-        </Reveal>
-      )}
+      <Elsewhere game={game} />
     </aside>
   );
 }
 
-function Requirements({ game }: { game: GameDetail }) {
-  const platforms = game.requirements.map((req) => req.platform).join(", ");
-
+/** Credits, platforms and tags: the deep record, behind "Show" in the Overview. */
+function GameDetails({ game, hasThemeContent }: { game: GameDetail; hasThemeContent: boolean }) {
   return (
-    <Reveal>
-      <Collapsible
-        title="System requirements"
-        subtitle={platforms}
-        icon={<MonitorCog size={17} />}
-      >
-        <div className="space-y-4">
-          {game.requirements.map((req) => (
-            <div key={req.platform} className="overflow-hidden rounded-xl border border-line">
-              <h3 className="border-b border-line bg-fg/[0.03] px-4 py-3 text-sm font-semibold">
-                {req.platform}
-              </h3>
-              <div className="grid gap-px bg-line sm:grid-cols-2">
-                {req.minimum && (
-                  <div className="bg-bg p-4">
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-                      Minimum
-                    </p>
-                    <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-muted">
-                      {req.minimum}
-                    </p>
-                  </div>
-                )}
-                {req.recommended && (
-                  <div className="bg-bg p-4">
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
-                      Recommended
-                    </p>
-                    <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-muted">
-                      {req.recommended}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+    <div className="space-y-8 pb-1">
+      {game.characters.length > 0 && (
+        <div>
+          <h4 className="mb-3 text-[15px] font-semibold text-text">Characters</h4>
+          <CharacterRail characters={game.characters} />
         </div>
-      </Collapsible>
-    </Reveal>
+      )}
+
+      {game.companies.length > 0 && (
+        <div>
+          <h4 className="mb-3 text-[15px] font-semibold text-text">Who made it</h4>
+          <CompanyGrid companies={game.companies} />
+          {game.engines.length > 0 && (
+            <div className="mt-4">
+              <h5 className="mb-2.5 text-[13px] font-semibold text-muted">Built with</h5>
+              <EngineRow engines={game.engines} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {game.platformDetails.length > 0 && (
+        <div>
+          <h4 className="mb-3 text-[15px] font-semibold text-text">Platforms</h4>
+          <PlatformGrid platforms={game.platformDetails} />
+        </div>
+      )}
+
+      {hasThemeContent && (
+        <div>
+          <h4 className="mb-3 text-[15px] font-semibold text-text">Themes and modes</h4>
+          {(game.themes.length > 0 || game.gameModes.length > 0 || game.tags.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {game.themes.map((theme) => (
+                <Badge key={`theme-${theme.id}`} tone="brand">
+                  {theme.name}
+                </Badge>
+              ))}
+              {game.gameModes.map((mode) => (
+                <Badge key={`mode-${mode.id}`}>{mode.name}</Badge>
+              ))}
+              {game.themes.length === 0 && game.gameModes.length === 0 && game.tags.map((tag) => <Badge key={tag.id}>{tag.name}</Badge>)}
+            </div>
+          )}
+          {game.keywords.length > 0 && (
+            <div className="mt-4">
+              <h5 className="mb-2.5 text-[13px] font-semibold text-muted">Tags</h5>
+              <ul className="flex flex-wrap gap-2">
+                {game.keywords.map((keyword) => (
+                  <li key={keyword.id}>
+                    <Chip href={`/browse?search=${encodeURIComponent(keyword.name)}`}>{keyword.name}</Chip>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

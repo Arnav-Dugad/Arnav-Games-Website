@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Search, X } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { GameGrid } from "./GameGrid";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { GameSummary } from "@/lib/games/types";
 import { fuzzyMatches } from "@/lib/games/fuzzy-search";
-import { SortMenu, type SortMenuOption } from "@/components/filters";
+import { SearchField, SortMenu, type SortMenuOption } from "@/components/filters";
 
 type EntitySort = "featured" | "newest" | "oldest" | "name" | "critic" | "audience" | "anticipated";
 
@@ -75,53 +75,39 @@ export function EntityGameExplorer({
   const visible = filtered.slice(0, visibleCount);
 
   return (
-    <div className="space-y-6">
-      <div className="glass flex flex-col gap-2.5 rounded-3xl p-2.5 sm:flex-row sm:items-center sm:gap-3 sm:p-3">
-        <label className="relative min-w-0 flex-1">
-          <Search aria-hidden size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
-          <span className="sr-only">Search this collection</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            // Three kinds reach this component; a character page previously
-            // read "Search this franchise…".
-            placeholder={
-              kind === "company"
-                ? "Search this studio’s games…"
-                : kind === "character"
-                  ? "Search this character’s games…"
-                  : "Search this franchise…"
-            }
-            className="h-12 w-full rounded-xl border border-line bg-bg/55 py-2 pl-11 pr-11 text-sm text-text outline-none transition-colors placeholder:text-faint hover:border-line-strong focus:border-brand"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              aria-label="Clear search"
-              className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-faint transition-colors hover:bg-fg/[0.06] hover:text-text"
-            >
-              <X size={15} />
-            </button>
-          )}
-        </label>
-
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search"
+          label="Search these games"
+          className="flex-1 sm:max-w-md"
+        />
         <SortMenu options={SORT_OPTIONS} value={sort} onChange={setSort} label="Sort games" className="shrink-0" />
       </div>
 
-      <p aria-live="polite" className="text-sm text-muted">
-        Showing <span className="font-semibold text-text tabular-nums">{visible.length}</span> of{" "}
-        <span className="tabular-nums">{filtered.length}</span> matching games
-      </p>
+      {normalised && (
+        <p aria-live="polite" className="px-1 text-[13px] text-muted">
+          <span className="font-semibold tabular-nums text-text">{filtered.length}</span>{" "}
+          {filtered.length === 1 ? "match" : "matches"}
+        </p>
+      )}
 
       {filtered.length > 0 ? (
         <>
           <GameGrid games={visible} priorityCount={5} />
           {visible.length < filtered.length && (
-            <div className="mt-8 flex flex-col items-center gap-3 rounded-3xl border border-line bg-fg/[0.025] p-5 text-center">
-              <p className="text-xs text-muted"><span className="font-semibold text-text tabular-nums">{filtered.length - visible.length}</span> more games remain in this complete catalogue.</p>
-              <button type="button" onClick={() => setVisibleCount((count) => count + PAGE_STEP)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-5 text-sm font-bold text-brand-soft transition-colors hover:border-brand/50 hover:text-text">Load {PAGE_STEP} more <ChevronDown size={15} /></button>
+            <div className="mt-8 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((count) => count + PAGE_STEP)}
+                className="press inline-flex min-h-11 items-center gap-2 rounded-full bg-fg/[0.07] px-5 text-[15px] font-semibold text-text transition-colors fine:hover:bg-fg/[0.12]"
+              >
+                Show more
+                <span className="tabular-nums text-muted">{(filtered.length - visible.length).toLocaleString("en-US")}</span>
+                <ChevronDown size={16} aria-hidden />
+              </button>
             </div>
           )}
         </>

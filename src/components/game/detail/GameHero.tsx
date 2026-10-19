@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, ExternalLink, MapPin, Star } from "lucide-react";
+import { ArrowLeft, CalendarDays, ExternalLink, MapPin } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { GameLogo } from "@/components/game/GameLogo";
 import { Countdown } from "@/components/game/Countdown";
-import { PlatformIcons } from "@/components/game/PlatformIcons";
 import { BackdropTrailer } from "@/components/game/BackdropTrailer";
 import { OwnershipPicker } from "@/components/game/OwnershipPicker";
 import { SubscriptionAccessPicker } from "@/components/game/SubscriptionAccessPicker";
@@ -22,6 +21,7 @@ import { formatLongDate, relativeRelease } from "@/lib/utils/format";
 import type { GameDetail } from "@/lib/games/types";
 import { CompareButton } from "./CompareButton";
 import { DelayBadge } from "./ReleaseDates";
+import { HeroParticlesGate, LogoTransitionTarget } from "./HeroAmbient";
 import { DARK_STAGE_STYLE } from "./theme";
 import type { LocalRelease } from "./release";
 
@@ -37,7 +37,9 @@ import type { LocalRelease } from "./release";
  * (logo, genre, studio), is it out / is it good (date, countdown, scores) —
  * and offers one primary action, Follow. Everything personal (status,
  * ownership, subscriptions) sits in a quieter second row, and the rest of
- * the facts live in "At a glance" below rather than being repeated here.
+ * the facts live in "At a glance" below rather than being repeated here
+ * (the player rating and platform icons that used to sit in this row are
+ * there now, with their labels).
  *
  * Always a dark surface (see `DARK_STAGE_STYLE`): logos are mostly white
  * marks drawn for dark art, and the light theme takes over below the fold.
@@ -94,6 +96,8 @@ export function GameHero({
             opens in its own light. */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_100%,color-mix(in_oklab,var(--game-tint)_90%,transparent)_0%,transparent_58%)] opacity-90" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_85%_10%,var(--game-glow),transparent_55%)] opacity-40 mix-blend-screen" />
+        {/* Desktop-only drifting motes in the cover's colour; loads nothing elsewhere. */}
+        <HeroParticlesGate />
       </div>
 
       <Container className="flex min-h-[600px] flex-col justify-end pb-8 pt-24 sm:min-h-[680px] lg:min-h-[760px] lg:pb-12 lg:pt-32">
@@ -151,16 +155,19 @@ export function GameHero({
                 <h1 className="max-w-[min(100%,36rem)]">
                   <span className="sr-only">{game.name}</span>
                   <span aria-hidden className="block">
-                    <GameLogo
-                      name={game.name}
-                      logo={game.logo}
-                      priority
-                      height="clamp(4.25rem, 12vw, 9rem)"
-                      // The stage stays dark in the light theme too.
-                      surface="dark"
-                      reveal
-                      className="max-h-[9rem] drop-shadow-[0_10px_40px_rgba(0,0,0,0.55)]"
-                    />
+                    {/* Search results morph into this logo (view transition). */}
+                    <LogoTransitionTarget slug={game.slug}>
+                      <GameLogo
+                        name={game.name}
+                        logo={game.logo}
+                        priority
+                        height="clamp(4.25rem, 12vw, 9rem)"
+                        // The stage stays dark in the light theme too.
+                        surface="dark"
+                        reveal
+                        className="max-h-[9rem] drop-shadow-[0_10px_40px_rgba(0,0,0,0.55)]"
+                      />
+                    </LogoTransitionTarget>
                   </span>
                 </h1>
               </div>
@@ -174,16 +181,9 @@ export function GameHero({
 
             <Reveal delay={0.12} className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2.5 text-sm text-white/75">
               {game.metacritic !== null && (
-                <a href="#overview" className="flex items-center gap-2" aria-label={`${criticLabel} ${game.metacritic}`}>
+                <a href="#reviews" className="flex items-center gap-2" aria-label={`${criticLabel} ${game.metacritic} — see what players think`}>
                   <ScorePill score={game.metacritic} />
                   <span className="text-xs text-white/55">{criticLabel}</span>
-                </a>
-              )}
-              {game.rating > 0 && (
-                <a href="#reviews" className="flex items-center gap-1.5" aria-label={`Rated ${game.rating.toFixed(1)} out of 5 — see reviews`}>
-                  <Star size={14} className="fill-gold text-gold" />
-                  <span className="font-semibold tabular-nums text-white">{game.rating.toFixed(1)}</span>
-                  <span className="text-white/50">/5</span>
                 </a>
               )}
               <span className="flex items-center gap-2">
@@ -196,11 +196,6 @@ export function GameHero({
                 </span>
               )}
               <DelayBadge count={delays} />
-              {game.parentPlatforms.length > 0 && (
-                <span className="flex items-center" aria-label={`Platforms: ${game.parentPlatforms.map((p) => p.name).join(", ")}`}>
-                  <PlatformIcons platforms={game.parentPlatforms} size={15} max={6} tinted />
-                </span>
-              )}
             </Reveal>
             {local.region && local.countryName && (
               <Reveal delay={0.16} className="mt-2">

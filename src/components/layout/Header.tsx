@@ -18,16 +18,11 @@ import { UserMenu } from "./UserMenu";
 import { NotificationBell } from "./NotificationBell";
 import { useScrollDirection } from "@/hooks";
 import { cn } from "@/lib/utils/cn";
+import { PRIMARY_NAV, isNavActive } from "./nav";
 
-const NAV = [
-  { href: "/", label: "Home" },
-  { href: "/upcoming", label: "Upcoming" },
-  { href: "/stats", label: "Stats" },
-  { href: "/browse", label: "Browse" },
-  { href: "/genres", label: "Genres" },
-  { href: "/studios", label: "Studios" },
-  { href: "/franchises", label: "Franchises" },
-];
+/* The same four destinations as the phone tab bar (see ./nav): Discover is
+   the hub for genres, platforms, studios, franchises and compare on every
+   device, so a desktop reader and a phone reader learn one map. */
 
 const subscribeNothing = () => () => {};
 /**
@@ -49,9 +44,6 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
   const shortcut = useShortcutLabel();
   const { scrolled } = useScrollDirection();
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
-
   return (
     /*
       Pinned at all times, as a floating glass capsule.
@@ -62,7 +54,7 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
       and over plain content alike — at the top it is a touch more transparent,
       and firms up once the page scrolls.
     */
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-[150] px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-4 lg:pt-3">
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-(--z-chrome) pt-[max(0.5rem,env(safe-area-inset-top))] pl-[max(0.625rem,env(safe-area-inset-left))] pr-[max(0.625rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(1rem,env(safe-area-inset-right))] lg:pt-3">
       <div className="pointer-events-auto relative z-0 mx-auto flex h-14 w-full max-w-[1400px] items-center gap-3 rounded-[22px] pl-3 pr-2 lg:h-[60px] lg:gap-4 lg:pl-4">
         {/* The frosted material sits on an underlay, not on this bar: a
             backdrop-filter would make the bar a backdrop root, and the active
@@ -78,8 +70,8 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
 
         <nav aria-label="Primary" className="ml-2 hidden lg:block xl:ml-4">
           <ul className="flex items-center gap-1">
-            {NAV.map((item) => {
-              const active = isActive(item.href);
+            {PRIMARY_NAV.map((item) => {
+              const active = isNavActive(item, pathname);
               return (
                 <li key={item.href}>
                   <Link

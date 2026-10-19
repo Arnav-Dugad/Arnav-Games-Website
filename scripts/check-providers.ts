@@ -43,6 +43,18 @@ import {
   steamToMinor,
 } from "../src/lib/games/market-rules";
 import { microsoftPriceOf } from "../src/lib/games/ms-store";
+import { valuePerHour } from "../src/lib/games/market-rules";
+import { condensePatchPost, isPatchPost, parsePatchBody, patchNotesFrom } from "../src/lib/games/patch-notes";
+import {
+  CPU_SUGGESTIONS,
+  evaluateHardware,
+  GPU_SUGGESTIONS,
+  matchCpu,
+  matchGpu,
+  matchGpus,
+  parsePcRequirements,
+} from "../src/lib/games/hardware";
+import { downsampleTwitch, reviewVelocity, scoreTimeline, sumStreams } from "../src/lib/games/history-rules";
 import type { PricePoint } from "../src/lib/games/types";
 import type { ReleaseEvent } from "../src/lib/games/types";
 
@@ -279,6 +291,7 @@ check("defaults are stable", parseDirectorySearchParams({}), {
   query: "",
   page: 1,
   order: "name",
+  letter: null,
 });
 check("search, page and descending sort", parseDirectorySearchParams({
   q: "  CD Projekt  ",
@@ -288,6 +301,7 @@ check("search, page and descending sort", parseDirectorySearchParams({
   query: "CD Projekt",
   page: 4,
   order: "-name",
+  letter: null,
 });
 check("invalid page is bounded", parseDirectorySearchParams({ page: "not-a-page" }).page, 1);
 check("negative page is bounded", parseDirectorySearchParams({ page: "-20" }).page, 1);
@@ -806,6 +820,219 @@ check(
   // Game 3: +30 then Jul 1 → Dec 31 (+183) = 213. Mean of 30 and 213 → 122.
   { tracked: 3, delayed: 2, avgDaysLate: 122, since: "2026-01-01" },
 );
+
+console.log("\nPatch notes (round 4)");
+{
+  // Shapes taken from real posts: CS2 (BBCode lists under "\[ MISC ]"),
+  // Elden Ring ([h3] headings, "→" continuation lines, [i]Note:[/i]),
+  // Hollow Knight (plain dash lines), and a list-less hotfix note.
+  const cs2 =
+    "[p]\\[ UI ][/p][p]Demo/Replay viewer improvements:[/p][list][*][p]Added a progress bar for demo/replay downloads[/p][/*][*][p]Camera controls now use click-and-drag scheme[/p][/*][/list][p][/p][p]\\[ MISC ][/p][list][*][p]Stability improvements for Vulkan renderer[/p][/*][/list]";
+  check("CS2: bullets grouped under their nearest heading", parsePatchBody(cs2).sections, [
+    { heading: "Demo/Replay viewer improvements", items: ["Added a progress bar for demo/replay downloads", "Camera controls now use click-and-drag scheme"] },
+    { heading: "Misc", items: ["Stability improvements for Vulkan renderer"] },
+  ]);
+  const er =
+    "[h2]Patch 1.17 has been released for ELDEN RING. This patch aims to bring support for the DLC and balance adjustments.[/h2][h3]Weapons [/h3][p]\n[/p][list][*][p] Smithscript Dagger / Rellana's Twin Blades\n→ Increased critical hit power.\n\n[/p][/*][*][p] Golem Fist\n→ Increased the range of the heavy attack.\n[i]Note: Items already found will not be changed.[/i][/p][/*][/list][h3][b]Bug Fixes[/b][/h3][list][*][p]Fixed a bug where the wrong affinity could be applied.[/p][/*][/list][h3][i]App Ver. 1.16.1[/i][/h3][p]Online play requires the player to apply this update.[/p]";
+  check("ER: continuation lines join, notes dropped, empty headings vanish", parsePatchBody(er).sections, [
+    { heading: "Weapons", items: ["Smithscript Dagger / Rellana's Twin Blades → Increased critical hit power.", "Golem Fist → Increased the range of the heavy attack."] },
+    { heading: "Bug Fixes", items: ["Fixed a bug where the wrong affinity could be applied."] },
+  ]);
+  const hk = "- Added \"Borderless\" option to fullscreen\n- 64-bit is now required\n- Fixed issues with binding mouse buttons";
+  check("HK: dash lines are bullets, default heading", parsePatchBody(hk), {
+    sections: [{ heading: "Changes", items: ["Added \"Borderless\" option to fullscreen", "64-bit is now required", "Fixed issues with binding mouse buttons"] }],
+    totalItems: 3,
+    bulletCount: 3,
+  });
+  check(
+    "list-less post: the developer's own sentences, minus sign-offs",
+    parsePatchBody("[p]To address a security vulnerability, an update to some pre-order bonuses was distributed.[/p][p]Thank you for your understanding.[/p]").sections,
+    [{ heading: "Notes", items: ["To address a security vulnerability, an update to some pre-order bonuses was distributed."] }],
+  );
+  check("struck-out text is dropped", parsePatchBody("[list][*][strike]Old plan[/strike]Applied the new save path[/*][/list]").sections[0].items, ["Applied the new save path"]);
+  const long = parsePatchBody(`[list][*]${"word ".repeat(60)}[/*][/list]`).sections[0].items[0];
+  check("bullets trimmed to ~160 chars at a word", [long.length <= 160, long.endsWith("…")], [true, true]);
+  check("patchnotes tag counts", isPatchPost({ title: "Cross-platform Cloud Saves", tags: ["patchnotes"] }), true);
+  check("version title counts", isPatchPost({ title: "Update notes for v1.5.78.11833" }), true);
+  check("merch post doesn't", isPatchPost({ title: "New Elden Ring Mini Replicas Arrive" }), false);
+  check(
+    "title-only match needs a real list",
+    condensePatchPost({ title: "Big update coming soon!", url: "https://store.steampowered.com/news/1", date: 1, contents: "[p]Stay tuned.[/p]" }),
+    null,
+  );
+  const notes = patchNotesFrom([
+    { gid: "1", title: "Rush Hour", url: "https://e.com/1", date: 300, contents: "[list][*]A[/*][/list]" },
+    { gid: "2", title: "Counter-Strike 2 Update", tags: ["patchnotes"], url: "https://e.com/2", date: 200, contents: cs2 },
+    { gid: "3", title: "Patch 1.0.1", url: "https://e.com/3", date: 100, contents: hk },
+  ]);
+  check("latest patch posts only, newest first", notes.map((n) => [n.title, n.totalItems, n.highlights.length]), [
+    ["Counter-Strike 2 Update", 3, 3],
+    ["Patch 1.0.1", 3, 3],
+  ]);
+  check(
+    "highlights skip intro bullets",
+    condensePatchPost({
+      title: "Patch 2",
+      tags: ["patchnotes"],
+      url: "https://e.com/4",
+      date: 1,
+      contents: "[list][*]The following were changed:[/*][*]Fixed the camera clipping into walls[/*][/list]",
+    })?.highlights,
+    ["Fixed the camera clipping into walls"],
+  );
+}
+
+console.log("\nHardware (round 4)");
+{
+  check("GPU: shouting + VRAM suffix", matchGpu("NVIDIA GEFORCE GTX 1060 3 GB"), { name: "NVIDIA GeForce GTX 1060", score: 40 });
+  check("GPU: bare number after brand", matchGpu("Nvidia 2060 Super")?.name, "NVIDIA GeForce RTX 2060 SUPER");
+  check("GPU: no space", matchGpu("rtx3060ti")?.name, "NVIDIA GeForce RTX 3060 Ti");
+  check("GPU: AMD XTX", matchGpu("rx 7900xtx")?.name, "AMD Radeon RX 7900 XTX");
+  check("GPU: Vega 56 is not an APU", matchGpu("AMD RADEON RX VEGA 56 8 GB")?.name, "AMD Radeon RX Vega 56");
+  check("GPU: laptop parts scaled", matchGpu("GTX 1060M"), { name: "NVIDIA GeForce GTX 1060 Laptop", score: 32 });
+  check(
+    "GPU: Intel iGPU vs Radeon HD",
+    [matchGpu("Intel HD Graphics 4000")?.name, matchGpu("Radeon HD 7750 (1GB)")?.name],
+    ["Intel HD 4000", "AMD Radeon HD 7750"],
+  );
+  check(
+    "GPU: alternatives inherit their family",
+    matchGpus("NVIDIA GeForce 8600/9600GT, ATI/AMD Radeon HD2600/3600").map((m) => m.name),
+    ["NVIDIA GeForce 8600", "NVIDIA GeForce 9600", "AMD Radeon HD 2600"],
+  );
+  check(
+    "GPU: Apple, Deck, Arc",
+    [matchGpu("Apple M2 Pro")?.name, matchGpu("Steam Deck")?.name, matchGpu("INTEL Arc A750")?.name],
+    ["Apple M2 Pro", "Steam Deck", "Intel Arc A750"],
+  );
+  check("GPU: prose matches nothing", matchGpu("Video card must be 1 GB or more and should be a DirectX 11-compatible"), null);
+  check(
+    "CPU: Intel gens (3, 4, 5 digits)",
+    [matchCpu("Intel Core i5 750 or higher")?.score, matchCpu("INTEL CORE I5-8400")?.score, matchCpu("Core i7-12700")?.score],
+    [2.6, 9.2, 30],
+  );
+  check("CPU: K and laptop suffixes", [matchCpu("i5-12600K")?.score, matchCpu("Intel Core i5-1135G7")?.name], [26.3, "Intel Core i5-1135G7"]);
+  check("CPU: Ryzen shorthand and X3D", [matchCpu("AMD r5 3600")?.name, matchCpu("Ryzen 7 7800X3D")?.score], ["AMD Ryzen 5 3600", 35]);
+  check(
+    "CPU: FX, Core Ultra, prose",
+    [matchCpu("AMD FX-4300")?.score, matchCpu("Intel Core Ultra 9 285K")?.name, matchCpu("Dual core from Intel or AMD at 2.8 GHz")],
+    [3.5, "Intel Core Ultra 9 285K", null],
+  );
+  check(
+    "suggestion lists are populated and unique",
+    [GPU_SUGGESTIONS.length > 150, new Set(GPU_SUGGESTIONS).size === GPU_SUGGESTIONS.length, CPU_SUGGESTIONS.length > 80],
+    [true, true, true],
+  );
+
+  const req = parsePcRequirements({
+    minimum:
+      '<strong>Minimum:</strong><br><ul class="bb_ul"><li>Requires a 64-bit processor and operating system<br></li><li><strong>OS:</strong> Windows 10<br></li><li><strong>Processor:</strong> INTEL CORE I5-8400 or AMD RYZEN 3 3300X<br></li><li><strong>Memory:</strong> 12 GB RAM<br></li><li><strong>Graphics:</strong> NVIDIA GEFORCE GTX 1060 3 GB or AMD RADEON RX 580 4 GB<br></li><li><strong>Storage:</strong> 60 GB available space<br></li><li><strong>Additional Notes:</strong> </li></ul>',
+    recommended:
+      '<strong>Recommended:</strong><br><ul class="bb_ul"><li><strong>OS:</strong> Windows 10/11<br></li><li><strong>Processor:</strong> INTEL CORE I7-8700K or AMD RYZEN 5 3600X<br></li><li><strong>Memory:</strong> 16 GB RAM<br></li><li><strong>Graphics:</strong> NVIDIA GEFORCE GTX 1070 8 GB or AMD RADEON RX VEGA 56 8 GB<br></li><li><strong>Storage:</strong> 60 GB available space</li></ul>',
+  });
+  const { raw, ...minimum } = req!.minimum!;
+  check("requirements: Elden Ring minimum parsed", minimum, {
+    cpu: "INTEL CORE I5-8400 or AMD RYZEN 3 3300X",
+    gpu: "NVIDIA GEFORCE GTX 1060 3 GB or AMD RADEON RX 580 4 GB",
+    ramGb: 12,
+    vramGb: 3,
+    storageGb: 60,
+    os: "Windows 10",
+  });
+  check("requirements: raw keeps the text, drops template residue", raw.split("\n"), [
+    "Requires a 64-bit processor and operating system",
+    "OS: Windows 10",
+    "Processor: INTEL CORE I5-8400 or AMD RYZEN 3 3300X",
+    "Memory: 12 GB RAM",
+    "Graphics: NVIDIA GEFORCE GTX 1060 3 GB or AMD RADEON RX 580 4 GB",
+    "Storage: 60 GB available space",
+  ]);
+  check(
+    "requirements: MB memory and [] pages",
+    [parsePcRequirements({ minimum: "OS: XP<br>Memory: 512 MB RAM" })?.minimum?.ramGb, parsePcRequirements([])],
+    [0.5, null],
+  );
+
+  check("verdict: great", evaluateHardware({ cpu: "Ryzen 5 5600X", gpu: "RTX 3060", ramGb: 16 }, req).kind, "great");
+  check("verdict: ok names what falls short", evaluateHardware({ cpu: "i7-8700K", gpu: "GTX 1060 6GB", ramGb: 16 }, req), {
+    kind: "ok",
+    parts: [
+      { part: "CPU", yours: "Intel Core i7-8700K", needed: "Intel Core i7-8700K", ok: true },
+      { part: "GPU", yours: "NVIDIA GeForce GTX 1060", needed: "AMD Radeon RX Vega 56", ok: false },
+      { part: "RAM", yours: "16 GB", needed: "16 GB", ok: true },
+    ],
+    summary: "Meets the minimum specs; your GPU is below recommended.",
+  });
+  check(
+    "verdict: below",
+    evaluateHardware({ cpu: "i5-4460", gpu: "GTX 970", ramGb: 8 }, req).summary,
+    "Your CPU, GPU and RAM fall short of the minimum specs.",
+  );
+  check("verdict: unknown part → unknown, never a guess", evaluateHardware({ cpu: "", gpu: "Mystery GPU", ramGb: 32 }, req).kind, "unknown");
+  check("verdict: no requirements", evaluateHardware({ cpu: "i5-8400", gpu: "GTX 1060", ramGb: 16 }, null).kind, "unknown");
+}
+
+console.log("\nValue per hour (round 4)");
+{
+  const price = { price: 359900, currency: "INR", country: "IN" };
+  check("₹3,599 over 50 h", valuePerHour(price, 50)?.perHour, 7198);
+  check("free → 0", valuePerHour({ price: 0, currency: "XXX", country: "US" }, 20), { perHour: 0, formatted: "Free" });
+  check("no hours → null", [valuePerHour(price, null), valuePerHour(price, 0)], [null, null]);
+  check("formatted in the price's currency", valuePerHour({ price: 5999, currency: "USD", country: "US" }, 60)?.formatted, "$1.00");
+}
+
+console.log("\nReview velocity, Twitch, scores (round 4)");
+{
+  const launch = Date.parse("2026-10-01T00:00:00Z") / 1000;
+  const h = (n: number) => launch + n * 3600;
+  const samples = [
+    { hour: h(-2), total: 0, positive: 0 },
+    { hour: h(24), total: 400, positive: 300 },
+    { hour: h(71), total: 1000, positive: 800 },
+    { hour: h(120), total: 1500, positive: 1200 },
+  ];
+  const v = reviewVelocity(10, samples, launch, h(120));
+  check("first72h brackets launch → +72h", v.first72h, { reviews: 1000, positivePct: 80 });
+  check("perDay over the last 7 days of samples", v.perDay, Math.round((1500 / (122 / 24)) * 10) / 10);
+  check("first tracked a week late → no launch figure", reviewVelocity(10, samples.slice(2), launch, h(120)).first72h, null);
+  check("under 12 h of span → no rate", reviewVelocity(10, [samples[0]], launch, h(1)).perDay, null);
+  check("empty → honest nulls", reviewVelocity(10, [], launch, h(1)), { appId: 10, points: [], first72h: null, perDay: null, since: null });
+
+  const now = Date.parse("2026-10-20T00:00:00Z") / 1000;
+  const old = now - 10 * 86400;
+  const tw = downsampleTwitch(
+    [
+      { hour: old, viewers: 100, streams: 10 },
+      { hour: old + 3600, viewers: 300, streams: 20 },
+      { hour: now - 3600, viewers: 50, streams: 5 },
+    ],
+    now,
+  );
+  check("twitch: 6-hour means beyond a week, raw peaks", tw, {
+    points: [
+      { t: old - (old % 21600), viewers: 200, streams: 15 },
+      { t: now - 3600, viewers: 50, streams: 5 },
+    ],
+    peak24h: 50,
+    peakTracked: 300,
+    since: "2026-10-10",
+  });
+  check("twitch: page sum", sumStreams([{ viewer_count: 10 }, { viewer_count: 5 }, {}]), { viewers: 15, streams: 3 });
+  check(
+    "scores: sorted, rounded",
+    scoreTimeline([
+      { observed_on: "2026-10-02", score: 81.26, count: 9 },
+      { observed_on: "2026-10-01", score: 80, count: 5 },
+    ]),
+    {
+      points: [
+        { date: "2026-10-01", score: 80, count: 5 },
+        { date: "2026-10-02", score: 81.3, count: 9 },
+      ],
+      since: "2026-10-01",
+    },
+  );
+}
 
 /**
  * A 2×1 RGBA PNG (one opaque red, one transparent pixel), built by hand with

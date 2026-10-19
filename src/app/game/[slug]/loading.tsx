@@ -20,6 +20,7 @@ import { useSyncExternalStore } from "react";
 import { CoverTransition } from "@/components/interactions/CoverTransition";
 import { getCoverClaim, subscribeCoverClaim } from "@/components/interactions/view-transition";
 import { DARK_STAGE_STYLE } from "@/components/game/detail/theme";
+import { LogoTransitionTarget } from "@/components/game/detail/HeroAmbient";
 import { Container } from "@/components/ui/SectionHeading";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -56,7 +57,17 @@ export default function GameLoading() {
             </div>
             <div className="min-w-0 flex-1 space-y-4">
               <Skeleton className="h-4 w-56 max-w-full rounded-full" />
-              <Skeleton className="h-16 w-4/5 max-w-lg rounded-2xl sm:h-24" />
+              {/* The title/logo slot carries the logo morph's page-side name, so
+                  a search result's name has somewhere to fly on a first visit
+                  (the real hero logo isn't streamed yet when the transition
+                  snapshots). Explicit width: the target wrapper is `w-fit`. */}
+              {slug ? (
+                <LogoTransitionTarget slug={slug}>
+                  <Skeleton className="h-16 w-[min(70vw,32rem)] rounded-2xl sm:h-24" />
+                </LogoTransitionTarget>
+              ) : (
+                <Skeleton className="h-16 w-4/5 max-w-lg rounded-2xl sm:h-24" />
+              )}
               <Skeleton className="h-5 w-80 max-w-full rounded-full" />
             </div>
           </div>
@@ -70,15 +81,20 @@ export default function GameLoading() {
           </div>
         </Container>
       </header>
-      {/* The sticky section bar, so the bento below doesn't jump when it arrives. */}
+      {/* The sticky section bar, then "At a glance" (sentence + facts), so the page doesn't jump when it arrives. */}
       <div className="h-14 border-b border-line" />
-      <Container className="grid grid-cols-2 gap-3 pt-6 sm:gap-4 sm:pt-8 lg:grid-cols-4">
-        <Skeleton className="col-span-2 h-[148px] rounded-3xl" />
-        <Skeleton className="h-[148px] rounded-3xl" />
-        <Skeleton className="h-[148px] rounded-3xl" />
-        <Skeleton className="col-span-2 h-[148px] rounded-3xl" />
-        <Skeleton className="h-[148px] rounded-3xl" />
-        <Skeleton className="h-[148px] rounded-3xl" />
+      <Container className="pt-7 sm:pt-9">
+        <Skeleton className="h-6 w-full max-w-3xl rounded-full sm:h-7" />
+        <Skeleton className="mt-2.5 h-6 w-2/3 max-w-xl rounded-full sm:h-7" />
+        <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-3xl border border-line bg-line lg:grid-cols-5">
+          {Array.from({ length: 5 }, (_, index) => (
+            <div key={index} className={index === 4 ? "col-span-2 bg-panel px-4 py-4 sm:px-5 lg:col-span-1" : "bg-panel px-4 py-4 sm:px-5"}>
+              <Skeleton className="h-3 w-16 rounded-full" />
+              <Skeleton className="mt-3 h-7 w-20 rounded-lg" />
+              <Skeleton className="mt-2 h-3 w-24 rounded-full" />
+            </div>
+          ))}
+        </div>
       </Container>
     </div>
   );

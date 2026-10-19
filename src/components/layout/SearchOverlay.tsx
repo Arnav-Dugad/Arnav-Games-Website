@@ -17,6 +17,13 @@
  * live signal via /search/suggest), example queries and quick links.
  * No results: the same suggestions plus two honest ways to look further.
  * Typo tolerance lives server-side (`/api/search`); nothing here guesses.
+ *
+ * Opening a game hands off to the game page instead of closing first: the
+ * panel stays up until the navigation commits and is removed in that same
+ * commit (no exit animation), which is what lets the result's name and
+ * thumbnail morph into the page's logo and cover (`LogoMorph`). A panel
+ * that fades out on its own timeline would already be gone — or not yet
+ * gone — when the browser takes its snapshots.
  */
 
 import { AnimatePresence, motion } from "motion/react";
@@ -36,13 +43,14 @@ import {
 } from "lucide-react";
 import { OwnershipPicker } from "@/components/game/OwnershipPicker";
 import { WatchButton } from "@/components/game/WatchButton";
+import { LogoMorph, useResultMorph } from "@/components/search/LogoMorph";
 import { SearchHitVisual } from "@/components/search/SearchHitVisual";
 import { SpotlightPreview } from "@/components/search/SpotlightPreview";
 import { hitAsGame } from "@/components/search/hit-game";
 import { buildSections, SEARCH_PROMPTS, type SearchSection } from "@/components/search/model";
 import { useRecentSearches } from "@/components/search/recent";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
-import { useDebouncedValue, useDialogFocus, useLockBodyScroll } from "@/hooks";
+import { useDebouncedValue, useDialogFocus, useLockBodyScroll, useMediaQuery } from "@/hooks";
 import { cn } from "@/lib/utils/cn";
 import { SEARCH_KIND_LABELS, hrefForSearchHit, type SearchHit } from "@/lib/games/search";
 
@@ -84,6 +92,8 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   const [settled, setSettled] = useState<{ term: string; results: SearchHit[] }>({ term: "", results: [] });
   const [cursor, setCursor] = useState(0);
   const [trending, setTrending] = useState<SearchHit[]>([]);
+  /** A game result was opened; the panel waits for the page (see header). */
+  const [handoff, setHandoff] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -191,6 +201,35 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
     onClose();
   }, [typed, remember, onClose]);
 
+  /** Opening a game: remember, then hand off rather than close. */
+  const openGame = useCallback(
+    (href: string) => {
+      if (typed.length >= 2) remember(typed);
+      // Already on that page: nothing will navigate, so just close.
+      if (new URL(href, window.location.href).pathname === window.location.pathname) {
+        onClose();
+        return;
+      }
+      setHandoff(true);
+    },
+    [typed, remember, onClose],
+  );
+
+  useEffect(() => {
+    if (!handoff) return;
+    if (!open) {
+      // The navigation closed us (SiteChrome ties `open` to the route).
+      const frame = requestAnimationFrame(() => setHandoff(false));
+      return () => cancelAnimationFrame(frame);
+    }
+    // A navigation that never lands (offline, an error) mustn't strand the panel.
+    const timer = setTimeout(() => {
+      setHandoff(false);
+      onClose();
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [handoff, open, onClose]);
+
   const activate = useCallback(
     (item: NavItem | null) => {
       if (!item) {
@@ -199,10 +238,17 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
       }
       if (item.type === "recent") return runRecent(item.term);
       if (item.type === "all") return openFullSearch();
+      // Enter on a result is a click on its row: the row claims its morph
+      // names and the link navigates, exactly as a pointer would.
+      const row = panelRef.current?.querySelector<HTMLElement>(`[data-search-index="${activeIndex}"]`);
+      if (row instanceof HTMLAnchorElement) {
+        row.click();
+        return;
+      }
       router.push(hrefForSearchHit(item.hit));
       followed();
     },
-    [openFullSearch, runRecent, router, followed],
+    [openFullSearch, runRecent, router, followed, activeIndex],
   );
 
   const moveCursor = (next: number) => {
@@ -246,10 +292,13 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   // rendering: sections render as child components, after this render.
   const indexOf = new Map(items.map((item, i) => [item.key, i]));
 
+  // Removed in the navigation's own commit — see the header.
+  if (handoff && !open) return null;
+
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[250] flex items-start justify-center sm:p-6 sm:pt-[8vh]">
+        <div className="fixed inset-0 z-(--z-search) flex items-start justify-center sm:p-6 sm:pt-[8vh]">
           <motion.div
             className="absolute inset-0 bg-bg/70 backdrop-blur-md light:bg-black/25"
             initial={{ opacity: 0 }}
@@ -280,7 +329,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             {/* ------------------------------------------------------ Field */}
             <div className="flex items-center gap-2 border-b border-line px-3 py-2.5 safe-t sm:px-4 sm:py-3">
               <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full bg-fg/[0.08] pl-3.5 pr-1 sm:rounded-2xl sm:bg-transparent sm:pl-2.5">
-                {loading ? (
+                {loading || handoff ? (
                   <Loader2 size={18} aria-hidden className="shrink-0 animate-spin text-brand-soft" />
                 ) : (
                   <Search size={18} aria-hidden className="shrink-0 text-muted sm:text-brand-soft" />
@@ -319,14 +368,16 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   </button>
                 )}
               </div>
-              <button type="button" onClick={onClose} className="press min-h-11 shrink-0 px-1.5 text-[17px] text-brand-soft sm:hidden">
+              {/* Touch keeps the text Cancel at every width (a landscape phone is
+                  past `sm`); the tiny "esc" key cap is for keyboards. */}
+              <button type="button" onClick={onClose} className="press min-h-11 shrink-0 px-1.5 text-[17px] text-brand-soft sm:fine:hidden">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close search"
-                className="press hidden h-9 shrink-0 items-center rounded-lg border border-line px-2 text-[11px] font-semibold text-faint transition-colors hover:text-text sm:flex"
+                className="press hidden h-9 shrink-0 items-center rounded-lg border border-line px-2 text-[11px] font-semibold text-faint transition-colors hover:text-text sm:fine:flex"
               >
                 esc
               </button>
@@ -345,9 +396,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                         renderRow={(hit) => {
                           const i = indexOf.get(`${section.id}-${hit.kind}-${hit.id}`) ?? -1;
                           return section.id === "top" ? (
-                            <TopHit key={`top-${hit.kind}-${hit.id}`} hit={hit} active={i === activeIndex} rowProps={rowProps(i)} onFollow={followed} />
+                            <TopHit key={`top-${hit.kind}-${hit.id}`} hit={hit} active={i === activeIndex} rowProps={rowProps(i)} onFollow={followed} onOpenGame={openGame} />
                           ) : (
-                            <HitRow key={`${hit.kind}-${hit.id}`} hit={hit} active={i === activeIndex} rowProps={rowProps(i)} onFollow={followed} />
+                            <HitRow key={`${hit.kind}-${hit.id}`} hit={hit} active={i === activeIndex} rowProps={rowProps(i)} onFollow={followed} onOpenGame={openGame} />
                           );
                         }}
                         onShowAll={() => openFullSearch(settled.term)}
@@ -377,7 +428,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                       Sticky inside the scroll area so it stays in view. */}
                   <aside aria-label="Result preview" className="hidden border-l border-line p-3 lg:block">
                     <div className="sticky top-3 h-[min(32rem,calc(86vh-9rem))]">
-                      <SpotlightPreview hit={previewHit} onNavigate={followed} />
+                      <SpotlightPreview hit={previewHit} onNavigate={followed} onOpenGame={openGame} />
                     </div>
                   </aside>
                 </div>
@@ -394,6 +445,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   onForget={forget}
                   onClear={clear}
                   onFollow={followed}
+                  onOpenGame={openGame}
                   onPrompt={runRecent}
                   onFullSearch={() => openFullSearch()}
                   onNavigate={onClose}
@@ -469,21 +521,29 @@ function HitRow({
   active,
   rowProps,
   onFollow,
+  onOpenGame,
   label,
 }: {
   hit: SearchHit;
   active: boolean;
   rowProps: RowProps;
   onFollow: () => void;
+  onOpenGame: (href: string) => void;
   /** Overrides the subtitle, e.g. for trending suggestions. */
   label?: string;
 }) {
   const game = hit.kind === "game" ? hitAsGame(hit) : null;
+  const href = hrefForSearchHit(hit);
+  const morph = useResultMorph(hit.slug, hit.image);
   return (
     <li className="group relative">
       <Link
-        href={hrefForSearchHit(hit)}
-        onClick={onFollow}
+        href={href}
+        onClick={() => {
+          if (!game) return onFollow();
+          morph.claim();
+          onOpenGame(href);
+        }}
         {...rowProps}
         className={cn(
           "flex min-h-[60px] min-w-0 items-center gap-3 overflow-hidden rounded-xl px-2 py-1.5 transition-colors duration-150",
@@ -491,9 +551,11 @@ function HitRow({
           active ? "bg-fg/[0.08]" : "fine:hover:bg-fg/[0.05]",
         )}
       >
-        <SearchHitVisual hit={hit} />
+        <SearchHitVisual hit={hit} coverActive={morph.coverActive} />
         <span className="min-w-0 flex-1">
-          <span className="block max-w-full truncate text-[15px] font-semibold tracking-[-0.01em]">{hit.name}</span>
+          <LogoMorph slug={hit.slug} active={game !== null && morph.logoActive} className="block">
+            <span className="block max-w-full truncate text-[15px] font-semibold tracking-[-0.01em]">{hit.name}</span>
+          </LogoMorph>
           {(label ?? hit.subtitle) && <span className="mt-0.5 block truncate text-[13px] text-muted">{label ?? hit.subtitle}</span>}
         </span>
         {active && !game && <CornerDownLeft size={14} aria-hidden className="hidden shrink-0 text-faint fine:block" />}
@@ -525,14 +587,35 @@ function HitRow({
  * iOS search screen; from lg up the preview pane carries the detail, so it
  * stays a row with a little more presence.
  */
-function TopHit({ hit, active, rowProps, onFollow }: { hit: SearchHit; active: boolean; rowProps: RowProps; onFollow: () => void }) {
+function TopHit({
+  hit,
+  active,
+  rowProps,
+  onFollow,
+  onOpenGame,
+}: {
+  hit: SearchHit;
+  active: boolean;
+  rowProps: RowProps;
+  onFollow: () => void;
+  onOpenGame: (href: string) => void;
+}) {
   const game = hit.kind === "game" ? hitAsGame(hit) : null;
   const kind = SEARCH_KIND_LABELS[hit.kind].replace(/s$/, "");
+  const href = hrefForSearchHit(hit);
+  const morph = useResultMorph(hit.slug, hit.image);
+  // Two sizes of thumbnail render and CSS hides one; only the visible one may
+  // carry the cover name, or there would be two elements with it.
+  const wide = useMediaQuery("(min-width: 1024px)");
   return (
     <li className="group relative">
       <Link
-        href={hrefForSearchHit(hit)}
-        onClick={onFollow}
+        href={href}
+        onClick={() => {
+          if (!game) return onFollow();
+          morph.claim();
+          onOpenGame(href);
+        }}
         {...rowProps}
         className={cn(
           "flex min-w-0 items-center gap-4 overflow-hidden rounded-2xl p-3 transition-colors duration-150 lg:gap-3 lg:rounded-xl lg:px-2 lg:py-1.5",
@@ -541,16 +624,18 @@ function TopHit({ hit, active, rowProps, onFollow }: { hit: SearchHit; active: b
         )}
       >
         <span className="flex shrink-0 lg:hidden">
-          <SearchHitVisual hit={hit} size="card" />
+          <SearchHitVisual hit={hit} size="card" coverActive={morph.coverActive && !wide} />
         </span>
         <span className="hidden shrink-0 lg:flex">
-          <SearchHitVisual hit={hit} />
+          <SearchHitVisual hit={hit} coverActive={morph.coverActive && wide} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-soft lg:hidden">{kind}</span>
-          <span className="mt-1 line-clamp-2 break-words text-[19px] font-bold leading-tight tracking-[-0.02em] [overflow-wrap:anywhere] lg:mt-0 lg:line-clamp-1 lg:text-[15px] lg:font-semibold lg:tracking-[-0.01em]">
-            {hit.name}
-          </span>
+          <LogoMorph slug={hit.slug} active={game !== null && morph.logoActive} className="block">
+            <span className="mt-1 line-clamp-2 break-words text-[19px] font-bold leading-tight tracking-[-0.02em] [overflow-wrap:anywhere] lg:mt-0 lg:line-clamp-1 lg:text-[15px] lg:font-semibold lg:tracking-[-0.01em]">
+              {hit.name}
+            </span>
+          </LogoMorph>
           {hit.subtitle && <span className="mt-1 block truncate text-[13px] text-muted lg:mt-0.5">{hit.subtitle}</span>}
           {game && (
             <span className="mt-3 inline-flex min-h-9 items-center gap-1 rounded-full bg-fg px-3.5 text-[13px] font-semibold text-bg lg:hidden">
@@ -579,6 +664,7 @@ function EmptyStart({
   onForget,
   onClear,
   onFollow,
+  onOpenGame,
   onPrompt,
   onFullSearch,
   onNavigate,
@@ -593,6 +679,7 @@ function EmptyStart({
   onForget: (term: string) => void;
   onClear: () => void;
   onFollow: () => void;
+  onOpenGame: (href: string) => void;
   onPrompt: (term: string) => void;
   onFullSearch: () => void;
   onNavigate: () => void;
@@ -683,6 +770,7 @@ function EmptyStart({
                   active={i === activeIndex}
                   rowProps={rowProps(i)}
                   onFollow={onFollow}
+                  onOpenGame={onOpenGame}
                   label={`#${n + 1} playing now${hit.subtitle ? ` · ${hit.subtitle}` : ""}`}
                 />
               );

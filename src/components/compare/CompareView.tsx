@@ -12,35 +12,53 @@
  * value deep in the table is never orphaned from its game.
  *
  * "Best" is only claimed where more/less is unambiguously better (scores,
- * price, players, hype, Steam Deck status) and only when at least two games
- * have a value — a lone number isn't the best of anything. Length isn't
- * judged: a 100-hour game isn't better or worse than a 10-hour one.
+ * price, cost per hour, players, hype, Steam Deck, "will it run") and only
+ * when at least two games have a value — a lone number isn't the best of
+ * anything. Length isn't judged: a 100-hour game isn't better or worse than a
+ * 10-hour one.
+ *
+ * Row labels use the game page's words, with the same ⓘ explanations, so a
+ * number means the same thing on both pages.
  */
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, Columns3, Link2, MapPin, Plus, Share2, Star, X } from "lucide-react";
+import { Check, Columns3, Link2, MapPin, MonitorCog, Plus, Share2, Star, X } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { PlatformIcons } from "@/components/game/PlatformIcons";
 import { GamePickerSheet } from "@/components/compare/GamePickerSheet";
 import { liveUrl } from "@/components/game/detail/live";
 import { marketUrl, pcUrl, useEndpoints, type EndpointState } from "@/components/game/detail/endpoint";
 import { bestPrice, DiscountTag, STORE_LABEL, VerdictChip } from "@/components/game/detail/market-ui";
-import { countryName, formatMoney } from "@/components/game/detail/money";
+import { countryName, formatMoney, formatRate } from "@/components/game/detail/money";
+import type { HelpTopic } from "@/components/game/detail/glossary";
+import { InfoTip } from "@/components/game/detail/InfoTip";
 import { PRICE_REGION_SETTINGS } from "@/components/game/detail/PriceSection";
 import { DECK } from "@/components/game/detail/StatsSection";
+import { hoursLabel, storyHours } from "@/components/game/detail/summary";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Container } from "@/components/ui/SectionHeading";
 import { useToast } from "@/components/ui/Toast";
+import { valuePerHour } from "@/lib/games/market-rules";
 import { haptic } from "@/lib/haptics";
+import { usePcSpecs } from "@/lib/preferences/pc";
 import { usePriceRegion } from "@/lib/preferences/region";
 import { cn } from "@/lib/utils/cn";
 import { compactNumber, formatDate, relativeRelease, scoreColor } from "@/lib/utils/format";
-import type { DeckStatus, GameLiveData, GameMarket, GamePcInfo } from "@/lib/games/types";
+import type { DeckStatus, GameLiveData, GameMarket, GamePcInfo, UserPcSpecs } from "@/lib/games/types";
 import { compareHref, MAX_COMPARE, type CompareGame } from "./types";
+
+// Only needed once someone taps "Add my PC".
+const MyPcSheet = dynamic(() => import("@/components/pc/MyPcSheet").then((mod) => mod.MyPcSheet), { ssr: false });
+// Client-only (specs live on the device); keeps the hardware tables out of the server render.
+const HardwareVerdictView = dynamic(() => import("@/components/game/detail/HardwareVerdict").then((mod) => mod.HardwareVerdictView), {
+  ssr: false,
+  loading: () => <Skeleton className="h-6 w-24 rounded-full" />,
+});
 
 type Cell = { node: ReactNode; value?: number | null; loading?: boolean };
 interface Row {
@@ -49,9 +67,14 @@ interface Row {
   cells: Cell[];
   /** "max"/"min" picks the best numeric `value`; omitted = not judged. */
   best?: "max" | "min";
+  /** The ⓘ explanation shared with the game page. */
+  help?: HelpTopic;
+  /** One control beside the label (e.g. "Add my PC"). */
+  action?: ReactNode;
 }
 
 const DECK_RANK: Record<DeckStatus, number> = { verified: 3, playable: 2, unsupported: 0, unknown: -1 };
+
 const full = new Intl.NumberFormat("en-US");
 
 export function CompareView({ games, missing, openPicker }: { games: CompareGame[]; missing: string[]; openPicker: boolean }) {
@@ -60,6 +83,8 @@ export function CompareView({ games, missing, openPicker }: { games: CompareGame
   const calm = useCalmMotion();
   const [pickerOpen, setPickerOpen] = useState(openPicker);
   const [region] = usePriceRegion();
+  const [specs] = usePcSpecs();
+  const [pcSheet, setPcSheet] = useState<"closed" | "open" | "mounted">("closed");
   const slugs = games.map((game) => game.slug);
   const canAdd = games.length < MAX_COMPARE;
 
@@ -99,7 +124,17 @@ export function CompareView({ games, missing, openPicker }: { games: CompareGame
     }
   };
 
-  const rows = buildRows(games, { markets, lives, pcs, regionKnown: Boolean(region) });
+  const rows = buildRows(games, {
+    markets,
+    lives,
+    pcs,
+    regionKnown: Boolean(region),
+    specs,
+    onAddPc: () => {
+      haptic("selection");
+      setPcSheet("open");
+    },
+  });
   const columns = games.length + (canAdd ? 1 : 0);
 
   return (
@@ -162,6 +197,8 @@ export function CompareView({ games, missing, openPicker }: { games: CompareGame
       ) : (
         <CompareTable games={games} rows={rows} columns={columns} canAdd={canAdd} onAdd={() => setPickerOpen(true)} onRemove={remove} calm={calm} />
       )}
+
+      {pcSheet !== "closed" && <MyPcSheet open={pcSheet === "open"} onClose={() => setPcSheet("mounted")} />}
 
       <GamePickerSheet
         open={pickerOpen}
@@ -235,7 +272,7 @@ function CompareTable({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="material fixed inset-x-0 top-16 z-[90] border-b border-line lg:top-[72px]"
+            className="material fixed inset-x-0 top-(--chrome-top) z-[90] border-b border-line lg:top-[72px]"
             aria-hidden
           >
             <div className="mx-auto max-w-[1400px] overflow-hidden px-4 lg:px-6 xl:px-10">
@@ -363,7 +400,17 @@ function CompareRow({
 
   return (
     <div className="py-4">
-      <h2 className={row.label ? "sticky left-4 w-fit text-[12px] font-semibold text-muted lg:left-0" : "sr-only"}>{row.label || "Game pages"}</h2>
+      {row.label ? (
+        <div className="sticky left-4 flex w-fit items-center gap-3 lg:left-0">
+          <h2 className="flex items-center gap-1.5 text-[12px] font-semibold text-muted">
+            {row.label}
+            {row.help && <InfoTip topic={row.help} />}
+          </h2>
+          {row.action}
+        </div>
+      ) : (
+        <h2 className="sr-only">Game pages</h2>
+      )}
       <div className={cn("grid gap-3 sm:gap-4", row.label && "mt-2", colVar)} style={gridStyle}>
         {row.cells.map((cell, index) => {
           const best = bestValue !== null && numbers[index] === bestValue;
@@ -412,13 +459,15 @@ function buildRows(
     lives: EndpointState<GameLiveData>[];
     pcs: EndpointState<GamePcInfo>[];
     regionKnown: boolean;
+    specs: UserPcSpecs | null;
+    onAddPc: () => void;
   },
 ): Row[] {
   const rows: Row[] = [];
 
   rows.push({
     key: "release",
-    label: "Release",
+    label: "Released",
     cells: games.map((game) =>
       game.released
         ? {
@@ -435,7 +484,8 @@ function buildRows(
 
   rows.push({
     key: "critic",
-    label: "Critic score",
+    label: "Critics",
+    help: "critic",
     best: "max",
     // Plain text plus a coloured dot rather than the tinted score pill, which
     // loses contrast on the light theme once the "best" wash sits behind it.
@@ -458,6 +508,7 @@ function buildRows(
   rows.push({
     key: "rating",
     label: "Player rating",
+    help: "playerRating",
     best: "max",
     cells: games.map((game) =>
       game.rating > 0
@@ -502,6 +553,7 @@ function buildRows(
     rows.push({
       key: "verdict",
       label: "Buy or wait",
+      help: "verdict",
       cells: games.map((_, index) => {
         const state = data.markets[index];
         if (!prices[index].loading && prices[index].value == null) return none();
@@ -512,10 +564,36 @@ function buildRows(
     });
   }
 
+  // Cost per hour: the local price over IGDB's main-story hours, as on the game page.
+  const perHour = games.map((game, index): Cell => {
+    // Same rule as the game page: endless games have no story length to divide by.
+    const hours = storyHours(game.timeToBeat);
+    if (!hours) return none("No main-story length");
+    if (prices[index].loading) return { node: null, loading: true };
+    const state = data.markets[index];
+    const best = state.status === "ready" ? bestPrice(state.data) : null;
+    if (!best || best.price === 0) return none(best ? "Free" : "No local price");
+    const rate = valuePerHour(best, hours);
+    if (!rate) return none();
+    return {
+      node: (
+        <>
+          <span className="text-[17px] font-semibold tabular-nums">≈ {formatRate(rate.perHour, best.currency, best.country)}</span>
+          <span className="block text-[13px] text-muted">per hour · {hoursLabel(hours)} story</span>
+        </>
+      ),
+      value: rate.perHour,
+    };
+  });
+  if (perHour.some((cell) => cell.value != null || cell.loading)) {
+    rows.push({ key: "per-hour", label: "Cost per hour", help: "valuePerHour", best: "min", cells: perHour });
+  }
+
   if (games.some((game) => game.timeToBeat?.hastily || game.timeToBeat?.completely)) {
     rows.push({
       key: "ttb",
-      label: "Time to beat (story · everything)",
+      label: "Length (main story · everything)",
+      help: "timeToBeat",
       cells: games.map((game) => {
         const story = game.timeToBeat?.hastily;
         const all = game.timeToBeat?.completely;
@@ -536,6 +614,7 @@ function buildRows(
     rows.push({
       key: "players",
       label: "Playing now on Steam",
+      help: "playingNow",
       best: "max",
       cells: games.map((game, index) => {
         if (!game.steamAppId) return none("Not on Steam");
@@ -550,6 +629,7 @@ function buildRows(
     rows.push({
       key: "deck",
       label: "Steam Deck",
+      help: "deck",
       best: "max",
       cells: games.map((game, index) => {
         if (!game.steamAppId) return none("Not on Steam");
@@ -573,10 +653,40 @@ function buildRows(
     });
   }
 
+  // "Will it run?": only once Steam's requirements for at least one game could be read.
+  const withReqs = data.pcs.map((state) => (state.status === "ready" && (state.data.requirements?.minimum || state.data.requirements?.recommended) ? state.data.requirements : null));
+  if (withReqs.some(Boolean)) {
+    const specs = data.specs;
+    rows.push({
+      key: "run",
+      label: "Will it run on your PC?",
+      help: "willItRun",
+      // Not judged: each verdict chip already says how that game fares on your PC.
+      action: (
+        <button
+          type="button"
+          onClick={data.onAddPc}
+          className="press inline-flex min-h-9 items-center gap-1.5 rounded-full bg-fg/[0.07] px-3 text-[12px] font-semibold text-text fine:hover:bg-fg/[0.12] coarse:min-h-11"
+        >
+          <MonitorCog size={13} aria-hidden /> {specs ? "Edit my PC" : "Add my PC"}
+        </button>
+      ),
+      cells: games.map((game, index) => {
+        if (!game.steamAppId) return none("Not on Steam");
+        if (data.pcs[index].status === "loading") return { node: null, loading: true };
+        const requirements = withReqs[index];
+        if (!requirements) return none("No PC requirements on Steam");
+        if (!specs) return { node: <span className="text-[13px] text-muted">Add your PC to check</span> };
+        return { node: <HardwareVerdictView specs={specs} requirements={requirements} variant="cell" /> };
+      }),
+    });
+  }
+
   if (games.some((game) => game.hype !== null)) {
     rows.push({
       key: "hype",
-      label: "Hype index",
+      label: "Hype",
+      help: "hype",
       best: "max",
       cells: games.map((game) =>
         game.hype !== null

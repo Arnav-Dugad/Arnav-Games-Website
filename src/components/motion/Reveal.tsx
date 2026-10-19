@@ -47,6 +47,26 @@ interface RevealProps {
   onMount?: boolean;
 }
 
+/*
+ * When does "in view" fire?
+ *
+ * `amount` used to go straight to IntersectionObserver as a *fraction of the
+ * element*. That can be unreachable: a 3000px genre grid at `amount: 0.15`
+ * needs 450px of itself on screen at once, which a landscape phone (390px
+ * tall), an iPhone SE, or anyone at 200% text size never has. The observer
+ * never fired, and the whole section stayed at `opacity: 0` — a blank page
+ * on exactly the small screens that need it most.
+ *
+ * Instead the element reveals once any of it crosses a line a little above
+ * the bottom of the screen; `amount` sets how far above (0.25 → 10% of the
+ * viewport). Small elements feel the same as before; tall ones can no
+ * longer get stuck.
+ */
+function inView(once: boolean, amount: number) {
+  const inset = Math.round(Math.min(Math.max(amount, 0), 1) * 40);
+  return { once, amount: "some" as const, margin: `0px 0px -${inset}% 0px` as const };
+}
+
 function offset(direction: RevealDirection, distance: number) {
   switch (direction) {
     case "up":
@@ -132,7 +152,7 @@ export function Reveal({
       variants={variants}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once, amount }}
+      viewport={inView(once, amount)}
     >
       {children}
     </Component>
@@ -204,7 +224,7 @@ export function Stagger({
       className={className}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once, amount }}
+      viewport={inView(once, amount)}
       variants={orchestration}
     >
       {children}

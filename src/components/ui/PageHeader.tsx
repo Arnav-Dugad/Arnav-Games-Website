@@ -26,7 +26,9 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "relative isolate overflow-hidden pb-6 pt-24 sm:pb-8 lg:pb-12 lg:pt-32",
+        // Clears the header wherever it ends — in the installed app that
+        // includes the status bar, which a flat pt-24 let the title slide under.
+        "relative isolate overflow-hidden pb-6 pt-[calc(var(--chrome-top)+2rem)] sm:pb-8 lg:pb-12 lg:pt-32",
         className,
       )}
     >

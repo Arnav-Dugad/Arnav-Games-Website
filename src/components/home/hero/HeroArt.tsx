@@ -44,7 +44,8 @@ export function HeroArt({
   /**
    * The trailer, layered between the art and the scrims so the copy keeps its
    * contrast over video too. Lives inside the slide so it crossfades and
-   * travels with it.
+   * travels with it, and inside the art frame so on phones it takes the
+   * still's portrait crop and dissolves into the copy field the same way.
    */
   media?: React.ReactNode;
 }) {
@@ -65,6 +66,9 @@ export function HeroArt({
           "absolute inset-x-0 top-0 h-[min(74%,128vw)] md:h-full",
           // Phones: the art fades into the base colour instead of ending on a hard edge.
           "[mask-image:linear-gradient(180deg,#000_58%,transparent)] md:[mask-image:none]",
+          // The portrait crop already discards most of a 16:9 frame, so the
+          // trailer is overscanned only as far as hiding YouTube's chrome needs.
+          "[--trailer-overscan:1.2] md:[--trailer-overscan:1.35]",
         )}
       >
         <div
@@ -90,9 +94,8 @@ export function HeroArt({
             rounded="rounded-none"
           />
         </div>
+        {media}
       </div>
-
-      {media}
 
       {/* Phones: a tall bottom field carrying the copy. */}
       <div

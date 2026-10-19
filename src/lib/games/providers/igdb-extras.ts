@@ -358,3 +358,81 @@ export async function hypeIndexFor(
   }
   return out;
 }
+
+/* ---------------------------------------------------------------------------
+ * Cron lookups (release windows, critic aggregates)
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Release dates (unix seconds, IGDB's `first_release_date`) for the ids that
+ * release inside `[from, to)`. One query per 500 ids. The crons pass
+ * hour-aligned bounds, so a re-run within the hour is a cache hit and the
+ * next hour's run asks afresh.
+ */
+export async function releaseDatesInWindow(
+  ids: number[],
+  from: number,
+  to: number,
+  revalidate = 600,
+): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  const valid = validIds(ids);
+  if (valid.length === 0 || !igdbConfigured()) return out;
+  try {
+    const rows = (
+      await Promise.all(
+        chunk(valid, 500).map((part) =>
+          igdbCachedQuery<Array<{ id?: number; first_release_date?: number }>>(
+            "games",
+            `fields first_release_date;\nwhere id = (${part.join(",")}) & first_release_date >= ${Math.floor(from)} & first_release_date < ${Math.floor(to)};\nlimit 500;`,
+            revalidate,
+          ),
+        ),
+      )
+    ).flat();
+    for (const row of rows) {
+      if (typeof row.id === "number" && typeof row.first_release_date === "number") out.set(row.id, row.first_release_date);
+    }
+  } catch (err) {
+    warn("releaseWindow", err);
+  }
+  return out;
+}
+
+/**
+ * IGDB's critic aggregate (0–100) and how many outlets it averages, for ids
+ * released inside `[from, to)` that have one. Null when IGDB failed, so a
+ * cron can tell "nothing scored yet" from an outage.
+ */
+export async function criticAggregatesFor(
+  ids: number[],
+  from: number,
+  to: number,
+  revalidate = 600,
+): Promise<Map<number, { score: number; count: number }> | null> {
+  const out = new Map<number, { score: number; count: number }>();
+  const valid = validIds(ids);
+  if (valid.length === 0 || !igdbConfigured()) return out;
+  try {
+    const rows = (
+      await Promise.all(
+        chunk(valid, 500).map((part) =>
+          igdbCachedQuery<Array<{ id?: number; aggregated_rating?: number; aggregated_rating_count?: number }>>(
+            "games",
+            `fields aggregated_rating,aggregated_rating_count;\nwhere id = (${part.join(",")}) & first_release_date >= ${Math.floor(from)} & first_release_date < ${Math.floor(to)} & aggregated_rating != null;\nlimit 500;`,
+            revalidate,
+          ),
+        ),
+      )
+    ).flat();
+    for (const row of rows) {
+      if (typeof row.id !== "number" || typeof row.aggregated_rating !== "number") continue;
+      if (!Number.isFinite(row.aggregated_rating) || row.aggregated_rating < 0 || row.aggregated_rating > 100) continue;
+      out.set(row.id, { score: row.aggregated_rating, count: Math.max(0, row.aggregated_rating_count ?? 0) });
+    }
+    return out;
+  } catch (err) {
+    warn("criticAggregates", err);
+    return null;
+  }
+}

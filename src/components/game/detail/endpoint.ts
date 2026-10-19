@@ -162,3 +162,23 @@ export function playersUrl(ids: GameIds): string {
 export function pcUrl(ids: GameIds): string {
   return `/api/game/${ids.id}/pc?${hints(ids).toString()}`;
 }
+
+/* Round 4 history routes. Same id hints as above; Twitch also takes its game id. */
+
+export function patchesUrl(ids: GameIds): string {
+  return `/api/game/${ids.id}/patches?${hints(ids).toString()}`;
+}
+
+export function reviewsUrl(ids: GameIds): string {
+  return `/api/game/${ids.id}/reviews?${hints(ids).toString()}`;
+}
+
+export function scoresUrl(ids: GameIds): string {
+  return `/api/game/${ids.id}/scores?${hints(ids).toString()}`;
+}
+
+export function twitchUrl(ids: GameIds, twitch: string | null | undefined): string {
+  const params = hints(ids);
+  if (twitch) params.set("twitch", twitch);
+  return `/api/game/${ids.id}/twitch?${params.toString()}`;
+}

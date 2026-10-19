@@ -10,7 +10,9 @@ import { CircleHelp, Hourglass, Scale, ThumbsUp } from "lucide-react";
 import type { ReactNode } from "react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { cn } from "@/lib/utils/cn";
+import { usePriceRegion } from "@/lib/preferences/region";
 import type { GameMarket, LocalPrice, PriceVerdictKind } from "@/lib/games/types";
+import { marketUrl, useEndpoint, type GameIds } from "./endpoint";
 
 export const STORE_LABEL: Record<LocalPrice["store"], string> = {
   steam: "Steam",
@@ -77,4 +79,18 @@ export function DiscountTag({ percent, className }: { percent: number; className
       −{Math.round(percent)}%
     </span>
   );
+}
+
+/**
+ * The reader's local market for one game: the region, the `/market` answer
+ * and its cheapest listing. `pending` covers both "region still being
+ * detected" and "request in flight", which callers treat the same way (hold
+ * the slot with a skeleton rather than flash a price from the wrong country).
+ */
+export function useLocalMarket(ids: GameIds | null) {
+  const [region] = usePriceRegion();
+  const market = useEndpoint<GameMarket>(ids && region ? marketUrl(ids, region) : null);
+  const best = market.status === "ready" ? bestPrice(market.data) : null;
+  const pending = Boolean(ids) && (!region || market.status === "loading");
+  return { region, market, best, pending };
 }

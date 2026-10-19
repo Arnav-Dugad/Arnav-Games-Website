@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { LibraryView } from "@/components/library/LibraryView";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { sampleLibrary } from "@/components/stats/preview-sample";
+import { sampleGamePass, sampleLibrary } from "@/components/stats/preview-sample";
 
 export const metadata: Metadata = {
   title: "Library preview",
@@ -20,8 +20,8 @@ export default function LibraryPreviewPage() {
   const { entries, timeToBeat } = sampleLibrary();
   return (
     <>
-      <PageHeader eyebrow="Dev preview · sample data" title="Games you own" description="Everything you own, on every store, and what to play next." />
-      <LibraryView previewEntries={entries} previewHours={timeToBeat} />
+      <PageHeader eyebrow="Dev preview · sample data" title="Library" description="Everything you own, on every store." />
+      <LibraryView previewEntries={entries} previewHours={timeToBeat} previewGamePass={sampleGamePass(entries)} />
     </>
   );
 }

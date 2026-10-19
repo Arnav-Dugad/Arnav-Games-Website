@@ -29,6 +29,7 @@ import { ScorePill } from "@/components/ui/ScoreRing";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { SearchHitVisual } from "@/components/search/SearchHitVisual";
 import { hitAsGame } from "@/components/search/hit-game";
+import { LogoMorph, useSharedLogo } from "@/components/search/LogoMorph";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { sizedImage } from "@/lib/games/image";
 import { SEARCH_KIND_LABELS, hrefForSearchHit, type SearchHit } from "@/lib/games/search";
@@ -119,10 +120,13 @@ function useSpotlightDetail(hit: SearchHit | null): SpotlightDetail | null {
 export function SpotlightPreview({
   hit,
   onNavigate,
+  onOpenGame,
 }: {
   hit: SearchHit | null;
   /** Called when a link inside the preview is followed (closes the overlay). */
   onNavigate: () => void;
+  /** Opening the previewed game: the overlay hands off instead of closing. */
+  onOpenGame?: (href: string) => void;
 }) {
   const calm = useCalmMotion();
   const detail = useSpotlightDetail(hit);
@@ -140,7 +144,7 @@ export function SpotlightPreview({
             transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
           >
             {hit.kind === "game" ? (
-              <GamePreview hit={hit} detail={detail} onNavigate={onNavigate} />
+              <GamePreview hit={hit} detail={detail} onNavigate={onNavigate} onOpenGame={onOpenGame} />
             ) : (
               <EntityPreview hit={hit} onNavigate={onNavigate} />
             )}
@@ -155,12 +159,18 @@ function GamePreview({
   hit,
   detail,
   onNavigate,
+  onOpenGame,
 }: {
   hit: SearchHit;
   detail: SpotlightDetail | null;
   onNavigate: () => void;
+  onOpenGame?: (href: string) => void;
 }) {
   const game = detail?.summary ?? hitAsGame(hit);
+  // The preview's logo is the best source for the logo morph: same mark,
+  // already large. (The list row claims its own name when it is the one used.)
+  const logoMorph = useSharedLogo(hit.slug);
+  const href = `/game/${game.slug}`;
   const loading = detail?.summary === undefined;
   const logo = detail?.extras?.logo ?? detail?.summary?.logo ?? null;
   // Only wait for the logo while it could still arrive; a known-absent
@@ -200,7 +210,9 @@ function GamePreview({
           {logoPending ? (
             <Skeleton className="h-10 w-3/4 rounded-lg" />
           ) : (
-            <GameLogo name={game.name} logo={logo} height={52} className="max-h-[52px]" />
+            <LogoMorph slug={hit.slug} active={logoMorph.active}>
+              <GameLogo name={game.name} logo={logo} height={52} className="max-h-[52px]" />
+            </LogoMorph>
           )}
         </div>
 
@@ -235,8 +247,12 @@ function GamePreview({
         <div className="mt-auto flex items-center gap-2 pt-5">
           <WatchButton game={game} variant="full" className="min-h-11 flex-1 px-4 text-sm" />
           <Link
-            href={`/game/${game.slug}`}
-            onClick={onNavigate}
+            href={href}
+            onClick={() => {
+              if (!onOpenGame) return onNavigate();
+              logoMorph.claim();
+              onOpenGame(href);
+            }}
             className="press inline-flex min-h-11 items-center gap-1.5 rounded-full bg-fg px-4 text-sm font-semibold text-bg"
           >
             Open <ArrowRight size={15} />

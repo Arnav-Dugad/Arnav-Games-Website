@@ -11,9 +11,9 @@
  * Lists refresh every six hours; Microsoft rotates them weekly at most.
  */
 
-import type { GameSummary } from "./types";
+import type { GamePassMatches, GameSummary } from "./types";
 import { listGamesByIds } from "./providers/igdb";
-import { igdbIdsForMicrosoft, igdbIdsForTitles, normaliseStoreTitle } from "./providers/igdb-extras";
+import { externalIdsFor, igdbIdsForMicrosoft, igdbIdsForTitles, normaliseStoreTitle } from "./providers/igdb-extras";
 
 export const GAME_PASS_SIGLS = {
   console: "f6f1f99f-9b49-4ccd-b3bf-4d9767a77f5e",
@@ -143,4 +143,64 @@ export async function gamePassMembership(
     leavingSoon,
     recentlyAdded,
   };
+}
+
+/** Most ids one match request takes (a big library's backlog). */
+export const GAME_PASS_MATCH_MAX = 300;
+
+/**
+ * Game Pass membership for many IGDB games at once (`POST /api/gamepass/match`).
+ *
+ * Same rules as `gamePassMembership`: the full console/PC lists are checked
+ * by Microsoft BigId (from IGDB's external ids — no BigId, no claim), and the
+ * two short lists (leaving soon, recently added) are also matched by IGDB id
+ * through `matchList`, so a game IGDB hasn't linked still shows up there.
+ * Only games found on some list are returned. Null when the catalogue itself
+ * is unreachable.
+ *
+ * Outbound requests (cold): IGDB ids ≤ 4 (+ token), the four lists, and the
+ * short-list matching (~6); every piece is cached for six hours or more.
+ */
+export async function gamePassMatches(ids: number[]): Promise<GamePassMatches | null> {
+  const valid = [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))].slice(0, GAME_PASS_MATCH_MAX);
+  if (valid.length === 0) return {};
+  const [external, consoleIds, pcIds, leaving, recent] = await Promise.all([
+    externalIdsFor(valid),
+    gamePassList("console"),
+    gamePassList("pc"),
+    gamePassList("leavingSoon"),
+    gamePassList("recentlyAdded"),
+  ]);
+  if (!consoleIds && !pcIds && !leaving && !recent) return null;
+
+  // Bounded like `gamePassMembership`: past 2.5 s the BigId answer stands and
+  // the match keeps warming the cache for the next request.
+  const byIgdb = async (list: string[] | null): Promise<Set<number>> => {
+    if (!list || list.length === 0) return new Set();
+    const matched = await Promise.race([
+      matchList(list).catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+    ]);
+    return new Set(matched ? matched.values() : []);
+  };
+  const [leavingIgdb, recentIgdb] = await Promise.all([byIgdb(leaving), byIgdb(recent)]);
+  const sets = {
+    console: new Set(consoleIds ?? []),
+    pc: new Set(pcIds ?? []),
+    leaving: new Set(leaving ?? []),
+    recent: new Set(recent ?? []),
+  };
+
+  const out: GamePassMatches = {};
+  for (const id of valid) {
+    const bigId = external.get(id)?.microsoft ?? null;
+    const match = {
+      console: Boolean(bigId && sets.console.has(bigId)),
+      pc: Boolean(bigId && sets.pc.has(bigId)),
+      leavingSoon: Boolean(bigId && sets.leaving.has(bigId)) || leavingIgdb.has(id),
+      recentlyAdded: Boolean(bigId && sets.recent.has(bigId)) || recentIgdb.has(id),
+    };
+    if (match.console || match.pc || match.leavingSoon || match.recentlyAdded) out[String(id)] = match;
+  }
+  return out;
 }

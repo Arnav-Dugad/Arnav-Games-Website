@@ -94,7 +94,7 @@ export function PosterSizeToggle({
               aria-pressed={selected}
               title={option.label}
               className={cn(
-                "press relative grid h-8 w-8 place-items-center rounded-full transition-colors coarse:h-10 coarse:w-10",
+                "press relative grid h-8 w-8 place-items-center rounded-full transition-colors coarse:h-11 coarse:w-11",
                 selected ? "text-text" : "text-faint fine:hover:text-text",
               )}
             >

@@ -39,7 +39,16 @@ const DOT = <span aria-hidden className="h-[3px] w-[3px] shrink-0 rounded-full b
  * Apple TV's metadata line: one quiet row of facts, separated by dots, with
  * the critic score set apart as a small chip rather than a coloured number.
  */
-export function HeroMeta({ game, className }: { game: GameSummary; className?: string }) {
+export function HeroMeta({
+  game,
+  className,
+  showRelease = true,
+}: {
+  game: GameSummary;
+  className?: string;
+  /** Off when something else on the slide already says when (release-day badge). */
+  showRelease?: boolean;
+}) {
   const release = heroRelease(game);
   const genres = game.genres.slice(0, 2).map((genre) => genre.name);
   const tier = scoreTier(game.metacritic);
@@ -51,10 +60,12 @@ export function HeroMeta({ game, className }: { game: GameSummary; className?: s
         className,
       )}
     >
-      <span className={cn(release.emphasis && "font-semibold text-white")}>{release.label}</span>
+      {showRelease && (
+        <span className={cn(release.emphasis && "font-semibold text-white")}>{release.label}</span>
+      )}
       {genres.length > 0 && (
         <>
-          {DOT}
+          {showRelease && DOT}
           <span className="min-w-0 truncate">{genres.join(" · ")}</span>
         </>
       )}
@@ -70,7 +81,7 @@ export function HeroMeta({ game, className }: { game: GameSummary; className?: s
       )}
       {game.metacritic !== null && (
         <>
-          {DOT}
+          {(showRelease || genres.length > 0 || game.parentPlatforms.length > 0) && DOT}
           <span
             className="inline-flex items-center gap-1.5 rounded-[6px] border border-white/30 px-1.5 py-px text-[12px] font-semibold tabular-nums text-white"
             title="Critic score"

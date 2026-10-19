@@ -18,8 +18,8 @@ type ListId = "added" | "leaving";
 
 export function GamePassSwitcher({ added, leaving }: { added: GameSummary[]; leaving: GameSummary[] }) {
   const lists = [
-    { value: "added" as const, label: "Just added", games: added, description: "Recently added to the console and PC library." },
-    { value: "leaving" as const, label: "Leaving soon", games: leaving, description: "Play these on your subscription before they rotate out." },
+    { value: "added" as const, label: "Just added", games: added },
+    { value: "leaving" as const, label: "Leaving soon", games: leaving },
   ].filter((list) => list.games.length > 0);
   const [active, setActive] = useState<ListId>(lists[0]?.value ?? "added");
   const current = lists.find((list) => list.value === active) ?? lists[0];
@@ -29,14 +29,12 @@ export function GamePassSwitcher({ added, leaving }: { added: GameSummary[]; lea
     <section data-track-src="home:game-pass" aria-labelledby="home-game-pass-title" className="py-9 sm:py-12 lg:py-14">
       <Container>
         <SectionHeading
-          eyebrow="Subscriptions"
           title={
             <span id="home-game-pass-title" className="inline-flex flex-wrap items-center gap-x-3 gap-y-1.5">
               Xbox Game Pass
               <GamePassBadge />
             </span>
           }
-          description={current.description}
           href="https://www.xbox.com/xbox-game-pass/games"
           linkLabel="Full catalogue"
         />

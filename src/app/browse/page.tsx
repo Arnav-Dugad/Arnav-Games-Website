@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { SearchX } from "lucide-react";
-import { BrowseControls } from "@/components/game/BrowseControls";
+import {
+  BrowseControls,
+  BrowsePendingProvider,
+  BrowsePendingRegion,
+} from "@/components/game/BrowseControls";
 import { GameGrid } from "@/components/game/GameGrid";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Container } from "@/components/ui/SectionHeading";
@@ -15,7 +19,7 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: "Browse games",
   description:
-    "Filter the full game database by genre, platform and score, sorted however you like.",
+    "Search and filter the full game database by genre, platform, score and era, sorted however you like.",
 };
 
 const PAGE_SIZE = 24;
@@ -29,7 +33,7 @@ const first = (value: string | string[] | undefined): string | undefined =>
 export default async function BrowsePage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
 
-  const search = first(sp.search);
+  const search = first(sp.search)?.trim() || undefined;
   const genres = first(sp.genres);
   const platforms = first(sp.platforms);
   const dates = first(sp.dates);
@@ -44,16 +48,13 @@ export default async function BrowsePage({ searchParams }: { searchParams: Searc
   ]);
 
   const totalPages = data.count > 0 ? Math.ceil(data.count / PAGE_SIZE) : 1;
+  const filtered = Boolean(genres || platforms || dates || metacritic);
 
   return (
-    <>
-      <PageHeader
-        eyebrow={search ? "Browse" : undefined}
-        title={search ? `Results for “${search}”` : "Browse"}
-        description={search ? undefined : "Every game in the database. Filter by genre, platform, score or era, and sort it your way."}
-      />
+    <BrowsePendingProvider>
+      <PageHeader title="Browse" className="pb-4 sm:pb-6 lg:pb-8" />
 
-      <Container className="py-8 lg:py-12">
+      <Container className="pb-12 lg:pb-16">
         {source === "unavailable" && (
           <div className="mb-7">
             <DataSourceNotice source={source} degraded={isDegraded(source)} />
@@ -64,41 +65,51 @@ export default async function BrowsePage({ searchParams }: { searchParams: Searc
           genres={genreList.data}
           platforms={platformList.data}
           totalCount={data.count}
+          searchable
+          showQuickFilters
+          // A search is ranked by how well titles match the words typed;
+          // IGDB ignores any sort alongside it, so the menu would be a
+          // control that does nothing.
+          showSort={!search}
         />
 
-        <div className="mt-8">
-          {data.results.length === 0 ? (
-            <EmptyResults search={search} />
-          ) : (
-            <>
-              <GameGrid games={data.results} priorityCount={6} />
-              <Pagination
-                page={page}
-                hasNext={data.hasNext}
-                totalPages={totalPages}
-                basePath="/browse"
-                params={{ search, genres, platforms, dates, metacritic, ordering }}
-              />
-            </>
-          )}
-        </div>
+        <BrowsePendingRegion>
+          <div className="mt-6 sm:mt-8">
+            {data.results.length === 0 ? (
+              source === "unavailable" ? null : <EmptyResults search={search} filtered={filtered} />
+            ) : (
+              <>
+                <GameGrid games={data.results} priorityCount={6} />
+                <Pagination
+                  page={page}
+                  hasNext={data.hasNext}
+                  totalPages={totalPages}
+                  basePath="/browse"
+                  params={{ search, genres, platforms, dates, metacritic, ordering }}
+                />
+              </>
+            )}
+          </div>
+        </BrowsePendingRegion>
       </Container>
-    </>
+    </BrowsePendingProvider>
   );
 }
 
-function EmptyResults({ search }: { search?: string }) {
+function EmptyResults({ search, filtered }: { search?: string; filtered: boolean }) {
+  const resetHref = search ? `/browse?search=${encodeURIComponent(search)}` : "/browse";
   return (
     <EmptyState
       icon={<SearchX size={24} />}
-      title={search ? `Nothing found for “${search}”` : "No games match those filters"}
+      title={search ? `No games found for “${search}”` : "No games match these filters"}
       body={
         search
-          ? "Try a shorter term, or a differently spelled title — search also matches alternative names like “GTA V”."
-          : "Try removing a filter or two, or search for a title directly."
+          ? filtered
+            ? "Try removing a filter, or check the spelling."
+            : "Check the spelling, or try a shorter title. Nicknames like “GTA V” work too."
+          : "Try removing a filter or two."
       }
-      action={{ href: "/browse", label: "Reset filters" }}
-      secondaryAction={{ href: "/upcoming", label: "See what's coming" }}
+      action={filtered ? { href: resetHref, label: "Clear filters" } : { href: "/browse", label: "Clear search" }}
     />
   );
 }

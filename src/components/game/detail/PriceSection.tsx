@@ -1,35 +1,44 @@
 "use client";
 
 /**
- * Prices: what the game costs *where the reader is*, whether now is a good
- * moment to buy, and how that price has moved.
+ * "Where to play & price": every store the game is on, what it costs *where
+ * the reader is*, whether now is a good moment to buy, and how the price has
+ * moved.
  *
- * Local prices only. Every amount in the main UI is the store's own price in
- * the store's own currency for the chosen region — never a US price run
- * through an exchange rate, which is not a price anyone can actually pay.
- * The one place conversions appear is the regional comparison, where they
- * are the point, and it says so on the tin.
+ * One list instead of three overlapping blocks (the old "Where to play" tile,
+ * the price card and its store rows): a store row shows its local price when
+ * we know it and is a plain link when we don't. Deep data — prices around the
+ * world, US key stores, release dates by region — sits behind "Show".
+ *
+ * Local prices only. Every amount is the store's own price in the store's own
+ * currency for the chosen region — never a US price run through an exchange
+ * rate. The one place conversions appear is the regional comparison, where
+ * they are the point, and it says so.
  *
  * Until the region is known (server render, or detection in flight) the
- * section shows its skeleton rather than flashing US prices to someone in
- * India.
+ * price shows its skeleton rather than flashing US prices to someone in
+ * India. Changing the region keeps the last prices on screen until the new
+ * ones arrive, so the history chart can morph from one series to the other.
  */
 
-import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
-import { ArrowUpRight, BadgePercent, ChevronDown, Globe2, MapPin, RefreshCw, Store, TrendingDown } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { AlertTriangle, ArrowUpRight, BadgePercent, ChevronDown, Globe2, MapPin, RefreshCw, Sparkles, Store, TrendingDown } from "lucide-react";
+import { BrandIcon } from "@/components/brand/BrandIcon";
+import { brandIcon } from "@/components/brand/brand-icons";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { haptic } from "@/lib/haptics";
-import { usePriceRegion } from "@/lib/preferences/region";
+import { valuePerHour } from "@/lib/games/market-rules";
+import { PRICE_REGIONS, usePriceRegion } from "@/lib/preferences/region";
 import { cn } from "@/lib/utils/cn";
-import type { GameMarket, LocalPrice, PricePoint, RegionalPrice } from "@/lib/games/types";
+import type { GameMarket, LocalPrice, PricePoint, RegionalPrice, StoreRef } from "@/lib/games/types";
 import { DetailSection } from "./DetailSection";
-import { marketUrl, useEndpoint, type GameIds } from "./endpoint";
+import { Disclosure } from "./Disclosure";
+import { marketUrl, useEndpoint, type EndpointState, type GameIds } from "./endpoint";
+import { InfoTip } from "./InfoTip";
 import { useLiveField } from "./live";
 import { bestPrice, DiscountTag, STORE_LABEL, StoreMark, VERDICT, VerdictChip } from "./market-ui";
-import { countryName, formatMoney } from "./money";
+import { countryName, formatMoney, formatRate } from "./money";
+import { hoursLabel } from "./summary";
 import { TimeChart } from "./TimeChart";
 
 export const PRICE_REGION_SETTINGS = "/settings#price-region";
@@ -39,104 +48,136 @@ const AXIS_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeri
 const AXIS_MONTH_FMT = new Intl.DateTimeFormat("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
 
 const dayMs = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
-export const formatDay = (iso: string) => DAY_FMT.format(new Date(dayMs(iso)));
+const formatDay = (iso: string) => DAY_FMT.format(new Date(dayMs(iso)));
 
-export function PriceSection({ ids, name, upcoming }: { ids: GameIds; name: string; upcoming: boolean }) {
-  const [region, , explicit] = usePriceRegion();
-  const market = useEndpoint<GameMarket>(region ? marketUrl(ids, region) : null);
+/** IGDB store slug ↔ the market's store, so one row carries both the link and the price. */
+const MARKET_STORE: Record<string, LocalPrice["store"]> = { steam: "steam", xbox: "microsoft" };
 
-  const where = region ? countryName(region) : null;
-  const aside = where ? (
-    <p className="flex items-center gap-1.5 text-[13px] text-muted">
-      <MapPin size={13} className="shrink-0 text-faint" />
-      <span>
-        Prices for <span className="font-semibold text-text">{where}</span>
-        {!explicit && <span className="text-faint"> (your location)</span>}
-      </span>
-      <span aria-hidden className="text-faint">·</span>
-      <Link
-        href={PRICE_REGION_SETTINGS}
-        className="font-semibold text-[color-mix(in_oklab,var(--game-accent,var(--color-brand-soft))_72%,var(--color-text))] underline-offset-2 hover:underline"
-        aria-label={`Change price region (currently ${where})`}
-      >
-        Change
-      </Link>
-    </p>
-  ) : null;
+export function PriceSection({
+  ids,
+  name,
+  upcoming,
+  stores,
+  mainHours,
+  releaseDates,
+}: {
+  ids: GameIds | null;
+  name: string;
+  upcoming: boolean;
+  stores: StoreRef[];
+  /** Main-story hours from IGDB, for cost per hour. */
+  mainHours: number | null;
+  /** Server-rendered "Release dates" disclosure, when there are any to show. */
+  releaseDates?: ReactNode;
+}) {
+  const [region] = usePriceRegion();
+  const latest = useEndpoint<GameMarket>(ids && region ? marketUrl(ids, region) : null);
+  const market = useLastReady(latest);
+  const gamePass = useLiveField((live) => (live.gamePass && (live.gamePass.console || live.gamePass.pc) ? live.gamePass : null));
+  const refreshing = latest.status === "loading" && market !== null;
+
+  const best = market ? bestPrice(market) : null;
+  const free = Boolean(market && market.prices.length > 0 && market.prices.every((price) => price.price === 0));
+  const priced = Boolean(market && !free && (best || market.history.length > 0));
 
   return (
     <DetailSection
       id="prices"
-      eyebrow="Prices"
-      icon={<BadgePercent size={14} />}
-      title="What it costs"
-      description={region ? undefined : "Finding your store region…"}
-      aside={aside}
+      title="Where to play & price"
+      aside={ids ? <RegionPicker /> : undefined}
     >
-      {market.status === "loading" || !region ? (
-        <PriceSkeleton />
-      ) : market.status === "error" ? (
-        <Unavailable onRetry={market.retry} />
-      ) : market.status === "missing" ? (
-        <NoPrice name={name} country={where ?? region} upcoming={upcoming} />
-      ) : (
-        <PriceBody market={market.data} ids={ids} name={name} upcoming={upcoming} region={region} />
-      )}
+      <div className="space-y-4">
+        <div className={cn("glass overflow-hidden rounded-3xl transition-opacity duration-300", refreshing && "opacity-60")} aria-busy={refreshing || undefined}>
+          {ids &&
+            (market ? (
+              best ? (
+                <BestPrice best={best} market={market} free={free} mainHours={mainHours} />
+              ) : (
+                <NoPrice name={name} country={countryName(market.country)} upcoming={upcoming} />
+              )
+            ) : latest.status === "error" ? (
+              <Unavailable onRetry={latest.retry} />
+            ) : latest.status === "missing" && region ? (
+              <NoPrice name={name} country={countryName(region)} upcoming={upcoming} />
+            ) : (
+              <PriceSkeleton />
+            ))}
+          <StoreList stores={stores} market={market} best={best} gamePass={gamePass.state === "ready" ? gamePass.value : null} divided={Boolean(ids)} />
+        </div>
+
+        {market && priced && <History market={market} />}
+
+        {market && priced && ids && (
+          <Disclosure
+            icon={<Globe2 size={17} />}
+            title="Prices around the world"
+            help="regional"
+            subtitle={market.currency ? `Steam, converted to ${market.currency} for comparison` : "Regional Steam prices"}
+          >
+            <RegionalTable market={market} ids={ids} />
+          </Disclosure>
+        )}
+
+        {region === "US" && <UsDeals />}
+
+        {releaseDates}
+      </div>
     </DetailSection>
   );
 }
 
+/** Keeps the last good answer on screen while the next one (a new region) loads. */
+function useLastReady(state: EndpointState<GameMarket>): GameMarket | null {
+  const [last, setLast] = useState<GameMarket | null>(null);
+  // Derived state, set during render (React's documented pattern for it).
+  if (state.status === "ready" && state.data !== last) setLast(state.data);
+  if ((state.status === "missing" || state.status === "error") && last !== null) setLast(null);
+  return state.status === "ready" ? state.data : last;
+}
+
 /* ------------------------------------------------------------------------ */
 
-function PriceBody({
-  market,
-  ids,
-  name,
-  upcoming,
-  region,
-}: {
-  market: GameMarket;
-  ids: GameIds;
-  name: string;
-  upcoming: boolean;
-  region: string;
-}) {
-  const best = bestPrice(market);
-  const country = countryName(market.country);
-  const free = market.prices.length > 0 && market.prices.every((price) => price.price === 0);
-
-  if (!best && market.history.length === 0) {
-    return <NoPrice name={name} country={country} upcoming={upcoming} />;
-  }
-
+/**
+ * The region, changeable in place. A native select: it's the platform's own
+ * picker on phones (a wheel on iOS, a sheet on Android), fully accessible,
+ * and costs nothing. "Automatic" goes back to the detected country.
+ */
+function RegionPicker() {
+  const [region, setRegion, explicit] = usePriceRegion();
+  if (!region) return <Skeleton className="h-9 w-40 rounded-full" />;
+  const known = PRICE_REGIONS.some((option) => option.code === region);
   return (
-    <div className="space-y-4">
-      <div className="glass overflow-hidden rounded-3xl">
-        {best && <BestPrice best={best} market={market} free={free} />}
-        {market.prices.length > 1 && (
-          <ul className="border-t border-line">
-            {market.prices
-              .filter((price) => price !== best)
-              .map((price) => (
-                <li key={price.store}>
-                  <StoreRow price={price} />
-                </li>
-              ))}
-          </ul>
-        )}
-      </div>
-
-      {!free && <History market={market} />}
-
-      {!free && <RegionalComparison market={market} ids={ids} region={region} />}
-
-      {region === "US" && <UsDeals />}
-    </div>
+    <label className="relative inline-flex min-h-10 items-center gap-1.5 rounded-full border border-line bg-fg/[0.04] pl-3 pr-8 text-[13px] text-muted transition-colors focus-within:border-line-strong fine:hover:border-line-strong coarse:min-h-11">
+      <MapPin size={13} aria-hidden className="shrink-0 text-faint" />
+      <span>Prices for</span>
+      <select
+        value={explicit ? region : "auto"}
+        onChange={(event) => {
+          haptic("selection");
+          setRegion(event.target.value === "auto" ? null : event.target.value);
+        }}
+        className="absolute inset-0 cursor-pointer opacity-0"
+        aria-label="Price region"
+      >
+        <option value="auto">Automatic ({countryName(region)})</option>
+        {!known && explicit && <option value={region}>{countryName(region)}</option>}
+        {PRICE_REGIONS.map((option) => (
+          <option key={option.code} value={option.code}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+      <span aria-hidden className="font-semibold text-text">
+        {countryName(region)}
+      </span>
+      <ChevronDown size={14} aria-hidden className="pointer-events-none absolute right-2.5 text-faint" />
+    </label>
   );
 }
 
-function BestPrice({ best, market, free }: { best: LocalPrice; market: GameMarket; free: boolean }) {
+function BestPrice({ best, market, free, mainHours }: { best: LocalPrice; market: GameMarket; free: boolean; mainHours: number | null }) {
   const verdict = VERDICT[market.verdict.kind];
+  const perHour = !free && mainHours ? valuePerHour(best, mainHours)?.perHour ?? null : null;
   return (
     <div className="relative isolate p-5 sm:p-6">
       <span
@@ -150,7 +191,7 @@ function BestPrice({ best, market, free }: { best: LocalPrice; market: GameMarke
             {free ? `Free on ${STORE_LABEL[best.store]}` : market.prices.length > 1 ? `Best price · ${STORE_LABEL[best.store]}` : STORE_LABEL[best.store]}
           </p>
           <p className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="font-display text-[40px] font-bold leading-none tracking-[-0.03em] text-text sm:text-[48px]">
+            <span className="font-display text-[40px] font-bold leading-none tracking-[-0.03em] text-text tabular-nums sm:text-[48px]">
               {free ? "Free to play" : formatMoney(best.price, best.currency, best.country)}
             </span>
             {!free && <DiscountTag percent={best.discount} className="text-[13px]" />}
@@ -158,12 +199,19 @@ function BestPrice({ best, market, free }: { best: LocalPrice; market: GameMarke
               <s className="text-[15px] text-faint">{formatMoney(best.initial, best.currency, best.country)}</s>
             )}
           </p>
+          {perHour !== null && mainHours && (
+            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[13px] text-muted">
+              <span>
+                <span className="font-semibold text-text">≈ {formatRate(perHour, best.currency, best.country)} per hour</span> of main story ({hoursLabel(mainHours)})
+              </span>
+              <InfoTip topic="valuePerHour" />
+            </p>
+          )}
           {/* "Lowest we've seen" means nothing until we've seen more than one day. */}
           {!free && market.lowest && new Set(market.history.map((point) => point.date)).size > 1 && (
-            <p className="mt-2.5 flex items-center gap-1.5 text-[13px] text-muted">
+            <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-muted">
               <TrendingDown size={14} className="shrink-0 text-mint" />
-              Lowest we&rsquo;ve seen: {formatMoney(market.lowest.price, best.currency, market.country)} on{" "}
-              {formatDay(market.lowest.date)}
+              Lowest we&rsquo;ve seen: {formatMoney(market.lowest.price, best.currency, market.country)} on {formatDay(market.lowest.date)}
             </p>
           )}
         </div>
@@ -182,7 +230,10 @@ function BestPrice({ best, market, free }: { best: LocalPrice; market: GameMarke
 
       {!free && (
         <div className="mt-5 flex flex-col gap-2 border-t border-line pt-4 sm:flex-row sm:items-center sm:gap-3">
-          <VerdictChip kind={market.verdict.kind} className="w-fit" />
+          <span className="inline-flex items-center gap-1.5">
+            <VerdictChip kind={market.verdict.kind} className="w-fit" />
+            <InfoTip topic="verdict" />
+          </span>
           {market.verdict.reason && (
             <p className="text-[13px] leading-snug text-muted">
               <span className="sr-only">{verdict.label}: </span>
@@ -195,23 +246,101 @@ function BestPrice({ best, market, free }: { best: LocalPrice; market: GameMarke
   );
 }
 
-function StoreRow({ price }: { price: LocalPrice }) {
+/**
+ * Every store, as one grouped list. Rows we have a local price for show it;
+ * the rest are links. Game Pass joins as a row when the game is in it.
+ */
+function StoreList({
+  stores,
+  market,
+  best,
+  gamePass,
+  divided,
+}: {
+  stores: StoreRef[];
+  market: GameMarket | null;
+  best: LocalPrice | null;
+  gamePass: { console: boolean; pc: boolean; leavingSoon: boolean; recentlyAdded: boolean } | null;
+  divided: boolean;
+}) {
+  const prices = new Map((market?.prices ?? []).map((price) => [price.store, price]));
+  const rows: { key: string; icon: ReactNode; name: string; url: string | null; price: LocalPrice | null }[] = stores.map((store) => {
+    const price = MARKET_STORE[store.slug] ? prices.get(MARKET_STORE[store.slug]) ?? null : null;
+    if (price) prices.delete(price.store);
+    return {
+      key: `${store.slug}-${store.id}`,
+      icon: brandIcon(store.slug) ? <BrandIcon name={store.slug} size={16} tinted title={null} /> : <Store size={16} className="text-faint" />,
+      name: store.name,
+      url: price?.url ?? store.url ?? (store.domain ? `https://${store.domain}` : null),
+      price,
+    };
+  });
+  // Market listings IGDB doesn't know about (often the Microsoft Store).
+  for (const price of prices.values()) {
+    rows.push({ key: price.store, icon: <StoreMark store={price.store} size={16} />, name: STORE_LABEL[price.store], url: price.url, price });
+  }
+  // The best price already has the big card; its row would repeat it.
+  const listed = rows.filter((row) => row.price !== best || !best);
+  if (listed.length === 0 && !gamePass) return null;
+
   return (
-    <a
-      href={price.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex min-h-14 items-center gap-3 px-5 py-3 text-[15px] transition-colors fine:hover:bg-fg/[0.04] sm:px-6"
-    >
-      <StoreMark store={price.store} />
-      <span className="min-w-0 flex-1 truncate font-medium text-text">{STORE_LABEL[price.store]}</span>
-      <DiscountTag percent={price.discount} />
-      {price.initial !== null && price.initial > price.price && (
-        <s className="hidden text-[13px] text-faint min-[400px]:inline">{formatMoney(price.initial, price.currency, price.country)}</s>
+    <ul className={cn("divide-y divide-line", divided && "border-t border-line")}>
+      {gamePass && (
+        <li className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 sm:px-6">
+          <BrandIcon name="xbox" size={16} title={null} tinted />
+          <span className="min-w-0 flex-1 text-[15px] font-medium text-text">
+            Game Pass <span className="text-muted">· {gamePass.console && gamePass.pc ? "Console & PC" : gamePass.console ? "Console" : "PC"}</span>
+          </span>
+          {gamePass.recentlyAdded && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-neon/12 px-2.5 py-1 text-[11px] font-semibold text-neon">
+              <Sparkles size={11} /> Just added
+            </span>
+          )}
+          {gamePass.leavingSoon && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-gold/30 bg-gold/12 px-2.5 py-1 text-[11px] font-semibold text-gold">
+              <AlertTriangle size={11} /> Leaving soon
+            </span>
+          )}
+          <span className="text-[13px] font-semibold text-mint">Included</span>
+        </li>
       )}
-      <span className="font-semibold tabular-nums text-text">{formatMoney(price.price, price.currency, price.country)}</span>
-      <ArrowUpRight size={14} className="shrink-0 text-faint" />
-    </a>
+      {listed.map((row) => {
+        const content = (
+          <>
+            <span aria-hidden className="grid w-5 shrink-0 place-items-center">{row.icon}</span>
+            <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-text">{row.name}</span>
+            {row.price && (
+              <>
+                <DiscountTag percent={row.price.discount} />
+                {row.price.initial !== null && row.price.initial > row.price.price && (
+                  <s className="hidden text-[13px] text-faint min-[400px]:inline">
+                    {formatMoney(row.price.initial, row.price.currency, row.price.country)}
+                  </s>
+                )}
+                <span className="font-semibold tabular-nums text-text">{formatMoney(row.price.price, row.price.currency, row.price.country)}</span>
+              </>
+            )}
+            {row.url && <ArrowUpRight size={14} className="shrink-0 text-faint" aria-hidden />}
+          </>
+        );
+        return (
+          <li key={row.key}>
+            {row.url ? (
+              <a
+                href={row.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-h-14 items-center gap-3 px-5 py-3 transition-colors fine:hover:bg-fg/[0.04] sm:px-6"
+              >
+                {content}
+              </a>
+            ) : (
+              <div className="flex min-h-14 items-center gap-3 px-5 py-3 sm:px-6">{content}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -312,14 +441,11 @@ function History({ market }: { market: GameMarket }) {
 
 /* ------------------------------------------------------------------------ */
 
-function RegionalComparison({ market, ids, region }: { market: GameMarket; ids: GameIds; region: string }) {
-  const [open, setOpen] = useState(false);
+function RegionalTable({ market, ids }: { market: GameMarket; ids: GameIds }) {
   const [all, setAll] = useState(false);
-  const calm = useCalmMotion();
   // Regional prices may come with the main response; otherwise they're only
-  // fetched once someone opens the comparison.
-  const needsFetch = open && market.regional.length === 0;
-  const fetched = useEndpoint<GameMarket>(needsFetch ? marketUrl(ids, region, true) : null);
+  // fetched now that someone has opened the comparison.
+  const fetched = useEndpoint<GameMarket>(market.regional.length === 0 ? marketUrl(ids, market.country, true) : null);
   const source = market.regional.length > 0 ? market : fetched.status === "ready" ? fetched.data : null;
   const currency = source?.currency ?? market.currency;
 
@@ -335,116 +461,69 @@ function RegionalComparison({ market, ids, region }: { market: GameMarket; ids: 
   const max = Math.max(1, ...converted.map((row) => row.converted));
   const cheapest = converted[0]?.country ?? null;
   const shown = all ? rows : rows.slice(0, 8);
-  const panelId = "regional-prices-panel";
+
+  if (!source) {
+    return fetched.status === "error" || fetched.status === "missing" ? (
+      <p className="py-2 text-[13px] text-muted">Regional prices aren&rsquo;t available right now.</p>
+    ) : (
+      <div aria-hidden className="space-y-3 py-1">
+        {Array.from({ length: 5 }, (_, index) => (
+          <Skeleton key={index} className="h-9 w-full rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+  if (rows.length === 0) return <p className="py-2 text-[13px] text-muted">Steam doesn&rsquo;t list this game in other regions.</p>;
 
   return (
-    <div className="glass overflow-hidden rounded-3xl">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => {
-          haptic("selection");
-          setOpen((value) => !value);
-        }}
-        className="flex min-h-16 w-full items-center gap-3 px-5 py-4 text-left transition-colors fine:hover:bg-fg/[0.03] sm:px-6"
-      >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-fg/[0.06] text-[var(--game-accent)]">
-          <Globe2 size={17} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold text-text">Steam prices around the world</span>
-          <span className="block text-[13px] text-muted">
-            {currency ? `Converted to ${currency} for comparison` : "Regional Steam prices"}
-          </span>
-        </span>
-        <ChevronDown size={18} className={cn("shrink-0 text-faint transition-transform duration-300", open && "rotate-180")} />
-      </button>
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            id={panelId}
-            initial={calm ? false : { height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={calm ? { opacity: 0, transition: { duration: 0 } } : { height: 0, opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-line px-5 pb-5 pt-4 sm:px-6">
-              {!source ? (
-                fetched.status === "error" || fetched.status === "missing" ? (
-                  <p className="py-4 text-[13px] text-muted">Regional prices aren&rsquo;t available right now.</p>
-                ) : (
-                  <div aria-hidden className="space-y-3 py-1">
-                    {Array.from({ length: 5 }, (_, index) => (
-                      <Skeleton key={index} className="h-9 w-full rounded-xl" />
-                    ))}
-                  </div>
-                )
-              ) : rows.length === 0 ? (
-                <p className="py-4 text-[13px] text-muted">Steam doesn&rsquo;t list this game in other regions.</p>
-              ) : (
-                <>
-                  <p className="mb-3 text-[12px] leading-snug text-faint">
-                    Each store charges in its own currency (shown small). Bars compare them converted to {currency} at
-                    today&rsquo;s exchange rate — a guide, not a price you can pay.
-                  </p>
-                  <ul className="divide-y divide-line">
-                    {shown.map((row) => {
-                      const isCheapest = row.country === cheapest;
-                      const isYou = row.country === market.country;
-                      return (
-                        <li key={row.country} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 py-2.5">
-                          <span className="flex min-w-0 items-center gap-2 text-[14px] text-text">
-                            <span className="w-7 shrink-0 text-[11px] font-semibold tabular-nums text-faint">{row.country}</span>
-                            <span className="truncate">{countryName(row.country)}</span>
-                            {isCheapest && (
-                              <span className="shrink-0 rounded-full bg-mint/15 px-2 py-0.5 text-[10px] font-bold text-mint">Cheapest</span>
-                            )}
-                            {isYou && (
-                              <span className="shrink-0 rounded-full bg-fg/[0.08] px-2 py-0.5 text-[10px] font-bold text-muted">You</span>
-                            )}
-                          </span>
-                          <span className="text-right">
-                            <span className="block text-[14px] font-semibold tabular-nums text-text">
-                              {row.converted !== null && currency ? formatMoney(row.converted, currency, market.country) : formatMoney(row.price, row.currency, row.country)}
-                            </span>
-                          </span>
-                          <span className="col-span-2 flex items-center gap-3">
-                            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-fg/[0.07]" aria-hidden>
-                              {row.converted !== null && (
-                                <span
-                                  className={cn("block h-full rounded-full", isCheapest ? "bg-mint" : isYou ? "bg-[var(--game-accent)]" : "bg-fg/30")}
-                                  style={{ width: `${Math.max(3, (row.converted / max) * 100)}%` }}
-                                />
-                              )}
-                            </span>
-                            <span className="w-24 shrink-0 text-right text-[11px] tabular-nums text-faint">
-                              {row.converted !== null ? formatMoney(row.price, row.currency, row.country) : "no exchange rate"}
-                              {row.discount >= 1 && <span className="text-mint"> −{row.discount}%</span>}
-                            </span>
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {rows.length > 8 && (
-                    <button
-                      type="button"
-                      onClick={() => setAll((value) => !value)}
-                      className="press mt-3 inline-flex min-h-10 items-center rounded-full bg-fg/[0.07] px-4 text-[13px] font-semibold text-text fine:hover:bg-fg/[0.12]"
-                    >
-                      {all ? "Show fewer" : `Show all ${rows.length} regions`}
-                    </button>
+    <>
+      <p className="mb-3 text-[12px] leading-snug text-faint">
+        Each store charges in its own currency (shown small). Bars compare them converted to {currency} at
+        today&rsquo;s exchange rate — a guide, not a price you can pay.
+      </p>
+      <ul className="divide-y divide-line">
+        {shown.map((row) => {
+          const isCheapest = row.country === cheapest;
+          const isYou = row.country === market.country;
+          return (
+            <li key={row.country} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 py-2.5">
+              <span className="flex min-w-0 items-center gap-2 text-[14px] text-text">
+                <span className="w-7 shrink-0 text-[11px] font-semibold tabular-nums text-faint">{row.country}</span>
+                <span className="truncate">{countryName(row.country)}</span>
+                {isCheapest && <span className="shrink-0 rounded-full bg-mint/15 px-2 py-0.5 text-[10px] font-bold text-mint">Cheapest</span>}
+                {isYou && <span className="shrink-0 rounded-full bg-fg/[0.08] px-2 py-0.5 text-[10px] font-bold text-muted">You</span>}
+              </span>
+              <span className="text-right text-[14px] font-semibold tabular-nums text-text">
+                {row.converted !== null && currency ? formatMoney(row.converted, currency, market.country) : formatMoney(row.price, row.currency, row.country)}
+              </span>
+              <span className="col-span-2 flex items-center gap-3">
+                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-fg/[0.07]" aria-hidden>
+                  {row.converted !== null && (
+                    <span
+                      className={cn("block h-full rounded-full", isCheapest ? "bg-mint" : isYou ? "bg-[var(--game-accent)]" : "bg-fg/30")}
+                      style={{ width: `${Math.max(3, (row.converted / max) * 100)}%` }}
+                    />
                   )}
-                </>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+                </span>
+                <span className="w-24 shrink-0 text-right text-[11px] tabular-nums text-faint">
+                  {row.converted !== null ? formatMoney(row.price, row.currency, row.country) : "no exchange rate"}
+                  {row.discount >= 1 && <span className="text-mint"> −{row.discount}%</span>}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {rows.length > 8 && (
+        <button
+          type="button"
+          onClick={() => setAll((value) => !value)}
+          className="press mt-3 inline-flex min-h-10 items-center rounded-full bg-fg/[0.07] px-4 text-[13px] font-semibold text-text fine:hover:bg-fg/[0.12]"
+        >
+          {all ? "Show fewer" : `Show all ${rows.length} regions`}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -453,12 +532,15 @@ function UsDeals() {
   const deals = useLiveField((live) => (live.deals && live.deals.stores.length > 0 ? live.deals : null));
   if (deals.state !== "ready") return null;
   const usd = (n: number) => (n === 0 ? "Free" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n));
+  const cheapest = deals.value.cheapest;
   return (
-    <div className="glass rounded-3xl p-5 sm:p-6">
-      <h3 className="text-[17px] font-semibold text-text">Other PC stores</h3>
-      <p className="mt-0.5 text-[13px] text-muted">US prices via CheapShark</p>
-      <ul className="mt-3 divide-y divide-line">
-        {deals.value.stores.slice(0, 6).map((deal) => (
+    <Disclosure
+      icon={<Store size={17} />}
+      title="Other PC stores"
+      subtitle={cheapest ? `From ${usd(cheapest.price)} at ${cheapest.store} · US prices via CheapShark` : "US prices via CheapShark"}
+    >
+      <ul className="divide-y divide-line">
+        {deals.value.stores.slice(0, 8).map((deal) => (
           <li key={`${deal.store}-${deal.url}`}>
             <a
               href={deal.url}
@@ -466,7 +548,6 @@ function UsDeals() {
               rel="noopener noreferrer sponsored"
               className="flex min-h-12 items-center gap-3 py-2 text-[14px] transition-colors fine:hover:text-text"
             >
-              <Store size={15} className="shrink-0 text-faint" />
               <span className="min-w-0 flex-1 truncate font-medium text-text">{deal.store}</span>
               <DiscountTag percent={deal.savings} />
               <span className="font-semibold tabular-nums text-text">{usd(deal.price)}</span>
@@ -475,7 +556,7 @@ function UsDeals() {
           </li>
         ))}
       </ul>
-    </div>
+    </Disclosure>
   );
 }
 
@@ -483,18 +564,12 @@ function UsDeals() {
 
 function PriceSkeleton() {
   return (
-    <div aria-hidden className="space-y-4">
-      <div className="glass rounded-3xl p-5 sm:p-6">
-        <Skeleton className="h-3.5 w-28 rounded-full" />
-        <Skeleton className="mt-3 h-11 w-44 rounded-xl" />
-        <Skeleton className="mt-3 h-3.5 w-56 rounded-full" />
-        <div className="mt-5 border-t border-line pt-4">
-          <Skeleton className="h-7 w-36 rounded-full" />
-        </div>
-      </div>
-      <div className="glass rounded-3xl p-5 sm:p-6">
-        <Skeleton className="h-4 w-28 rounded-full" />
-        <Skeleton className="mt-5 h-[210px] w-full rounded-2xl" />
+    <div aria-hidden className="p-5 sm:p-6">
+      <Skeleton className="h-3.5 w-28 rounded-full" />
+      <Skeleton className="mt-3 h-11 w-44 rounded-xl" />
+      <Skeleton className="mt-3 h-3.5 w-56 rounded-full" />
+      <div className="mt-5 border-t border-line pt-4">
+        <Skeleton className="h-7 w-36 rounded-full" />
       </div>
     </div>
   );
@@ -502,33 +577,25 @@ function PriceSkeleton() {
 
 function NoPrice({ name, country, upcoming }: { name: string; country: string; upcoming: boolean }) {
   return (
-    <div className="glass flex flex-col items-start gap-3 rounded-3xl p-5 sm:flex-row sm:items-center sm:p-6">
+    <div className="flex items-start gap-3 p-5 sm:p-6">
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-fg/[0.06] text-faint">
         <BadgePercent size={18} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-semibold text-text">
-          {upcoming ? `Not on sale in ${country} yet` : `No store price for ${country}`}
-        </p>
+        <p className="text-[15px] font-semibold text-text">{upcoming ? `Not on sale in ${country} yet` : `No store price for ${country}`}</p>
         <p className="mt-0.5 text-[13px] leading-snug text-muted">
           {upcoming
             ? `Steam and the Microsoft Store haven't listed a price for ${name} here. Follow it to hear when pre-orders open.`
             : `${name} isn't sold on Steam or the Microsoft Store in ${country}, or the store hides its price.`}
         </p>
       </div>
-      <Link
-        href={PRICE_REGION_SETTINGS}
-        className="press inline-flex min-h-10 shrink-0 items-center rounded-full bg-fg/[0.07] px-4 text-[13px] font-semibold text-text fine:hover:bg-fg/[0.12]"
-      >
-        Change region
-      </Link>
     </div>
   );
 }
 
 function Unavailable({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="glass flex flex-col items-start gap-3 rounded-3xl p-5 sm:flex-row sm:items-center sm:p-6">
+    <div className="flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center sm:p-6">
       <div className="min-w-0 flex-1">
         <p className="text-[15px] font-semibold text-text">Prices couldn&rsquo;t load</p>
         <p className="mt-0.5 text-[13px] text-muted">The stores didn&rsquo;t answer in time. Your other data is unaffected.</p>

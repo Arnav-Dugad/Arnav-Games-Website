@@ -13,6 +13,7 @@
  * history stored alongside it.
  */
 
+import dynamic from "next/dynamic";
 import { useId, useState } from "react";
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -26,6 +27,9 @@ import { cn } from "@/lib/utils/cn";
 import type { WatchStatus } from "@/lib/firebase/db";
 import type { GameSummary } from "@/lib/games/types";
 import { isUnreleased } from "@/lib/utils/format";
+
+// The "Played" celebration is only needed after a tap; it stays out of the first load.
+const UnlockToast = dynamic(() => import("@/components/game/detail/UnlockToast").then((mod) => mod.UnlockToast), { ssr: false });
 
 const OPTIONS: { value: WatchStatus; label: string; icon: typeof Bookmark }[] = [
   { value: "none", label: "No status", icon: CircleOff },
@@ -52,6 +56,8 @@ export function StatusPicker({
   const current = optimistic ?? statusOf(game.id);
   const calm = useCalmMotion();
   const pillId = useId();
+  // Bumped per "Played"; also the toast's key, so marking twice replays it.
+  const [unlocks, setUnlocks] = useState(0);
   const options = isUnreleased(game)
     ? OPTIONS.filter((option) => option.value === "none" || option.value === "want")
     : OPTIONS;
@@ -78,12 +84,17 @@ export function StatusPicker({
       await ensure(game);
       await setStatus(game.id, value);
       haptic("success");
-      toast(
-        value === "none"
-          ? "Play status cleared"
-          : `Marked as ${OPTIONS.find((o) => o.value === value)?.label.toLowerCase()}`,
-        "success",
-      );
+      if (value === "played" && !calm) {
+        // Finishing a game gets a moment of its own; with motion off, the plain toast says it.
+        setUnlocks((count) => count + 1);
+      } else {
+        toast(
+          value === "none"
+            ? "Play status cleared"
+            : `Marked as ${OPTIONS.find((o) => o.value === value)?.label.toLowerCase()}`,
+          "success",
+        );
+      }
     } catch (err) {
       haptic("warning");
       toast(err instanceof Error ? err.message : "Couldn't save that.", "error");
@@ -139,6 +150,7 @@ export function StatusPicker({
           </button>
         );
       })}
+      {unlocks > 0 && <UnlockToast key={unlocks} name={game.name} />}
     </div>
   );
 }

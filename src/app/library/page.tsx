@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { Dices, Layers3, Timer } from "lucide-react";
-import { GamePassLeaving } from "@/components/library/GamePassLeaving";
 import { CollectionGate } from "@/components/library/CollectionGate";
 import { LibraryView } from "@/components/library/LibraryView";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Container } from "@/components/ui/SectionHeading";
 
 export const metadata: Metadata = {
   title: "Your library",
@@ -17,7 +14,7 @@ export const metadata: Metadata = {
 export default function LibraryPage() {
   return (
     <>
-      <PageHeader eyebrow="Library" title="Games you own" description="Everything you own, on every store, and what to play next." />
+      <PageHeader title="Library" />
       <CollectionGate
         title="Your whole collection, in one place"
         body="Record where you own each game and the library does the rest."
@@ -27,12 +24,7 @@ export default function LibraryPage() {
           { icon: <Dices size={18} />, title: "Can't decide?", body: "Backlog roulette picks your next game by mood, length and platform." },
         ]}
       >
-        {/* Only appears when one of the reader's games is leaving Game Pass. */}
-        <Container className="empty:hidden">
-          <Suspense fallback={null}>
-            <GamePassLeaving />
-          </Suspense>
-        </Container>
+        {/* Games leaving Game Pass now lead the library's own Game Pass shelf. */}
         <LibraryView />
       </CollectionGate>
     </>

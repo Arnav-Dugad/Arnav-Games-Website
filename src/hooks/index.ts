@@ -123,21 +123,34 @@ export function useCountdown(target: string | null | undefined): CountdownParts 
   return parts;
 }
 
+/*
+ * Reference-counted, because locks nest: a context menu lifted inside the
+ * search overlay, a sheet opened from a sheet. With each lock saving and
+ * restoring the body's style on its own, releasing them out of order (the
+ * outer one first — e.g. a navigation closing both at once) restored the
+ * inner lock's saved "hidden" last, and the page stayed unscrollable until
+ * a reload. Only the first lock saves and only the last release restores.
+ */
+let scrollLocks = 0;
+let savedBodyStyle = { overflow: "", paddingRight: "" };
+
 /** Locks page scroll while a modal or sheet is open, preserving scrollbar width. */
 export function useLockBodyScroll(locked: boolean): void {
   useEffect(() => {
     if (!locked) return;
     const { body, documentElement } = document;
-    const previousOverflow = body.style.overflow;
-    const previousPadding = body.style.paddingRight;
-    const gap = window.innerWidth - documentElement.clientWidth;
-
-    body.style.overflow = "hidden";
-    if (gap > 0) body.style.paddingRight = `${gap}px`;
+    if (scrollLocks++ === 0) {
+      savedBodyStyle = { overflow: body.style.overflow, paddingRight: body.style.paddingRight };
+      const gap = window.innerWidth - documentElement.clientWidth;
+      body.style.overflow = "hidden";
+      if (gap > 0) body.style.paddingRight = `${gap}px`;
+    }
 
     return () => {
-      body.style.overflow = previousOverflow;
-      body.style.paddingRight = previousPadding;
+      if (--scrollLocks > 0) return;
+      scrollLocks = 0;
+      body.style.overflow = savedBodyStyle.overflow;
+      body.style.paddingRight = savedBodyStyle.paddingRight;
     };
   }, [locked]);
 }

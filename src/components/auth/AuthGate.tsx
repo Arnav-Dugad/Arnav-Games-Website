@@ -41,11 +41,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <Prompt
         icon={<Settings2 size={24} className="text-gold" />}
-        title="Accounts aren't configured yet"
-        body="Add your Firebase web-app keys to enable sign-in, watchlists and reviews. The rest of the site works without them."
+        title="Accounts aren't set up yet"
+        body="Sign-in isn't available on this site yet. Everything else works without it."
       >
         <Button href="/browse" variant="secondary">
-          Browse games instead
+          Browse games
         </Button>
       </Prompt>
     );
@@ -55,8 +55,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <Prompt
         icon={<LockKeyhole size={24} className="text-brand-soft" />}
-        title="Sign in to continue"
-        body="This page is tied to your account. Sign in and you'll come straight back here."
+        title="Sign in to see this"
+        body="You'll come straight back here afterwards."
       >
         <Button href={`/login?next=${encodeURIComponent(pathname || "/")}`}>Sign in</Button>
         <Link

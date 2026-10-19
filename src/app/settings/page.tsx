@@ -11,10 +11,7 @@ export const metadata: Metadata = {
 export default function SettingsPage() {
   return (
     <>
-      <PageHeader
-        title="Settings"
-        description="Your account, how the site looks, and which store prices you see."
-      />
+      <PageHeader title="Settings" />
       <SettingsView />
     </>
   );

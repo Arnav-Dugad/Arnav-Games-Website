@@ -51,45 +51,45 @@ export function CareerStats({
   const cadence = cadenceDays !== null ? cadenceLabel(cadenceDays) : null;
   const noun = kind === "company" ? "Catalogue" : kind === "franchise" ? "Series" : "Appearances";
 
-  return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-      {bestReviewed ? (
-        <BestReviewed game={bestReviewed} className="col-span-2 lg:row-span-2" />
-      ) : (
-        <Tile className="col-span-2 lg:row-span-2" icon={<Trophy size={16} />} label="Best reviewed">
-          <p className="mt-auto text-sm leading-relaxed text-muted">
-            None of these games has a critic score on IGDB yet.
-          </p>
-        </Tile>
-      )}
-
-      <Tile icon={<Layers3 size={16} />} label={noun} delay={0.04}>
+  /*
+   * Tiles with nothing to say are left out rather than printing "no data" —
+   * a two-game character page used to be half empty boxes. The grid stays
+   * hole-free: an odd tile out spans the row, and the hero only stands two
+   * rows tall when there are enough figures beside it to fill them.
+   */
+  const figures: { key: string; node: (wide: boolean) => ReactNode }[] = [];
+  figures.push({
+    key: "total",
+    node: (wide) => (
+      <Tile key="total" icon={<Layers3 size={16} />} label={noun} className={cn(wide && "col-span-2")}>
         <Figure value={String(total)} unit={total === 1 ? "game" : "games"} />
         <Note>
           {releasedCount} released{upcomingCount > 0 && ` · ${upcomingCount} upcoming`}
         </Note>
       </Tile>
-
-      <Tile icon={<CalendarRange size={16} />} label="Active years" delay={0.08}>
-        {firstRelease && latestRelease ? (
-          <>
-            <Figure value={firstYear} unit={firstYear === latestYear ? undefined : `to ${latestYear}`} />
-            <Note>
-              {activeYears === 1 ? "A single year" : `${activeYears} years, first to latest`}
-            </Note>
-          </>
-        ) : (
-          <Empty>No dated releases yet</Empty>
-        )}
-      </Tile>
-
-      <Tile icon={<Sparkles size={16} />} label="Avg. critic score" delay={0.12}>
-        {averageScore !== null ? (
+    ),
+  });
+  if (firstRelease && latestRelease) {
+    figures.push({
+      key: "years",
+      node: (wide) => (
+        <Tile key="years" icon={<CalendarRange size={16} />} label="Active years" className={cn(wide && "col-span-2")}>
+          <Figure value={firstYear} unit={firstYear === latestYear ? undefined : `to ${latestYear}`} />
+          <Note>{activeYears === 1 ? "A single year" : `${activeYears} years`}</Note>
+        </Tile>
+      ),
+    });
+  }
+  if (averageScore !== null) {
+    figures.push({
+      key: "score",
+      node: (wide) => (
+        <Tile key="score" icon={<Sparkles size={16} />} label="Avg. critic score" className={cn(wide && "col-span-2")}>
           <div className="mt-auto flex items-end justify-between gap-2">
             <div className="min-w-0">
               <Figure value={String(averageScore)} unit="/ 100" />
               <Note>
-                across {scoredCount} scored {scoredCount === 1 ? "game" : "games"}
+                {scoredCount} scored {scoredCount === 1 ? "game" : "games"}
               </Note>
             </div>
             {/* `cn` has no tailwind-merge, so `hidden` can't override ScoreRing's own `inline-flex`; a wrapper can. */}
@@ -97,40 +97,55 @@ export function CareerStats({
               <ScoreRing score={averageScore} size={46} strokeWidth={4} label="Average critic score" />
             </span>
           </div>
-        ) : (
-          <Empty>No critic scores yet</Empty>
-        )}
-      </Tile>
+        </Tile>
+      ),
+    });
+  }
+  if (cadence) {
+    figures.push({
+      key: "cadence",
+      node: (wide) => (
+        <Tile key="cadence" icon={<Repeat2 size={16} />} label="A new game" className={cn(wide && "col-span-2")}>
+          <Figure value={cadence.value} unit={cadence.unit} prefix="every" />
+          {busiestYear && <Note>Busiest: {busiestYear.year}, {busiestYear.count} releases</Note>}
+        </Tile>
+      ),
+    });
+  }
 
-      <Tile icon={<Repeat2 size={16} />} label="Release cadence" delay={0.16}>
-        {cadence ? (
-          <>
-            <Figure value={cadence.value} unit={cadence.unit} prefix="every" />
-            <Note>
-              {busiestYear ? `Busiest: ${busiestYear.year}, ${busiestYear.count} releases` : "average gap between releases"}
-            </Note>
-          </>
-        ) : (
-          <Empty>Needs two or more releases</Empty>
-        )}
-      </Tile>
+  const odd = figures.length % 2 === 1;
+  const tall = figures.length > 2;
+  // TBA titles count as upcoming but have nothing to count down to.
+  const showNext = Boolean(nextUpcoming) || upcomingCount > 0;
+  const releaseTiles = Number(Boolean(latestRelease)) + Number(showNext);
 
-      <ReleaseTile
-        game={latestRelease}
-        label="Latest release"
-        icon={<CalendarClock size={16} />}
-        empty="Nothing released yet"
-        delay={0.2}
-      />
-      <ReleaseTile
-        game={nextUpcoming}
-        label="Next up"
-        icon={<CalendarClock size={16} />}
-        // TBA titles count as upcoming but have nothing to count down to.
-        empty={upcomingCount > 0 ? `${upcomingCount} announced, no dates yet` : "Nothing announced"}
-        upcoming
-        delay={0.24}
-      />
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+      {bestReviewed && (
+        <BestReviewed game={bestReviewed} className={cn("col-span-2", tall && "lg:row-span-2")} />
+      )}
+
+      {figures.map((figure, index) => figure.node(odd && index === figures.length - 1))}
+
+      {latestRelease && (
+        <ReleaseTile
+          game={latestRelease}
+          label="Latest release"
+          icon={<CalendarClock size={16} />}
+          empty=""
+          className={releaseTiles === 1 ? "lg:col-span-4" : undefined}
+        />
+      )}
+      {showNext && (
+        <ReleaseTile
+          game={nextUpcoming}
+          label="Next up"
+          icon={<CalendarClock size={16} />}
+          empty={`${upcomingCount} announced, no dates yet`}
+          upcoming
+          className={releaseTiles === 1 ? "lg:col-span-4" : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -142,16 +157,14 @@ function Tile({
   label,
   children,
   className,
-  delay = 0,
 }: {
   icon: ReactNode;
   label: string;
   children: ReactNode;
   className?: string;
-  delay?: number;
 }) {
   return (
-    <Reveal delay={delay} className={cn("glass flex min-h-[124px] min-w-0 flex-col rounded-3xl p-3.5 sm:min-h-[132px] sm:p-5", className)}>
+    <Reveal className={cn("glass flex min-h-[124px] min-w-0 flex-col rounded-3xl p-3.5 sm:min-h-[132px] sm:p-5", className)}>
       <p className="mb-3 flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-muted sm:gap-2">
         <span aria-hidden className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-fg/[0.07] text-brand-soft sm:h-7 sm:w-7">
           {icon}
@@ -228,25 +241,25 @@ function ReleaseTile({
   icon,
   empty,
   upcoming = false,
-  delay = 0,
+  className,
 }: {
   game: GameSummary | null;
   label: string;
   icon: ReactNode;
   empty: string;
   upcoming?: boolean;
-  delay?: number;
+  className?: string;
 }) {
   if (!game) {
     return (
-      <Tile icon={icon} label={label} className="col-span-2 min-h-0" delay={delay}>
+      <Tile icon={icon} label={label} className={cn("col-span-2 min-h-0", className)}>
         <Empty>{empty}</Empty>
       </Tile>
     );
   }
 
   return (
-    <Reveal delay={delay} className="col-span-2 min-w-0">
+    <Reveal className={cn("col-span-2 min-w-0", className)}>
       <Link
         href={`/game/${game.slug}`}
         className="press group glass flex h-full min-w-0 items-center gap-4 rounded-3xl p-3.5 transition-colors sm:p-4 fine:hover:border-fg/20"

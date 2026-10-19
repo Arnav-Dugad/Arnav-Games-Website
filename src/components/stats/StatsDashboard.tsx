@@ -113,9 +113,8 @@ export function StatsDashboard({
         <Reveal onMount className="lg:col-span-5">
           <StatCard
             className="h-full"
-            eyebrow="Finish rate"
             icon={<Trophy size={13} />}
-            title="What you own, finished"
+            title="Finish rate"
             summary={finish.rate !== null ? `You have finished ${finish.finished} of ${finish.base} released games you own, ${formatPercent(finish.rate)}.` : undefined}
           >
             {finish.rate === null ? (
@@ -136,7 +135,6 @@ export function StatsDashboard({
         <Reveal onMount delay={0.04} className="lg:col-span-7">
           <StatCard
             className="h-full"
-            eyebrow="Status funnel"
             icon={<Gauge size={13} />}
             title="From wishlist to finished"
             summary={`${funnel.stages.map((stage) => `${stage.label}: ${stage.value}`).join(", ")}.`}
@@ -154,9 +152,8 @@ export function StatsDashboard({
         <Reveal className="lg:col-span-6">
           <StatCard
             className="h-full"
-            eyebrow="Genre radar"
             icon={<Radar size={13} />}
-            title="The shape of your taste"
+            title="Your genres"
             summary={radar.unlocked ? `Your top genres: ${radar.axes.map((axis) => `${axis.label} ${axis.count}`).join(", ")}.` : undefined}
             footnote={radar.unlocked ? "Axis length is the number of your games in each genre, relative to your biggest genre. A game with several genres counts towards each." : undefined}
           >
@@ -176,9 +173,8 @@ export function StatsDashboard({
         <Reveal delay={0.04} className="lg:col-span-6">
           <StatCard
             className="h-full"
-            eyebrow="Taste drift"
             icon={<History size={13} />}
-            title="How your genre mix shifts"
+            title="How your taste shifts"
             summary={drift.basis ? `${DRIFT_NOTES[drift.basis]} ${drift.buckets.length} periods, from ${drift.buckets[0].label} to ${drift.buckets[drift.buckets.length - 1].label}.` : undefined}
             footnote={drift.basis ? `${DRIFT_NOTES[drift.basis]} Shares are of genre tags, so a game with two genres counts in both.` : undefined}
           >
@@ -196,9 +192,8 @@ export function StatsDashboard({
           <Reveal className="lg:col-span-7">
             <StatCard
               className="h-full"
-              eyebrow="Hours by platform"
               icon={<Clock3 size={13} />}
-              title="Where your time goes"
+              title="Hours by platform"
               summary={hoursReady && hours.byPlatform.length ? `Estimated hours: ${hours.byPlatform.map((row) => `${row.label} ${row.finished + row.inProgress}`).join(", ")}.` : undefined}
               footnote={hoursReady ? hoursFootnote(hours.withData, hours.eligible) : undefined}
             >
@@ -223,7 +218,6 @@ export function StatsDashboard({
         <Reveal delay={0.04} className={hoursStatus === "unavailable" ? "lg:col-span-12" : "lg:col-span-5"}>
           <StatCard
             className="h-full"
-            eyebrow="Release eras"
             icon={<CalendarRange size={13} />}
             title="When your games came out"
             footnote={analytics.undatedGames ? `${plural(analytics.undatedGames, "game")} without a release year ${analytics.undatedGames === 1 ? "is" : "are"} left out.` : undefined}
@@ -244,7 +238,6 @@ export function StatsDashboard({
         <Reveal className="lg:col-span-7">
           <StatCard
             className="h-full"
-            eyebrow="Platform split"
             icon={<Disc3 size={13} />}
             title="Where you own games"
             footnote={platformSplit.length ? "Counts copies: a game owned on two platforms appears in both." : undefined}
@@ -259,9 +252,8 @@ export function StatsDashboard({
         <Reveal delay={0.04} className="lg:col-span-5">
           <StatCard
             className="h-full"
-            eyebrow="Critic scores"
             icon={<Star size={13} />}
-            title="You vs. the catalogue"
+            title="Critic scores"
             summary={critic.average !== null ? `Average critic score ${critic.average} across ${critic.scored} games${benchmark ? `, against a catalogue benchmark of ${benchmark.average}` : ""}.` : undefined}
             footnote={critic.average !== null ? criticFootnote(critic.basis, critic.scored, critic.considered, benchmark) : undefined}
           >
@@ -353,7 +345,7 @@ function JumpBar() {
   }, []);
 
   return (
-    <nav aria-label="Stats sections" className="sticky top-16 z-20 -mx-4 mt-6 bg-bg/85 px-4 py-2 backdrop-blur-xl sm:-mx-2 sm:px-2 lg:top-[76px]">
+    <nav aria-label="Stats sections" className="sticky top-(--chrome-top) z-20 -mx-4 mt-6 bg-bg/85 px-4 py-2 backdrop-blur-xl sm:-mx-2 sm:px-2 lg:top-[76px]">
       <ul className="no-scrollbar flex gap-1.5 overflow-x-auto">
         {GROUPS.map((group) => (
           <li key={group.id} className="shrink-0">
@@ -431,7 +423,7 @@ function hoursFootnote(withData: number, eligible: number): string {
   if (!eligible) return "Estimates from IGDB time-to-beat.";
   return withData === eligible
     ? `Estimated from IGDB time-to-beat for all ${plural(eligible, "game")}.`
-    : `Estimated from IGDB time-to-beat for ${withData} of ${plural(eligible, "game")}; the rest have no data and count nothing.`;
+    : `Estimated from IGDB time-to-beat for ${withData} of ${plural(eligible, "game")}.`;
 }
 
 function criticFootnote(basis: "owned" | "library", scored: number, considered: number, benchmark: CatalogueBenchmark | null): string {

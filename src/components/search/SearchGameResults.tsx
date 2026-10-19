@@ -147,7 +147,7 @@ export function SearchGameResults({ games, query }: { games: GameSummary[]; quer
       />
       <div className="mt-6">
         {count > 0 ? (
-          <GameGrid games={filtered} priorityCount={4} />
+          <GameGrid games={filtered} priorityCount={4} logoMorph />
         ) : (
           <EmptyState
             icon={<SearchX size={24} />}

@@ -133,7 +133,7 @@ export function GameDetailDock({
   return (
     <div
       ref={barRef}
-      className="sticky top-16 z-[100] border-b border-line bg-bg/80 shadow-[0_18px_50px_-30px_rgba(0,0,0,0.6)] backdrop-blur-2xl backdrop-saturate-150 light:shadow-[0_14px_36px_-28px_rgba(0,0,0,0.25)] lg:top-[72px]"
+      className="sticky top-(--chrome-top) z-(--z-sticky) border-b border-line bg-bg/80 shadow-[0_18px_50px_-30px_rgba(0,0,0,0.6)] backdrop-blur-2xl backdrop-saturate-150 light:shadow-[0_14px_36px_-28px_rgba(0,0,0,0.25)] lg:top-[72px]"
     >
       <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-2 px-4 lg:px-6 xl:px-10">
         <AnimatePresence initial={false}>

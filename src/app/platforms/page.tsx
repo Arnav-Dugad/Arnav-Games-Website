@@ -1,74 +1,71 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
-import type { CSSProperties } from "react";
+import { ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Container } from "@/components/ui/SectionHeading";
-import { DataSourceNotice } from "@/components/ui/DataSourceNotice";
 import { PlatformIcons } from "@/components/game/PlatformIcons";
-import { Stagger, StaggerItem } from "@/components/motion/Reveal";
-import { getPlatforms, isDegraded } from "@/lib/games/source";
-import { hueFromString } from "@/lib/utils/format";
+import { PLATFORM_GROUPS } from "@/components/filters/platform-systems";
+import { byId, platformIds, taxonomyShowcase } from "@/app/genres/_lib/showcase";
+import { TaxonomyTile } from "@/app/genres/_components/TaxonomyTile";
 
 export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "Game platforms",
-  description: "Browse games by platform — PC, PlayStation, Xbox, Nintendo, mobile and more.",
+  description: "Browse games by platform — PlayStation, Xbox, Nintendo, PC and mobile.",
 };
 
+/**
+ * Systems grouped by family. A family heading opens the whole family in
+ * /browse; each tile opens one system. IGDB's platform list is ~200 entries
+ * of arcade boards and 1980s home computers, so this is a curated set of
+ * the systems people actually shop for — and each tile's count is the
+ * count its browse link returns.
+ */
 export default async function PlatformsPage() {
-  const { data: platforms, source } = await getPlatforms();
+  const slugs = PLATFORM_GROUPS.flatMap((group) => group.systems.map((system) => system.slug));
+  const ids = await platformIds(slugs);
+  const showcase = await taxonomyShowcase(byId("platforms", ids));
 
   return (
     <>
-      <PageHeader
-        eyebrow="Hardware"
-        title="Every platform"
-        description="See what's releasing on the systems you actually own."
-      />
+      <PageHeader title="Platforms" />
 
-      <Container className="py-10 lg:py-14">
-        {source === "unavailable" && (
-          <div className="mb-8">
-            <DataSourceNotice source={source} degraded={isDegraded(source)} />
-          </div>
-        )}
-
-        <Stagger className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
-          {platforms.map((platform) => {
-            const hue = hueFromString(platform.slug);
-            return (
-              <StaggerItem key={platform.id}>
-                <Link
-                  href={`/browse?platforms=${platform.slug}`}
-                  className="hue-tile group relative flex h-32 flex-col justify-between overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:border-line-strong fine:hover:shadow-[0_20px_50px_-24px_rgba(34,211,238,0.5)] lg:h-36"
-                  style={{ "--tile-hue": hue, "--tile-hue-2": (hue + 40) % 360 } as CSSProperties}
-                >
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 opacity-0 transition-opacity duration-500 fine:group-hover:opacity-100"
-                    style={{
-                      background: `radial-gradient(85% 65% at 25% 0%, hsl(${hue} 85% 60% / 0.38), transparent 66%)`,
-                    }}
+      <Container className="space-y-10 pb-12 sm:space-y-12 lg:pb-16">
+        {PLATFORM_GROUPS.map((group) => (
+          <section key={group.family} aria-labelledby={`family-${group.family}`}>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2
+                id={`family-${group.family}`}
+                className="flex items-center gap-2.5 text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]"
+              >
+                <PlatformIcons platforms={[{ slug: group.family }]} size={20} className="[&_li]:text-text" />
+                {group.name}
+              </h2>
+              <Link
+                href={`/browse?platforms=${group.family}`}
+                className="press relative inline-flex shrink-0 items-center gap-0.5 text-[15px] font-medium text-brand-soft after:absolute after:-inset-3 after:content-['']"
+              >
+                See all
+                <ChevronRight size={16} aria-hidden />
+                <span className="sr-only"> {group.name} games</span>
+              </Link>
+            </div>
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
+              {group.systems.map((system, i) => (
+                <li key={system.slug}>
+                  <TaxonomyTile
+                    href={`/browse?platforms=${system.slug}`}
+                    name={system.name}
+                    // A slight drift per system so a family reads as one colour without identical tiles.
+                    hue={(group.hue + i * 8) % 360}
+                    showcase={showcase.get(system.slug)}
                   />
-                  <div className="relative flex items-start justify-between">
-                    <span className="text-white/80 [&_li]:text-white/80">
-                      <PlatformIcons platforms={[platform]} size={20} max={1} />
-                    </span>
-                    <ArrowUpRight
-                      size={16}
-                      className="text-white/55 transition-all duration-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white/80"
-                    />
-                  </div>
-                  <span className="relative font-display text-lg font-bold leading-tight lg:text-xl">
-                    {platform.name}
-                  </span>
-                </Link>
-              </StaggerItem>
-            );
-          })}
-        </Stagger>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </Container>
     </>
   );

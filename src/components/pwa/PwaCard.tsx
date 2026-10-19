@@ -54,9 +54,12 @@ export function PwaCard({ open, onDismiss, dismissLabel, icon, title, body, acti
           exit={calm ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.97 }}
           transition={calm ? { duration: 0.15 } : { type: "spring", stiffness: 420, damping: 34 }}
           className={cn(
-            "material fixed z-[290] flex items-start gap-3.5 rounded-[22px] p-3.5 pr-2.5",
-            "inset-x-4 bottom-[calc(6.25rem+env(safe-area-inset-bottom))] mx-auto max-w-sm",
-            "sm:inset-x-auto sm:right-6 sm:bottom-6 sm:mx-0 sm:w-[24rem]",
+            // Under sheets and search (see the stacking scale in globals.css):
+            // above them it covered a sheet's bottom buttons. Clears the tab
+            // bar on touch tablets as well as phones.
+            "material fixed z-(--z-card) flex items-start gap-3.5 rounded-[22px] p-3.5 pr-2.5",
+            "inset-x-4 bottom-(--float-bottom) mx-auto max-w-sm",
+            "sm:inset-x-auto sm:right-6 sm:mx-0 sm:w-[24rem]",
           )}
         >
           {icon}

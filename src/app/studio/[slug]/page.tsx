@@ -22,5 +22,5 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function StudioPage({ params }: { params: Params }) {
   const { slug } = await params;
-  return <EntityPage entity={await igdbCompany(slug)} kind="company" eyebrow="Studio" />;
+  return <EntityPage entity={await igdbCompany(slug)} kind="company" />;
 }

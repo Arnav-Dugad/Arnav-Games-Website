@@ -1,7 +1,6 @@
 import { MessageSquareQuote } from "lucide-react";
 import { ExpandableText } from "@/components/ui/ExpandableText";
 import { Reveal } from "@/components/motion/Reveal";
-import { DetailSection } from "@/components/game/detail/DetailSection";
 import type { GameDetail } from "@/lib/games/types";
 
 /**
@@ -9,14 +8,15 @@ import type { GameDetail } from "@/lib/games/types";
  * premise (when IGDB has one) set apart as a pull-quote.
  *
  * Plain type rather than a card — the description is the page's editorial
- * voice and reads better as an article than as a tile. The old row of
- * "Play styles / Perspective / Themes / Languages" chips beneath it repeated
- * the fact sheet beside it word for word, so it's gone.
+ * voice and reads better as an article than as a tile. It sits inside the
+ * page's Overview section, so it takes a sub-heading rather than a section
+ * title of its own.
  */
 export function GameEditorialOverview({ game }: { game: GameDetail }) {
   return (
-    <DetailSection id="about" eyebrow="About" title={`About ${game.name}`}>
-      <div className="space-y-6">
+    <div id="about" className="scroll-mt-36">
+      <h3 className="text-[17px] font-semibold text-text">About {game.name}</h3>
+      <div className="mt-3 space-y-6">
         <Reveal>
           <ExpandableText
             text={game.description}
@@ -37,6 +37,6 @@ export function GameEditorialOverview({ game }: { game: GameDetail }) {
           </Reveal>
         )}
       </div>
-    </DetailSection>
+    </div>
   );
 }

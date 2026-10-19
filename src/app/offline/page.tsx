@@ -30,9 +30,8 @@ export default function OfflinePage() {
       <h1 className="mt-6 font-display text-[34px] font-bold tracking-[-0.03em] sm:text-5xl">
         You&rsquo;re offline
       </h1>
-      <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-muted sm:text-[17px]">
-        This page isn&rsquo;t saved on this device yet. Your library, watchlist and stats still work
-        offline, along with pages you&rsquo;ve opened recently.
+      <p className="mx-auto mt-3 max-w-sm text-[15px] leading-relaxed text-muted sm:text-[17px]">
+        This page isn&rsquo;t saved on this device. Your library and pages you&rsquo;ve opened recently still work.
       </p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <Button href="/library">Open your library</Button>

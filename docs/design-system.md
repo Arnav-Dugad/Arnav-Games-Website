@@ -69,6 +69,16 @@ Use `tabular-nums` for all changing numbers. Use sentence case everywhere.
   long pages.
 - Phones: content must clear the floating tab bar (body already pads), every
   tap target ≥ 44px, no horizontal overflow at 320px.
+- Navigation: four destinations everywhere — Home · Upcoming · Discover ·
+  Library (+ Search) — defined once in `components/layout/nav.ts`. Catalogue
+  entry points (genres, platforms, studios, franchises, compare, charts) live
+  on `/discover`; personal pages live under Library and the account menu
+  (a bottom sheet on touch, signed in or out). New sections join one of these.
+- Layers and chrome: never hand-pick a z-index or a header offset. Use the
+  stacking scale and geometry tokens in `globals.css` — `z-(--z-sheet)`,
+  `top-(--chrome-top)` for sticky bars, `bottom-(--float-bottom)` for
+  floating cards. Reveal-style entrances must never gate content on a
+  fraction of a tall element being visible (landscape phones are 390px tall).
 
 ## Components to reuse (don't rebuild)
 

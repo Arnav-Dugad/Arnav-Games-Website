@@ -24,30 +24,28 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
-import { useScrollDirection } from "@/hooks";
+import { useMediaQuery, useScrollDirection } from "@/hooks";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
+import { PRIMARY_NAV, isNavActive, type NavIcon } from "./nav";
 
-const TABS = [
-  { href: "/", label: "Home", icon: "home" },
-  { href: "/upcoming", label: "Upcoming", icon: "upcoming" },
-  { href: "/browse", label: "Browse", icon: "browse" },
-  { href: "/stats", label: "Stats", icon: "stats" },
-] as const;
+/* Destinations and their route families: see ./nav. */
 
 const SPRING = { type: "spring", stiffness: 520, damping: 38, mass: 0.8 } as const;
 
 export function MobileTabBar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const pathname = usePathname();
   const { direction } = useScrollDirection();
-  const compact = direction === "down";
+  // A landscape phone has ~390px of height: keep the bar in its slim form
+  // there rather than spending a fifth of the screen on tab labels.
+  const short = useMediaQuery("(max-height: 500px)");
+  const compact = direction === "down" || short;
   const calm = useCalmMotion();
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
     <nav
       aria-label="Primary"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[150] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:fine:hidden"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-(--z-chrome) px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:fine:hidden"
     >
       <div className="mx-auto flex max-w-md items-end gap-2.5">
         <div
@@ -59,8 +57,8 @@ export function MobileTabBar({ onOpenSearch }: { onOpenSearch: () => void }) {
         >
           <span aria-hidden className="material material-underlay -z-10" />
           <ul className="flex h-full items-stretch p-1.5">
-            {TABS.map((tab) => {
-              const active = isActive(tab.href);
+            {PRIMARY_NAV.map((tab) => {
+              const active = isNavActive(tab, pathname);
               return (
                 <li key={tab.href} className="relative flex-1">
                   <Link
@@ -144,15 +142,14 @@ export function MobileTabBar({ onOpenSearch }: { onOpenSearch: () => void }) {
  * top of it, plus one small gesture that says what the tab is:
  *  - Home: the house fills from the ground up.
  *  - Upcoming: the calendar's header band drops in and the days pop on.
- *  - Browse: the compass needle swings round and settles on north.
- *  - Stats: the bars grow from the baseline, one after another.
+ *  - Discover: the compass needle swings round and settles on north.
+ *  - Library: the books fill and the leaning one rights itself.
  * Springs, not tweens, so a fast tab change still lands with a little give.
  * Only transform and opacity animate (compositor-only, 60fps). `initial`
  * is off, so nothing animates on first paint — only on a real change — and
  * under reduced motion every transition is instant.
  */
 
-type TabIconName = "home" | "upcoming" | "browse" | "stats";
 
 const ICON_SPRING: Transition = { type: "spring", stiffness: 520, damping: 26, mass: 0.7 };
 
@@ -161,7 +158,7 @@ interface IconProps {
   size: number;
 }
 
-function TabIcon({ name, active, size }: IconProps & { name: TabIconName }) {
+function TabIcon({ name, active, size }: IconProps & { name: NavIcon }) {
   const calm = useCalmMotion();
   const t = (delay = 0): Transition => (calm ? { duration: 0 } : { ...ICON_SPRING, delay });
   const fade = (delay = 0): Transition => (calm ? { duration: 0 } : { duration: 0.18, delay });
@@ -235,7 +232,7 @@ function TabIcon({ name, active, size }: IconProps & { name: TabIconName }) {
         </svg>
       );
 
-    case "browse":
+    case "discover":
       return (
         <svg {...svgProps}>
           <motion.circle
@@ -269,33 +266,53 @@ function TabIcon({ name, active, size }: IconProps & { name: TabIconName }) {
         </svg>
       );
 
-    case "stats": {
-      const bars = [
-        { x: 4.5, y: 12.5, h: 7.5 },
-        { x: 10.2, y: 8, h: 12 },
-        { x: 15.9, y: 4, h: 16 },
+    case "library": {
+      // Two upright spines and one leaning against them, like a shelf.
+      const spines = [
+        { x: 4, y: 5, h: 15 },
+        { x: 9, y: 3.5, h: 16.5 },
       ];
       return (
         <svg {...svgProps}>
-          {bars.map((bar, i) => (
-            <g key={bar.x}>
+          {spines.map((spine, i) => (
+            <g key={spine.x}>
               <motion.rect
-                x={bar.x}
-                y={bar.y}
-                width="3.6"
-                height={bar.h}
+                x={spine.x}
+                y={spine.y}
+                width="3.8"
+                height={spine.h}
                 rx="1.3"
                 fill="currentColor"
                 stroke="none"
                 style={{ transformBox: "fill-box", transformOrigin: "50% 100%" }}
                 initial={false}
                 animate={state}
-                variants={{ on: { opacity: 1, scaleY: 1 }, off: { opacity: 0, scaleY: 0.2 } }}
-                transition={{ scaleY: t(active ? i * 0.06 : 0), opacity: fade(active ? i * 0.06 : 0) }}
+                variants={{ on: { opacity: 1, scaleY: 1 }, off: { opacity: 0, scaleY: 0.3 } }}
+                transition={{ scaleY: t(active ? i * 0.05 : 0), opacity: fade(active ? i * 0.05 : 0) }}
               />
-              <rect x={bar.x} y={bar.y} width="3.6" height={bar.h} rx="1.3" />
+              <rect x={spine.x} y={spine.y} width="3.8" height={spine.h} rx="1.3" />
             </g>
           ))}
+          <motion.g
+            style={{ transformBox: "view-box", transformOrigin: "16px 20px" }}
+            initial={false}
+            animate={state}
+            variants={{ on: { rotate: -4 }, off: { rotate: -18 } }}
+            transition={calm ? { duration: 0 } : { type: "spring", stiffness: 300, damping: 15, mass: 0.8 }}
+          >
+            <motion.rect
+              x="14.2"
+              y="4.5"
+              width="3.8"
+              height="15.5"
+              rx="1.3"
+              fill="currentColor"
+              initial={false}
+              animate={state}
+              variants={{ on: { fillOpacity: 1 }, off: { fillOpacity: 0 } }}
+              transition={fade(active ? 0.1 : 0)}
+            />
+          </motion.g>
         </svg>
       );
     }

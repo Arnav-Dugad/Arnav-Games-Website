@@ -177,15 +177,10 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Sea
 
   const exact = games.filter((game) => game.released).length;
   const windowed = games.filter((game) => game.releaseWindow).length;
-  const activeWindow = WINDOWS.find((item) => item.value === timeframe) ?? WINDOWS[1];
 
   return (
     <>
-      <PageHeader
-        eyebrow="Upcoming"
-        title="Release calendar"
-        description="Every game with a future date: exact days, honest release windows, and nothing that is already out."
-      />
+      <PageHeader title="Release calendar" />
 
       {withSpotlight && weekGames.length > 0 && (
         <ThisWeek
@@ -255,14 +250,15 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Sea
           calendar, so it says so in plain words and offers the way back.
         */}
         <p className="mt-3 text-[13px] leading-relaxed text-faint">
-          {view === "list" && (
+          {/* The horizon control already names the window; only the honest counts remain. */}
+          {view === "list" && timeframe !== "tba" && games.length > 0 && (
             <>
-              {activeWindow.detail}
-              {timeframe !== "tba" && games.length > 0 && <> · {exact} exact {exact === 1 ? "day" : "days"}{windowed > 0 && `, ${windowed} ${windowed === 1 ? "window" : "windows"}`}</>}
+              {exact} exact {exact === 1 ? "day" : "days"}
+              {windowed > 0 && `, ${windowed} ${windowed === 1 ? "window" : "windows"}`}
               {" · "}
             </>
           )}
-          {showAll ? "Showing every announced game. " : "Showing games people are following. "}
+          {showAll ? "Every announced game. " : "Games people are following. "}
           <Link
             href={upcomingHref({ ...base, ordering, timeframe, view, week: weekStart, month, showAll: !showAll })}
             scroll={false}

@@ -232,7 +232,6 @@ export function useElementWidth<T extends HTMLElement>() {
  * ------------------------------------------------------------------------ */
 
 export function StatCard({
-  eyebrow,
   title,
   icon,
   summary,
@@ -241,7 +240,6 @@ export function StatCard({
   children,
   action,
 }: {
-  eyebrow: string;
   title: string;
   icon?: ReactNode;
   /** Plain-language description of what the chart shows, for screen readers. */
@@ -254,13 +252,11 @@ export function StatCard({
   return (
     <section className={cn("glass relative flex min-w-0 flex-col rounded-[1.75rem] p-5 sm:p-6", className)}>
       <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
-            {icon && <span className="text-brand-soft" aria-hidden>{icon}</span>}
-            {eyebrow}
-          </p>
-          <h3 className="mt-1.5 font-display text-[17px] font-bold leading-tight sm:text-xl">{title}</h3>
-        </div>
+        {/* One plain title per card — no eyebrow restating it. */}
+        <h3 className="flex min-w-0 items-center gap-2 font-display text-[17px] font-bold leading-tight sm:text-xl">
+          {icon && <span className="shrink-0 text-brand-soft" aria-hidden>{icon}</span>}
+          {title}
+        </h3>
         {action}
       </header>
       {summary && <p className="sr-only">{summary}</p>}

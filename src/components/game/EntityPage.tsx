@@ -1,13 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarCheck2, ChevronLeft, History } from "lucide-react";
+import { CalendarCheck2, ChevronLeft, Gamepad2, History } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { EntityGameExplorer } from "@/components/game/EntityGameExplorer";
 import { CareerStats } from "@/components/charts/CareerStats";
 import { ReleaseTimeline } from "@/components/charts/ReleaseTimeline";
 import { Container, SectionHeading } from "@/components/ui/SectionHeading";
-import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { ExpandableText } from "@/components/ui/ExpandableText";
 import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/utils/cn";
@@ -22,38 +22,25 @@ type EntityKind = "company" | "character" | "franchise";
 /** Fewer than this many dated games is a list, not a timeline. */
 const MIN_TIMELINE_GAMES = 3;
 
-const COPY: Record<
-  EntityKind,
-  { directory: [href: string, label: string]; glance: string; timeline: string; games: [eyebrow: string, title: string] }
-> = {
-  company: {
-    directory: ["/studios", "All studios"],
-    glance: "Career",
-    timeline: "A career in releases",
-    games: ["Studio catalogue", "Games"],
-  },
-  franchise: {
-    directory: ["/franchises", "All franchises"],
-    glance: "Series",
-    timeline: "The series over time",
-    games: ["Complete collection", "Every game"],
-  },
-  character: {
-    directory: ["/browse", "Browse games"],
-    glance: "Appearances",
-    timeline: "Appearances over time",
-    games: ["Gameography", "Appears in"],
-  },
+/*
+ * Plain-language section titles, matching the game page ("What it costs",
+ * "Players and PC"): each one says what the section answers, so none needs
+ * an eyebrow or a description underneath.
+ */
+const COPY: Record<EntityKind, { directory: [href: string, label: string]; games: string }> = {
+  company: { directory: ["/studios", "Studios"], games: "Games" },
+  franchise: { directory: ["/franchises", "Franchises"], games: "Every game" },
+  character: { directory: ["/browse", "Browse"], games: "Appears in" },
 };
+
+const COUNT = new Intl.NumberFormat("en-US");
 
 export async function EntityPage({
   entity,
   kind,
-  eyebrow,
 }: {
   entity: IgdbEntity | null;
   kind: EntityKind;
-  eyebrow: string;
 }) {
   if (!entity) notFound();
 
@@ -73,6 +60,17 @@ export async function EntityPage({
   const reliability = kind === "company"
     ? await studioReliability(entity.games.map((game) => game.id)).catch(() => null)
     : null;
+  // A young history isn't a finding. The section only appears once there's
+  // enough watching behind it to state a rate honestly.
+  const showReliability = reliability !== null && entity.games.length > 0 && hasRate(reliability, now);
+
+  // One quiet line of facts in place of a row of badges.
+  const facts = [
+    entity.detail,
+    `${COUNT.format(entity.games.length)} ${entity.games.length === 1 ? "game" : "games"}`,
+    firstYear && latestYear ? (firstYear === latestYear ? firstYear : `${firstYear}–${latestYear}`) : null,
+    summary.upcomingCount > 0 ? `${summary.upcomingCount} upcoming` : null,
+  ].filter(Boolean);
 
   return (
     <>
@@ -142,23 +140,13 @@ export async function EntityPage({
 
               <div className="min-w-0 flex-1">
                 <Reveal>
-                  <p className="mb-2.5 text-[13px] font-semibold text-brand-soft sm:text-sm">{eyebrow}</p>
                   <h1 className="max-w-4xl break-words font-display text-[clamp(2.25rem,8vw,5.25rem)] font-black leading-[0.98] tracking-[-0.045em] text-text">
                     {entity.name}
                   </h1>
                 </Reveal>
 
-                <Reveal delay={0.1} className="mt-5 flex flex-wrap items-center gap-2">
-                  {entity.detail && <Badge tone="neutral">{entity.detail}</Badge>}
-                  <Badge tone="brand">
-                    {entity.games.length} {entity.games.length === 1 ? "game" : "games"}
-                  </Badge>
-                  {firstYear && latestYear && (
-                    <Badge>{firstYear === latestYear ? firstYear : `${firstYear}–${latestYear}`}</Badge>
-                  )}
-                  {summary.upcomingCount > 0 && (
-                    <Badge tone="neon">{summary.upcomingCount} upcoming</Badge>
-                  )}
+                <Reveal delay={0.1}>
+                  <p className="mt-3 text-[15px] tabular-nums text-muted sm:text-[17px]">{facts.join(" · ")}</p>
                 </Reveal>
               </div>
             </div>
@@ -179,47 +167,35 @@ export async function EntityPage({
 
       <Container className="space-y-14 py-10 sm:space-y-16 lg:space-y-20 lg:py-16">
         {entity.games.length > 0 && (
-          <section aria-label={`${copy.glance} at a glance`}>
-            <SectionHeading eyebrow={copy.glance} title="At a glance" className="mb-5 sm:mb-7" />
+          <section aria-label="At a glance">
+            <SectionHeading title="At a glance" className="mb-5 sm:mb-7" />
             <CareerStats summary={summary} kind={kind} />
           </section>
         )}
 
-        {reliability && entity.games.length > 0 && (
-          <section aria-label="Shipping reliability">
-            <SectionHeading eyebrow="Release dates" title="Shipping reliability" className="mb-5 sm:mb-7" />
-            <ReliabilityCard data={reliability} studio={entity.name} now={now} />
+        {showReliability && reliability && (
+          <section aria-label="Release dates kept">
+            <SectionHeading title="Does it ship on time?" className="mb-5 sm:mb-7" />
+            <ReliabilityCard data={reliability} />
           </section>
         )}
 
         {timeline.length >= MIN_TIMELINE_GAMES && (
           <section aria-label="Release timeline">
-            <SectionHeading
-              eyebrow="Timeline"
-              title={copy.timeline}
-              description="Every dated game by release and critic score. Hover or tap a dot for details."
-              className="mb-5 sm:mb-7"
-            />
+            <SectionHeading title="Over the years" className="mb-5 sm:mb-7" />
             <Reveal blur={false}>
               <ReleaseTimeline games={timeline} subject={entity.name} undatedCount={entity.games.length - timeline.length} />
             </Reveal>
           </section>
         )}
 
-        <section aria-label={copy.games[1]}>
-          <SectionHeading
-            eyebrow={copy.games[0]}
-            title={collectionPage ? `Explore ${entity.name}` : copy.games[1]}
-            description="Search the collection or sort it to find exactly what you want."
-            className="mb-5 sm:mb-7"
-          />
+        <section aria-label={copy.games}>
+          <SectionHeading title={copy.games} className="mb-5 sm:mb-7" />
 
           {entity.games.length > 0 ? (
             <EntityGameExplorer games={entity.games} kind={kind} />
           ) : (
-            <p className="rounded-3xl border border-dashed border-line py-16 text-center text-sm text-muted">
-              IGDB has no games linked to this entry yet.
-            </p>
+            <EmptyState icon={<Gamepad2 size={24} />} title="No games linked yet" body="IGDB hasn't connected any games to this page." />
           )}
         </section>
       </Container>
@@ -286,34 +262,18 @@ const TRACKING_SINCE = new Intl.DateTimeFormat("en-US", { day: "numeric", month:
 const MIN_TRACKED_FOR_RATE = 3;
 const MIN_DAYS_FOR_RATE = 30;
 
+function hasRate(data: StudioReliability, now: Date): boolean {
+  const watchedDays = data.since ? (now.getTime() - Date.parse(`${data.since}T00:00:00Z`)) / 86_400_000 : 0;
+  return data.tracked >= MIN_TRACKED_FOR_RATE && watchedDays >= MIN_DAYS_FOR_RATE;
+}
+
 /**
  * How often this studio's announced dates have held, from Arnav Games' own
- * delay tracker. Only what we have observed counts, so the card always says
- * how many games and since when — and while that history is young it says
- * so instead of printing a confident-looking 100%.
+ * delay tracker. Only rendered once `hasRate` passes, and it always says how
+ * many games and since when, so the percentage carries its own sample size.
  */
-function ReliabilityCard({ data, studio, now }: { data: StudioReliability; studio: string; now: Date }) {
+function ReliabilityCard({ data }: { data: StudioReliability }) {
   const since = data.since ? TRACKING_SINCE.format(new Date(`${data.since}T00:00:00Z`)) : null;
-  const watchedDays = data.since ? (now.getTime() - Date.parse(`${data.since}T00:00:00Z`)) / 86_400_000 : 0;
-
-  if (data.tracked < MIN_TRACKED_FOR_RATE || watchedDays < MIN_DAYS_FOR_RATE) {
-    return (
-      <div className="flex flex-col gap-4 rounded-3xl border border-dashed border-line px-5 py-6 sm:flex-row sm:items-center sm:px-7">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-fg/[0.05] text-faint">
-          <History size={22} aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[17px] font-semibold">Too early to call</p>
-          <p className="mt-1 max-w-2xl text-[15px] leading-relaxed text-muted">
-            {data.tracked === 0
-              ? `We haven't watched any ${studio} release dates long enough to judge yet. Every date we show is recorded, so this fills in as their games appear on the calendar.`
-              : `We've watched ${data.tracked} ${data.tracked === 1 ? "game" : "games"} from ${studio}${since ? ` since ${since}` : ""} — not long enough for a fair rate yet. ${data.delayed ? `${data.delayed} ${data.delayed === 1 ? "has" : "have"} already moved later.` : "None has moved later so far."} A reliability score appears after a month of history.`}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const onTime = Math.round(((data.tracked - data.delayed) / data.tracked) * 100);
   const tone = onTime >= 85 ? "text-mint" : onTime >= 60 ? "text-gold" : "text-flare";
   return (
@@ -337,7 +297,7 @@ function ReliabilityCard({ data, studio, now }: { data: StudioReliability; studi
         </dl>
       </div>
       <p className="mt-5 border-t border-line pt-4 text-[13px] leading-relaxed text-faint">
-        From Arnav Games&apos; own release-date history{since ? `, tracking since ${since}` : ""}. A game counts as delayed when its date or window moved later while we were watching; games we&apos;ve only seen once can&apos;t have slipped yet, so young histories read kinder than they may be.
+        From our own release-date history{since ? ` since ${since}` : ""}.
       </p>
     </div>
   );

@@ -217,7 +217,7 @@ export function PullToRefresh() {
   return (
     <div
       aria-hidden={phase === "idle"}
-      className="pointer-events-none fixed inset-x-0 top-[calc(max(0.5rem,env(safe-area-inset-top))+3.75rem)] z-[140] flex justify-center lg:fine:hidden"
+      className="pointer-events-none fixed inset-x-0 top-[calc(var(--chrome-top)+0.25rem)] z-(--z-ptr) flex justify-center lg:fine:hidden"
     >
       <div
         ref={pillRef}

@@ -46,7 +46,7 @@ export function BatchEditPanel({
   };
 
   return (
-    <section aria-label="Batch editor" className="sticky top-20 z-40 mb-5 rounded-3xl border border-brand/35 bg-bg-elev/95 p-4 shadow-[0_32px_100px_-38px_rgba(124,92,255,.8)] backdrop-blur-2xl sm:p-5">
+    <section aria-label="Batch editor" className="sticky top-[calc(var(--chrome-top)+1rem)] z-40 mb-5 rounded-3xl border border-brand/35 bg-bg-elev/95 p-4 shadow-[0_32px_100px_-38px_rgba(124,92,255,.8)] backdrop-blur-2xl sm:p-5">
       <div className="flex flex-wrap items-center gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-brand/15 text-brand-soft"><Sparkles size={17} /></span>
         <div className="min-w-0 flex-1">

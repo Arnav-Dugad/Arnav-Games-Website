@@ -418,3 +418,29 @@ export function choosePlayerSamples(input: {
   const due = input.due.slice(0, dueSlots);
   return [...due, ...quietTurn.slice(0, Math.max(0, input.limit - due.length))];
 }
+
+/* ---------------------------------------------------------------------------
+ * Value per hour
+ * ------------------------------------------------------------------------ */
+
+/**
+ * What one hour of play costs at today's price: `price.price / hours`, in
+ * minor units of the price's currency, rounded to the nearest minor unit.
+ * Free games cost 0 per hour. Null when there are no hours to divide by
+ * (unknown or non-positive) or the price isn't a usable number.
+ *
+ * `hours` should be a real completion estimate (IGDB's "normally"); the
+ * caller decides which one, this only does the arithmetic and formatting.
+ */
+export function valuePerHour(
+  price: Pick<LocalPrice, "price" | "currency" | "country">,
+  hours: number | null,
+): { perHour: number; formatted: string } | null {
+  if (hours === null || !Number.isFinite(hours) || hours <= 0) return null;
+  if (!Number.isFinite(price.price) || price.price < 0) return null;
+  const perHour = price.price === 0 ? 0 : Math.round(price.price / hours);
+  const currency = /^[A-Z]{3}$/.test(price.currency) && price.currency !== "XXX" ? price.currency : null;
+  // A free game's placeholder currency ("XXX") has no symbol to format with.
+  if (!currency) return perHour === 0 ? { perHour: 0, formatted: "Free" } : null;
+  return { perHour, formatted: formatMinor(perHour, currency, `en-${price.country}`) };
+}

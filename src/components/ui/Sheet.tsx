@@ -24,6 +24,7 @@
 import { AnimatePresence, animate, motion, useMotionValue, type MotionValue } from "motion/react";
 import { X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useDialogFocus, useEscapeKey, useIsMobile, useLockBodyScroll } from "@/hooks";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
@@ -65,10 +66,17 @@ export function Sheet({
 
   useSheetDrag({ active: open && isMobile, panelRef, y: dragY, onClose });
 
-  return (
+  // Rendered at the document root. A sheet opened from inside the header
+  // (the account sheet) or a sticky dock inherits that ancestor's stacking
+  // context, so its z-index only counted *within* the chrome layer — the tab
+  // bar, painted later at the same level, covered the sheet's bottom rows
+  // and buttons. A portal also escapes transformed or clipping ancestors.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center sm:p-6">
+        <div className="fixed inset-0 z-(--z-sheet) flex items-end justify-center sm:items-center sm:p-6">
           <motion.div
             className="absolute inset-0 bg-black/55 backdrop-blur-[6px] light:bg-black/25"
             initial={{ opacity: 0 }}
@@ -140,7 +148,8 @@ export function Sheet({
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 

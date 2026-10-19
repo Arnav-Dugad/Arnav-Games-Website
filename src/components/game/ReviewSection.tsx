@@ -82,11 +82,11 @@ export function ReviewSection({ game }: { game: GameDetail }) {
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold text-[color-mix(in_oklab,var(--game-accent,var(--color-brand-soft))_72%,var(--color-text))]">
-            <MessagesSquare size={14} aria-hidden /> Reviews
-          </p>
-          <h2 className="text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">Community reviews</h2>
-          <p className="mt-1.5 text-[15px] text-muted">
+          {/* A sub-heading: this sits inside the page's "What players think" section. */}
+          <h3 className="flex items-center gap-2 text-[17px] font-semibold text-text">
+            <MessagesSquare size={16} aria-hidden className="text-[var(--game-accent)]" /> Reviews on Arnav Games
+          </h3>
+          <p className="mt-1 text-[13px] text-muted">
             {/* Neutral while loading, so "No reviews yet" never flashes over a
                 list that is about to arrive. */}
             {loading

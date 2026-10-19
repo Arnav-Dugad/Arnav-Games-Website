@@ -9,6 +9,7 @@ const COLUMNS = [
   {
     title: "Discover",
     links: [
+      { label: "Everything to explore", href: "/discover" },
       { label: "Upcoming releases", href: "/upcoming" },
       { label: "Browse all", href: "/browse" },
       { label: "Top rated", href: "/browse?ordering=-metacritic" },
@@ -22,6 +23,7 @@ const COLUMNS = [
       { label: "Platforms", href: "/platforms" },
       { label: "Studios", href: "/studios" },
       { label: "Franchises", href: "/franchises" },
+      { label: "Compare games", href: "/compare" },
     ],
   },
 ];
@@ -73,12 +75,13 @@ export function Footer() {
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
                 {column.title}
               </h3>
-              <ul className="mt-4 space-y-2.5">
+              {/* Text-sized links on desktop; full 44px rows on touch. */}
+              <ul className="mt-4 space-y-2.5 coarse:mt-2 coarse:space-y-0">
                 {column.links.map((link) => (
                   <li key={link.href + link.label}>
                     <Link
                       href={link.href}
-                      className="group inline-flex text-sm text-muted transition-colors hover:text-text"
+                      className="group inline-flex items-center text-sm text-muted transition-colors hover:text-text coarse:min-h-11"
                     >
                       <span className="relative">
                         {link.label}
@@ -105,7 +108,7 @@ export function Footer() {
 
         <div className="mt-12 flex flex-col items-start justify-between gap-4 border-t border-line pt-6 text-xs text-faint sm:flex-row sm:items-center">
           <p>© {new Date().getFullYear()} Arnav Games. Not affiliated with any publisher or platform holder.</p>
-          <a href="#main" className="inline-flex items-center gap-1.5 transition-colors hover:text-muted">
+          <a href="#main" className="inline-flex items-center gap-1.5 transition-colors hover:text-muted coarse:min-h-11">
             <ArrowUp size={13} />
             Back to top
           </a>

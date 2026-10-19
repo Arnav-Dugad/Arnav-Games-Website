@@ -336,7 +336,6 @@ export function ReleaseTimeline({
   // A tapped dot scrolled out of view takes its card with it.
   const tooltipVisible =
     activeDot !== null && viewW !== null && activeDot.cx >= scrollLeft - 4 && activeDot.cx <= scrollLeft + viewW + 4;
-  const scoredCount = points.filter((p) => p.score !== null).length;
   const upcomingCount = points.filter((p) => p.upcoming).length;
   const animate = inView && !motionOff;
 
@@ -606,10 +605,11 @@ export function ReleaseTimeline({
       )}
 
       <p className="mt-3 px-1 text-[11.5px] leading-relaxed text-faint">
-        {points.length} plotted · {scoredCount} scored
-        {upcomingCount > 0 && ` · ${upcomingCount} upcoming`}
-        {undatedCount > 0 && ` · ${undatedCount} undated, not shown`} · dot size = number of ratings
-        {points.some((p) => p.approximate && p.upcoming) && " · dashed ring = release window, placed at its midpoint"}
+        {/* The counts that keep the chart honest (what's missing from it) and
+            the one encoding the legend can't show; the rest is in the legend. */}
+        Bigger dots, more ratings
+        {undatedCount > 0 && ` · ${undatedCount} without a date not shown`}
+        {points.some((p) => p.approximate && p.upcoming) && " · dashed ring: release window"}
       </p>
 
       <p className="sr-only" aria-live="polite">

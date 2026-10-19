@@ -45,12 +45,12 @@ const VIEWS: { value: View; label: string }[] = [
 ];
 
 const BROWSE_LINKS = [
-  { label: "Upcoming releases", detail: "The full calendar", href: "/upcoming" },
-  { label: "Top rated", detail: "Highest critic scores", href: "/browse?ordering=-metacritic" },
-  { label: "Genres", detail: "Every kind of game", href: "/genres" },
-  { label: "Platforms", detail: "Consoles, PC and handhelds", href: "/platforms" },
-  { label: "Studios", detail: "Developers and publishers", href: "/studios" },
-  { label: "Franchises", detail: "Connected universes", href: "/franchises" },
+  { label: "Upcoming", href: "/upcoming" },
+  { label: "Top rated", href: "/browse?ordering=-metacritic" },
+  { label: "Genres", href: "/genres" },
+  { label: "Platforms", href: "/platforms" },
+  { label: "Studios", href: "/studios" },
+  { label: "Franchises", href: "/franchises" },
 ];
 
 /** Every hit of a view's kind, in server (relevance) order. */
@@ -135,7 +135,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
 
   return (
     <>
-      <header className="relative isolate pt-24 lg:pt-32" data-track-src="search:page">
+      <header className="relative isolate pt-[calc(var(--chrome-top)+2rem)] lg:pt-32" data-track-src="search:page">
         <div
           aria-hidden
           className="absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(60%_80%_at_20%_0%,color-mix(in_oklab,var(--color-brand)_16%,transparent),transparent_70%)]"
@@ -261,7 +261,7 @@ function AllResults({
             </div>
             <div className="mt-5 sm:mt-6">
               {section.id === "game" && gameGrid.length > 0 ? (
-                <GameGrid games={gameGrid} priorityCount={0} />
+                <GameGrid games={gameGrid} priorityCount={0} logoMorph />
               ) : (
                 <EntityGrid hits={section.hits} />
               )}
@@ -360,22 +360,19 @@ function Discovery() {
     <div className="max-w-5xl">
       <RecentSearchChips />
       <section aria-labelledby="search-try">
-        <h2 id="search-try" className="text-[13px] font-semibold text-muted">Try searching for</h2>
+        <h2 id="search-try" className="text-[13px] font-semibold text-muted">Try</h2>
         <PromptChips className="mt-3" />
       </section>
       <section aria-labelledby="search-browse" className="mt-12">
-        <h2 id="search-browse" className="text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">Browse instead</h2>
-        <ul className="-mx-3 mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <h2 id="search-browse" className="text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">Browse</h2>
+        <ul className="-mx-3 mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {BROWSE_LINKS.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
-                className="group flex min-h-[72px] items-center gap-3 rounded-2xl px-3 transition-colors fine:hover:bg-fg/[0.05]"
+                className="group flex min-h-14 items-center gap-3 rounded-2xl px-3 transition-colors fine:hover:bg-fg/[0.05] coarse:active:bg-fg/[0.06]"
               >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[17px] font-semibold tracking-[-0.01em]">{link.label}</span>
-                  <span className="block text-[13px] text-muted">{link.detail}</span>
-                </span>
+                <span className="min-w-0 flex-1 text-[17px] font-semibold tracking-[-0.01em]">{link.label}</span>
                 <ArrowUpRight size={16} aria-hidden className="shrink-0 text-faint transition-transform fine:group-hover:-translate-y-0.5 fine:group-hover:translate-x-0.5" />
               </Link>
             </li>

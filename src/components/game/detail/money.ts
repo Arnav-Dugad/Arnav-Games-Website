@@ -69,3 +69,13 @@ export function countryName(code: string): string {
     return code;
   }
 }
+
+/**
+ * A per-hour rate. From 10 major units up the cents are noise ("₹65", not
+ * "₹65.43"); below that they're the whole story ("$1.30").
+ */
+export function formatRate(minor: number, currency: string, country?: string | null): string {
+  const major = toMajor(minor, currency);
+  const rounded = major >= 10 ? Math.round(major) * 10 ** fractionDigits(currency) : Math.round(minor);
+  return formatMoney(rounded, currency, country);
+}

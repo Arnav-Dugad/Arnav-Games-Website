@@ -42,6 +42,15 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       {
+        // First: on Android the long-press list is ordered, and this is the
+        // glance people install the app for.
+        name: "Today",
+        short_name: "Today",
+        description: "Your next releases and what's out today",
+        url: "/today",
+        icons: [{ src: "/icons/shortcut-today.png", sizes: "192x192", type: "image/png" }],
+      },
+      {
         name: "Upcoming releases",
         short_name: "Upcoming",
         description: "What's releasing next",

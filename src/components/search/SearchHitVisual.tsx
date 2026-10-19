@@ -7,6 +7,7 @@ import {
   User,
 } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
+import { CoverTransition } from "@/components/interactions/CoverTransition";
 import { cn } from "@/lib/utils/cn";
 import type { SearchHit, SearchKind } from "@/lib/games/search";
 import { ResilientMediaImage } from "@/components/game/ResilientMediaImage";
@@ -33,9 +34,12 @@ const TONES: Record<SearchKind, string> = {
 export function SearchHitVisual({
   hit,
   size = "compact",
+  coverActive = false,
 }: {
   hit: SearchHit;
   size?: "compact" | "card";
+  /** Games: this thumbnail holds the cover-morph claim (see `useResultMorph`). */
+  coverActive?: boolean;
 }) {
   const Icon = ICONS[hit.kind];
   // `flex` on every root: the visual is often placed in a plain block (the
@@ -50,14 +54,16 @@ export function SearchHitVisual({
     });
     return (
       <span className={cn("relative flex shrink-0 overflow-hidden border border-fg/10", dimensions)}>
-        <GameCover
-          name={hit.name}
-          slug={hit.slug}
-          image={hit.image}
-          imageFallback={null}
-          width={size === "card" ? 200 : 96}
-          sizes={size === "card" ? "80px" : "44px"}
-        />
+        <CoverTransition slug={hit.slug} active={coverActive}>
+          <GameCover
+            name={hit.name}
+            slug={hit.slug}
+            image={hit.image}
+            imageFallback={null}
+            width={size === "card" ? 200 : 96}
+            sizes={size === "card" ? "80px" : "44px"}
+          />
+        </CoverTransition>
         {upcoming && (
           <span className="absolute inset-x-1 bottom-1 rounded-md bg-brand/90 px-1 py-0.5 text-center text-[8px] font-black uppercase tracking-[0.06em] text-white">
             Upcoming

@@ -2,24 +2,32 @@ import { Container } from "@/components/ui/SectionHeading";
 import { GameGridSkeleton, Skeleton } from "@/components/ui/Skeleton";
 
 /**
- * Shown while a browse query resolves.
+ * Shown while a browse query resolves on arrival from another route.
+ * (Filter changes within /browse keep the page and dim the grid instead.)
  *
- * Route-level rather than global: paging and filtering both re-run a
- * server-side query, and without a boundary here the reader sees the previous
- * page hold still and then jump — or, on a slow provider, nothing at all.
+ * Mirrors the real layout — title, search well, suggestion rail, toolbar,
+ * grid — so nothing jumps when the content lands.
  */
 export default function BrowseLoading() {
   return (
-    <Container className="pt-28 lg:pt-36">
-      <Skeleton className="h-4 w-24 rounded-full" />
-      <Skeleton className="mt-4 h-11 w-72 max-w-full rounded-xl" />
-
-      <div className="mt-8 flex items-center justify-between gap-4">
-        <Skeleton className="h-5 w-28 rounded" />
-        <Skeleton className="h-11 w-44 rounded-full" />
+    <Container className="pt-24 lg:pt-32">
+      <Skeleton className="h-10 w-40 rounded-xl sm:h-12" />
+      <Skeleton className="mt-6 h-12 w-full rounded-full sm:mt-8 lg:mt-10" />
+      <div className="mt-3 flex gap-2 overflow-hidden">
+        {["w-28", "w-24", "w-32", "w-[104px]", "w-[116px]"].map((width) => (
+          <Skeleton key={width} className={`h-11 shrink-0 rounded-full sm:h-9 ${width}`} />
+        ))}
       </div>
-
-      <div className="mt-8">
+      <div className="mt-5 flex items-center justify-between gap-4">
+        <Skeleton className="h-5 w-28 rounded" />
+        <Skeleton className="h-11 w-40 rounded-full" />
+      </div>
+      <div className="mt-3 flex gap-2 overflow-hidden">
+        {["w-[92px]", "w-[84px]", "w-[100px]", "w-28"].map((width) => (
+          <Skeleton key={width} className={`h-11 shrink-0 rounded-full sm:h-9 ${width}`} />
+        ))}
+      </div>
+      <div className="mt-6 sm:mt-8">
         <GameGridSkeleton count={12} />
       </div>
     </Container>

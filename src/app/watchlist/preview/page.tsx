@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { WatchlistView } from "@/components/game/WatchlistView";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { sampleLibrary } from "@/components/stats/preview-sample";
+import { sampleLibrary, sampleWishlist } from "@/components/stats/preview-sample";
 
 export const metadata: Metadata = {
   title: "Watchlist preview",
@@ -17,10 +17,14 @@ export const metadata: Metadata = {
 export default function WatchlistPreviewPage() {
   if (process.env.NODE_ENV !== "development") notFound();
   const { entries } = sampleLibrary();
+  const wishlist = sampleWishlist();
   return (
     <>
-      <PageHeader eyebrow="Dev preview · sample data" title="Watchlist" description="Everything you're tracking, with the next release up top." />
-      <WatchlistView previewEntries={entries.map((entry) => ({ ...entry, watchlisted: true }))} />
+      <PageHeader eyebrow="Dev preview · sample data" title="Watchlist" description="Everything you're tracking." />
+      <WatchlistView
+        previewEntries={[...entries.map((entry) => ({ ...entry, watchlisted: true })), ...wishlist.entries]}
+        previewBudget={{ region: "US", prices: wishlist.prices, hours: wishlist.timeToBeat }}
+      />
     </>
   );
 }

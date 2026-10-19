@@ -263,6 +263,8 @@ export interface SpotlightGame extends GameSummary {
   palette: CoverPalette | null;
   /** The opening sentence of IGDB's summary, trimmed for a hero line. */
   tagline: string | null;
+  /** A notable game releasing today (UTC), moved to the front of the hero. */
+  takeover?: boolean;
 }
 
 /** A game with its 0–100 hype score, for anticipation-ranked shelves. */

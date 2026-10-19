@@ -82,10 +82,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         aria-live="polite"
         aria-atomic="false"
         className={cn(
-          "pointer-events-none fixed z-[300] flex flex-col items-center gap-2",
-          // Clears the mobile tab bar; anchors to the corner on desktop.
-          "inset-x-4 bottom-[calc(6.25rem+env(safe-area-inset-bottom))]",
-          "sm:inset-x-auto sm:right-6 sm:bottom-6 sm:items-end",
+          "pointer-events-none fixed z-(--z-toast) flex flex-col items-center gap-2",
+          // Clears the tab bar wherever it renders — touch tablets included,
+          // where a corner toast used to sit on top of the bar's right end.
+          "inset-x-4 bottom-(--float-bottom)",
+          "sm:inset-x-auto sm:right-6 sm:items-end",
         )}
       >
         <AnimatePresence initial={false}>
@@ -107,7 +108,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => dismiss(item.id)}
                 aria-label="Dismiss"
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-faint transition-colors hover:bg-fg/8 hover:text-text"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-faint transition-colors hover:bg-fg/8 hover:text-text coarse:h-11 coarse:w-11"
               >
                 <X size={14} />
               </button>

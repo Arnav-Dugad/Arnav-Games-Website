@@ -14,10 +14,13 @@ export function GameGrid({
   games,
   className,
   priorityCount = 4,
+  logoMorph = false,
 }: {
   games: GameSummary[];
   className?: string;
   priorityCount?: number;
+  /** Search results: titles morph into the game page logo (see `GameCard`). */
+  logoMorph?: boolean;
 }) {
   return (
     <Stagger
@@ -37,6 +40,7 @@ export function GameGrid({
           <GameCard
             game={game}
             priority={i < priorityCount}
+            logoMorph={logoMorph}
             sizes="(max-width: 640px) 46vw, (max-width: 1024px) 30vw, (max-width: 1280px) 23vw, 220px"
           />
         </StaggerItem>

@@ -29,7 +29,6 @@ export default async function StatsPage() {
     <>
       <PageHeader
         title="Your stats"
-        description="Your taste, your time and your backlog, from your own library. Every chart says what it's based on."
       />
       <CollectionGate
         title="Your gaming, decoded"
