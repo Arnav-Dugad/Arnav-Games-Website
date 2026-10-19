@@ -22,6 +22,15 @@
       "bucket_name": "arnav-games-opennext-cache"
     }
   ],
+  "d1_databases": [
+    {
+      // Release-date history (delay tracker) and first-party analytics.
+      "binding": "DB",
+      "database_name": "arnav-games",
+      "database_id": "4f2aa1df-022e-4c02-b900-1a8dad25d6e4",
+      "migrations_dir": "migrations"
+    }
+  ],
   "observability": {
     "enabled": true
   }

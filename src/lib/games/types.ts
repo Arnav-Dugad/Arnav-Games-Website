@@ -125,6 +125,75 @@ export interface MultiplayerModes {
   offlineMax: number | null;
 }
 
+/**
+ * A game's wordmark. `tone` says what background it was drawn for:
+ * "light" is a white mark (for dark UI), "dark" a black mark (for light UI,
+ * or inverted on dark), "color" a full-colour mark that works on either.
+ */
+export interface GameLogo {
+  url: string;
+  tone: "light" | "dark" | "color";
+  source: "igdb" | "steam" | "wikidata";
+}
+
+/** Colours sampled from a game's cover art, as hex strings. */
+export interface CoverPalette {
+  dominant: string;
+  vibrant: string;
+  muted: string;
+  /** True when `dominant` is dark enough that white text reads on it. */
+  isDark: boolean;
+}
+
+/** IGDB `game_time_to_beats`, converted to hours. */
+export interface TimeToBeat {
+  hastily: number | null;
+  normally: number | null;
+  completely: number | null;
+  /** How many player submissions the figures are based on. */
+  count: number;
+}
+
+/** Third-party identities for one game, used to join external data sources. */
+export interface ExternalIds {
+  steam: number | null;
+  twitch: string | null;
+  gog: string | null;
+  /** Microsoft Store "BigId", which is also what Game Pass catalogues list. */
+  microsoft: string | null;
+  epic: string | null;
+}
+
+/** Outbound reference links resolved through Wikidata. */
+export interface ReferenceLinks {
+  wikipedia: string | null;
+  howLongToBeat: string | null;
+  openCritic: string | null;
+  metacritic: string | null;
+  pcGamingWiki: string | null;
+}
+
+/** 0–100 composite anticipation/attention score and the signals behind it. */
+export interface HypeIndex {
+  score: number;
+  signals: {
+    hypes: number;
+    wantToPlay: number | null;
+    visits: number | null;
+    playing: number | null;
+    peakPlayers24h: number | null;
+  };
+}
+
+/** One observed change of a game's release date, from our own history. */
+export interface ReleaseChange {
+  /** What the date/window was before the change (ISO date or window label). */
+  from: string;
+  to: string;
+  /** When we noticed the change, ISO timestamp. */
+  observedAt: string;
+}
+
 export interface GameSummary {
   id: number;
   slug: string;
@@ -180,6 +249,8 @@ export interface GameSummary {
   playtime: number;
   /** RAWG's popularity signal — how many users have it in a library. */
   added: number;
+  /** Official wordmark when one is known; render via `GameLogo`, which falls back to a typographic mark. */
+  logo?: GameLogo | null;
 }
 
 export interface GameDetail extends GameSummary {
@@ -247,6 +318,48 @@ export interface GameDetail extends GameSummary {
   redditUrl: string | null;
   metacriticUrl: string | null;
   alternativeNames: string[];
+  timeToBeat?: TimeToBeat | null;
+  palette?: CoverPalette | null;
+  externalIds?: ExternalIds | null;
+  links?: ReferenceLinks | null;
+  hypeIndex?: HypeIndex | null;
+  /** Release-date changes we have observed over time (oldest first). */
+  releaseChanges?: ReleaseChange[];
+}
+
+/**
+ * Fast-moving data for one game, fetched client-side from
+ * `/api/game/[id]/live` so the page itself stays cacheable.
+ * Every field is null when its source has nothing or is unreachable.
+ */
+export interface GameLiveData {
+  steamPlayers: number | null;
+  steamReviews: {
+    description: string;
+    positive: number;
+    negative: number;
+    total: number;
+    /** 0–100 share of positive reviews. */
+    percent: number;
+  } | null;
+  twitch: {
+    viewers: number;
+    streams: number;
+    top: Array<{ user: string; title: string; viewers: number; thumbnail: string; url: string }>;
+  } | null;
+  deals: {
+    cheapest: { store: string; price: number; retail: number; savings: number; url: string } | null;
+    stores: Array<{ store: string; price: number; retail: number; savings: number; url: string }>;
+    historicalLow: { price: number; date: string } | null;
+  } | null;
+  news: Array<{ title: string; url: string; date: string; source: string; excerpt: string }>;
+  gamePass: {
+    console: boolean;
+    pc: boolean;
+    leavingSoon: boolean;
+    recentlyAdded: boolean;
+  } | null;
+  fetchedAt: string;
 }
 
 export interface Page<T> {
