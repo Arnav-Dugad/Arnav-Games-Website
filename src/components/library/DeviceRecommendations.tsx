@@ -1,31 +1,25 @@
 "use client";
 
 /**
- * "For your devices": recommendations split by the systems the reader
- * actually owns games on.
+ * "For your devices": the recommendation engine's picks that run on the
+ * systems the reader owns games on, one tab per device.
  *
- * Each tab sends the same anonymous taste shape the home page uses (top genre
- * ids, ids to exclude) plus that device's exact IGDB platform slugs, so a
- * PlayStation 5 tab never suggests a Switch exclusive. Results are filtered
- * on the client as well: when the profile is too thin the route falls back to
- * an unfiltered top-rated list, and a platform-blind fallback must not be
- * presented as "for your PS5".
- *
- * Steam Deck: ownership records do distinguish a Deck ("steam-deck"), so a
- * reader who has one gets the PC picks re-ordered Verified → Playable → the
- * rest, using Valve's own rating per game. Without a Deck, PC picks are left
- * in taste order and no Deck chips are shown.
+ * The picks come from recommendations v2 (`onYourDevices`, topped up from
+ * "For you"), the same cached answer the home page and /for-you use — so
+ * this shelf costs no request of its own. Each tab keeps only games on that
+ * device's exact IGDB platforms (a PlayStation 5 tab never suggests a Switch
+ * exclusive), and every card says why it was picked.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { GameCard } from "@/components/game/GameCard";
+import { useMemo, useState } from "react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
+import { RecPosterCard } from "@/components/recs/RecCard";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { buildTasteProfile, MIN_TASTE_STRENGTH } from "@/lib/games/taste";
 import { haptic } from "@/lib/haptics";
+import { useRecommendationsV2 } from "@/lib/recs/use-recommendations";
 import { RailTabs, SmartRail } from "./SmartRail";
 import type { WatchlistEntry } from "@/lib/firebase/db";
-import type { DeckStatus, GamePcInfo, GameSummary } from "@/lib/games/types";
+import type { RecommendedGame } from "@/lib/games/types";
 
 interface Device {
   id: string;
@@ -34,7 +28,6 @@ interface Device {
   /** IGDB platform slugs a game must be on to count for this device. */
   igdb: string[];
   owned: number;
-  deck?: boolean;
 }
 
 const PC_STORES = new Set(["steam", "epic", "gog", "xbox-pc", "battlenet", "ea", "ubisoft", "itch", "amazon-games", "rockstar", "direct-pc"]);
@@ -53,7 +46,7 @@ function devicesFor(owned: WatchlistEntry[]): Device[] {
   const pc = count((slug) => PC_STORES.has(slug) || slug === "steam-deck");
   if (pc > 0) {
     const onlyDeck = deck && count((slug) => PC_STORES.has(slug)) === 0;
-    devices.push({ id: "pc", label: onlyDeck ? "Steam Deck" : deck ? "PC & Steam Deck" : "PC", icon: "steam", igdb: ["win"], owned: pc, deck });
+    devices.push({ id: "pc", label: onlyDeck ? "Steam Deck" : deck ? "PC & Steam Deck" : "PC", icon: "steam", igdb: ["win"], owned: pc });
   }
 
   const ps5 = has("ps5");
@@ -105,82 +98,30 @@ function devicesFor(owned: WatchlistEntry[]): Device[] {
   return devices.sort((a, b) => b.owned - a.owned);
 }
 
-const DECK_ORDER: Record<DeckStatus, number> = { verified: 0, playable: 1, unknown: 2, unsupported: 3 };
-
-type Result = { key: string; games: GameSummary[]; deck: Record<number, DeckStatus | null> | null };
+const PER_DEVICE = 14;
 
 export default function DeviceRecommendations({ entries }: { entries: WatchlistEntry[] }) {
   const owned = useMemo(() => entries.filter((entry) => (entry.ownedOn ?? []).length > 0), [entries]);
   const devices = useMemo(() => devicesFor(owned), [owned]);
   const [picked, setPicked] = useState<string | null>(null);
   const device = devices.find((item) => item.id === picked) ?? devices[0];
+  const { view } = useRecommendationsV2({ enabled: devices.length > 0 });
 
-  const profile = useMemo(
-    () =>
-      buildTasteProfile(
-        entries.map((entry) => ({
-          gameId: entry.gameId,
-          genreIds: entry.genreIds ?? [],
-          platformSlugs: entry.platformSlugs ?? [],
-          status: entry.status,
-          platform: entry.platform ?? null,
-          addedAt: entry.addedAt,
-          finishedAt: entry.finishedAt ?? null,
-        })),
-      ),
-    [entries],
-  );
-  const usable = profile.strength >= MIN_TASTE_STRENGTH && profile.genreIds.length > 0;
-  const known = useMemo(() => new Set(entries.map((entry) => entry.gameId)), [entries]);
+  const picks = useMemo<RecommendedGame[]>(() => {
+    if (view.status !== "ready" || !device) return [];
+    const wanted = new Set(device.igdb);
+    const seen = new Set<number>();
+    return [...view.data.onYourDevices, ...view.data.forYou]
+      .filter((rec) => {
+        if (seen.has(rec.game.id) || !rec.game.platforms.some((platform) => wanted.has(platform.slug))) return false;
+        seen.add(rec.game.id);
+        return true;
+      })
+      .slice(0, PER_DEVICE);
+  }, [view, device]);
 
-  const key = usable && device
-    ? [device.id, device.igdb.join(","), profile.genreIds.join(","), profile.excludeIds.slice(0, 40).join(","), device.deck ? "deck" : ""].join("|")
-    : "";
-  const [results, setResults] = useState<Record<string, Result>>({});
+  if (!device || view.status === "off" || view.status === "error") return null;
 
-  useEffect(() => {
-    if (!key || !device || results[key]) return;
-    const controller = new AbortController();
-    const [, platforms, genres, exclude, deckFlag] = key.split("|");
-    const wanted = new Set(platforms.split(","));
-    const params = new URLSearchParams({ genres, platforms, exclude, limit: "16" });
-
-    void (async () => {
-      try {
-        const response = await fetch(`/api/recommendations?${params}`, { signal: controller.signal });
-        const body = (response.ok ? await response.json() : { results: [] }) as { results?: GameSummary[] };
-        const games = (Array.isArray(body.results) ? body.results : [])
-          .filter((game) => !known.has(game.id) && game.platforms.some((platform) => wanted.has(platform.slug)))
-          .slice(0, 12);
-
-        let deck: Result["deck"] = null;
-        if (deckFlag && games.length > 0) {
-          // Valve's per-game rating; cached at the edge for a day, so a
-          // revisit costs nothing. A miss is "unknown", never "unsupported".
-          const statuses = await Promise.all(
-            games.map((game) =>
-              fetch(`/api/game/${game.id}/pc`, { signal: controller.signal })
-                .then((r) => (r.ok ? (r.json() as Promise<GamePcInfo>) : null))
-                .then((info) => [game.id, info?.deck ?? null] as const)
-                .catch(() => [game.id, null] as const),
-            ),
-          );
-          deck = Object.fromEntries(statuses);
-          const rank = (id: number) => DECK_ORDER[deck?.[id] ?? "unknown"];
-          games.sort((a, b) => rank(a.id) - rank(b.id));
-        }
-        setResults((current) => ({ ...current, [key]: { key, games, deck } }));
-      } catch (error) {
-        if (!(error instanceof Error && error.name === "AbortError")) {
-          setResults((current) => ({ ...current, [key]: { key, games: [], deck: null } }));
-        }
-      }
-    })();
-    return () => controller.abort();
-  }, [key, device, known, results]);
-
-  if (!usable || !device) return null;
-  const current = results[key];
   const tabs = devices.length > 1 ? (
     <RailTabs
       label="Device"
@@ -199,7 +140,7 @@ export default function DeviceRecommendations({ entries }: { entries: WatchlistE
 
   const title = devices.length > 1 ? "For your devices" : `For your ${device.label}`;
 
-  if (!current) {
+  if (view.status === "loading") {
     return (
       <SmartRail title={title} header={tabs} itemClassName="w-[140px] sm:w-[176px]">
         {Array.from({ length: 6 }, (_, index) => (
@@ -209,37 +150,19 @@ export default function DeviceRecommendations({ entries }: { entries: WatchlistE
     );
   }
 
-  if (current.games.length === 0) {
+  if (picks.length === 0) {
     return (
-      <SmartRail title={title} header={tabs} itemClassName="w-full">
+      <SmartRail title={title} header={tabs} seeAllHref="/for-you" itemClassName="w-full">
         <p className="py-6 text-[15px] text-muted">No new picks for {device.label} right now.</p>
       </SmartRail>
     );
   }
 
   return (
-    <SmartRail title={title} header={tabs} itemClassName="w-[140px] sm:w-[176px]">
-      {current.games.map((game) => {
-        const deck = current.deck?.[game.id] ?? null;
-        return (
-          <div key={game.id} className="relative">
-            <GameCard game={game} sizes="176px" showOwnership={false} />
-            {(deck === "verified" || deck === "playable") && (
-              <span className="pointer-events-none absolute inset-x-0 top-0 aspect-[3/4]">
-                <span
-                  className={
-                    deck === "verified"
-                      ? "absolute bottom-2 left-2 rounded-full bg-mint px-2 py-0.5 text-[11px] font-semibold text-black shadow-lg"
-                      : "absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur"
-                  }
-                >
-                  {deck === "verified" ? "Deck Verified" : "Deck Playable"}
-                </span>
-              </span>
-            )}
-          </div>
-        );
-      })}
+    <SmartRail title={title} header={tabs} seeAllHref="/for-you" itemClassName="w-[140px] sm:w-[176px]">
+      {picks.map((rec) => (
+        <RecPosterCard key={rec.game.id} rec={rec} skip={["platform"]} />
+      ))}
     </SmartRail>
   );
 }

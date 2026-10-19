@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Children, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Container } from "@/components/ui/SectionHeading";
@@ -14,6 +15,7 @@ export function SmartRail({
   subtitle,
   count,
   onSeeAll,
+  seeAllHref,
   header,
   itemClassName = "w-[120px] sm:w-[156px]",
   children,
@@ -22,6 +24,8 @@ export function SmartRail({
   subtitle?: ReactNode;
   count?: number;
   onSeeAll?: () => void;
+  /** A "See all" that goes to another page instead of filtering this one. */
+  seeAllHref?: string;
   header?: ReactNode;
   itemClassName?: string;
   children: ReactNode;
@@ -36,6 +40,12 @@ export function SmartRail({
           </h2>
           {subtitle && <p className="text-[13px] text-muted sm:text-[15px]">{subtitle}</p>}
         </div>
+        {seeAllHref && !onSeeAll && (
+          <Link href={seeAllHref} className="press group inline-flex min-h-11 shrink-0 items-center gap-1 text-[15px] font-medium text-brand-soft fine:hover:text-text">
+            See all
+            <ArrowRight size={15} aria-hidden className="transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        )}
         {onSeeAll && (
           <button type="button" onClick={onSeeAll} className="press group inline-flex min-h-11 shrink-0 items-center gap-1 text-[15px] font-medium text-brand-soft fine:hover:text-text">
             See all
@@ -45,7 +55,7 @@ export function SmartRail({
         )}
       </Container>
       {header}
-      <ul className="snap-rail rail-gutter gap-3 pb-2 sm:gap-4">
+      <ul className="snap-rail rail-gutter relative gap-3 pb-2 sm:gap-4">
         {Children.map(children, (child) => (
           <li className={cn("shrink-0", itemClassName)}>{child}</li>
         ))}

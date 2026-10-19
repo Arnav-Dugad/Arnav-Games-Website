@@ -21,13 +21,15 @@ import { cn } from "@/lib/utils/cn";
 import type { GameDetail, GamePcInfo, HardwareVerdictKind, PcRequirementTier, PcRequirements } from "@/lib/games/types";
 import { Disclosure } from "./Disclosure";
 import { pcUrl, useEndpoint, type GameIds } from "./endpoint";
-import { useInsightPart } from "./live";
+import { useInsightPart, usePagePart } from "./live";
 import { InfoTip } from "./InfoTip";
 import { AchievementsCard, DeckLinuxCard } from "./StatsSection";
 
 // Only needed once someone taps "Check my PC": kept out of the page's first load.
 const MyPcSheet = dynamic(() => import("@/components/pc/MyPcSheet").then((mod) => mod.MyPcSheet), { ssr: false });
 // Client-only by nature (specs live on the device); keeps the hardware tables out of the server render.
+// Features and accessibility come from the page's lazily-loaded extras; client-only.
+const PcFeatures = dynamic(() => import("./PcFeatures"), { ssr: false });
 const HardwareVerdictView = dynamic(() => import("./HardwareVerdict").then((mod) => mod.HardwareVerdictView), {
   ssr: false,
   loading: () => <Skeleton className="mt-3 h-8 w-64 max-w-full rounded-full" />,
@@ -55,6 +57,8 @@ export function PcSection({ ids, rawRequirements }: { ids: GameIds; rawRequireme
   const fromPage = useInsightPart(ids, "pc");
   const own = useEndpoint<GamePcInfo>(!fromPage && ids.steam ? pcUrl(ids) : null);
   const pc = fromPage ?? own;
+  const antiCheatPart = usePagePart("antiCheat");
+  const antiCheat = antiCheatPart?.status === "ready" ? antiCheatPart.data : null;
   const data = pc.status === "ready" ? pc.data : null;
   const requirements = data?.requirements ?? null;
   const rawPc = rawRequirements.find((req) => /pc|windows/i.test(req.platform)) ?? rawRequirements[0] ?? null;
@@ -69,12 +73,15 @@ export function PcSection({ ids, rawRequirements }: { ids: GameIds; rawRequireme
   }
 
   const hasRun = Boolean(requirements?.minimum || requirements?.recommended || rawPc);
-  const hasCompat = Boolean(data?.deck || data?.proton);
+  const hasCompat = Boolean(data?.deck || data?.proton || antiCheat);
   if (!hasRun && !hasCompat && !data?.achievements) {
     return (
-      <p className="glass rounded-3xl p-5 text-[15px] text-muted sm:p-6">
-        Steam hasn&rsquo;t published PC requirements, Steam Deck or Linux ratings for this game yet.
-      </p>
+      <div className="space-y-4">
+        <p className="glass rounded-3xl p-5 text-[15px] text-muted sm:p-6">
+          Steam hasn&rsquo;t published PC requirements, Steam Deck or Linux ratings for this game yet.
+        </p>
+        <PcFeatures />
+      </div>
     );
   }
 
@@ -83,10 +90,11 @@ export function PcSection({ ids, rawRequirements }: { ids: GameIds; rawRequireme
       {hasRun && <WillItRun requirements={requirements} raw={rawPc} />}
       {(hasCompat || data?.achievements) && (
         <div className={cn("grid gap-4", hasCompat && data?.achievements && "md:grid-cols-2")}>
-          {data && <DeckLinuxCard deck={data.deck} proton={data.proton} />}
+          {hasCompat && <DeckLinuxCard deck={data?.deck ?? null} proton={data?.proton ?? null} antiCheat={antiCheat} />}
           {data?.achievements && <AchievementsCard stats={data.achievements} />}
         </div>
       )}
+      <PcFeatures />
     </div>
   );
 }

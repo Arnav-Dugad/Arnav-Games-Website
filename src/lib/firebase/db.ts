@@ -737,3 +737,39 @@ export function averageRating(reviews: Review[]): number | null {
   const total = reviews.reduce((sum, r) => sum + r.rating, 0);
   return Math.round((total / reviews.length) * 10) / 10;
 }
+
+/* ---------------------------------------------------------------------------
+ * Recommendation feedback
+ * ------------------------------------------------------------------------ */
+
+/**
+ * users/{uid}/feedback/{gameId} — one opinion per game on a recommendation.
+ * Read once per session (see `src/lib/recs/feedback.ts`, which also keeps a
+ * device copy so signed-out readers can tune picks too).
+ */
+export interface StoredRecFeedback {
+  gameId: number;
+  kind: "up" | "down" | "not-interested" | "ignored";
+  at: number;
+}
+
+export async function getRecFeedback(uid: string): Promise<StoredRecFeedback[]> {
+  const db = getDb();
+  if (!db) return [];
+  const snap = await getDocs(query(collection(db, "users", uid, "feedback"), fsLimit(400)));
+  return snap.docs.map((d) => d.data() as StoredRecFeedback).filter((item) => item.gameId > 0);
+}
+
+export async function setRecFeedback(uid: string, item: StoredRecFeedback): Promise<void> {
+  const db = requireDb();
+  await setDoc(doc(db, "users", uid, "feedback", String(item.gameId)), {
+    gameId: item.gameId,
+    kind: item.kind,
+    at: Math.round(item.at),
+  });
+}
+
+export async function deleteRecFeedback(uid: string, gameId: number): Promise<void> {
+  const db = requireDb();
+  await deleteDoc(doc(db, "users", uid, "feedback", String(gameId)));
+}

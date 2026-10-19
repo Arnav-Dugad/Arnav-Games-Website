@@ -61,11 +61,11 @@ const PhysicsShelf = dynamic(() => import("@/components/shelf/PhysicsShelf"), {
 });
 
 /*
- * Network-backed shelves (Game Pass catalogue, device recommendations): they
+ * Network-backed shelves (cloud/Game Pass matches, device recommendations): they
  * only mean anything for a signed-in reader's own data, so they never render
  * on the server and stay out of the first chunk.
  */
-const GamePassNext = dynamic(() => import("./GamePassNext"), { ssr: false });
+const CloudPlay = dynamic(() => import("./CloudPlay"), { ssr: false });
 const DeviceRecommendations = dynamic(() => import("./DeviceRecommendations"), { ssr: false });
 
 type SortKey = "added" | "name" | "score" | "released";
@@ -266,7 +266,7 @@ export function LibraryView({
             ))}
           </SmartRail>
         )}
-        <GamePassNext entries={entries} hours={ttb.data} preview={previewGamePass} />
+        <CloudPlay entries={entries} hours={ttb.data} preview={previewGamePass} />
         {groups.backlog.length > 0 && <BacklogByPlatform platforms={groups.backlog} hours={ttb.data} />}
         {groups.finished.length > 0 && (
           <SmartRail title="Recently finished" count={groups.finished.length} onSeeAll={() => showStatus("played")}>

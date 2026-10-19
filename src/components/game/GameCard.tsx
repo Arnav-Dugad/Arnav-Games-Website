@@ -36,11 +36,11 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CalendarClock } from "lucide-react";
 import { TiltCard } from "@/components/motion/TiltCard";
 import { CoverTransition, useSharedCover } from "@/components/interactions/CoverTransition";
-import { useGameMenuTarget } from "@/components/interactions/game-menu-targets";
+import { useGameMenuTarget, type RecommendationMenu } from "@/components/interactions/game-menu-targets";
 import { LogoMorph, useSharedLogo } from "@/components/search/LogoMorph";
 import { constrainedDataNow } from "./BackdropTrailer";
 import { GameCover } from "./GameCover";
@@ -132,6 +132,12 @@ interface GameCardProps {
    * alone is the quieter, expected transition.
    */
   logoMorph?: boolean;
+  /** Recommended cards: feedback items in the long-press / right-click menu. */
+  recommendation?: RecommendationMenu;
+  /** Extra layer over the poster (badges, hover controls); positioned by the caller. */
+  overlay?: ReactNode;
+  /** Under the title and caption (e.g. why it was recommended). */
+  footer?: ReactNode;
 }
 
 export function GameCard({
@@ -143,11 +149,14 @@ export function GameCard({
   showOwnership = true,
   size = "default",
   logoMorph = false,
+  recommendation,
+  overlay,
+  footer,
 }: GameCardProps) {
   const upcoming = isUnreleased(game);
   const caption = cardCaption(game, upcoming);
   const cover = useSharedCover(game.slug, game.image);
-  const menuRef = useGameMenuTarget(game, cover.claim);
+  const menuRef = useGameMenuTarget(game, cover.claim, recommendation);
   const title = useSharedLogo(game.slug);
   const open = () => {
     cover.claim();
@@ -224,6 +233,8 @@ export function GameCard({
         </Link>
       </TiltCard>
 
+      {overlay}
+
       {/* Touch: the actions ride on the poster as glass chips, so the title
           below gets the full card width instead of being squeezed. */}
       <div className="absolute left-2 top-2 z-10 flex gap-2.5 fine:hidden">
@@ -263,6 +274,7 @@ export function GameCard({
               <span className="truncate">{caption}</span>
             </p>
           )}
+          {footer}
         </div>
 
         {/*

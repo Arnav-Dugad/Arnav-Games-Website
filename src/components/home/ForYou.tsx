@@ -17,25 +17,24 @@
  */
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
-import { GameRail } from "@/components/game/GameRail";
 import { Button } from "@/components/ui/Button";
 import { Container, SectionHeading } from "@/components/ui/SectionHeading";
-import { GameRailSkeleton, Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { entryAsGameSummary, useGameMenuTarget } from "@/components/interactions/game-menu-targets";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import type { WatchlistEntry } from "@/lib/firebase/db";
 import { daysUntilRelease } from "@/lib/games/dashboard";
-import { buildTasteProfile, MIN_TASTE_STRENGTH } from "@/lib/games/taste";
 import { canonicalEntryHref } from "@/lib/notifications/model";
 import { releaseState } from "@/lib/games/release-state";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/format";
-import { readLocalCache, writeLocalCache } from "@/lib/utils/local-cache";
-import type { GameSummary, Ref } from "@/lib/games/types";
+
+// Picks are personal and device-cached: client-only, and out of the server render.
+const HomeRecs = dynamic(() => import("@/components/recs/HomeRecs"), { ssr: false });
 
 const MAX_CARDS = 10;
 /** How far ahead a followed release still counts as "landing soon". */
@@ -106,10 +105,8 @@ function greeting(now: number): string {
 }
 
 export function ForYou({
-  genres,
   previewEntries,
 }: {
-  genres: Ref[];
   /** Dev preview only (see the homepage): renders as if signed in with these. */
   previewEntries?: WatchlistEntry[];
 }) {
@@ -129,7 +126,6 @@ export function ForYou({
   }, []);
 
   const shelf = useMemo(() => (now ? buildShelf(entries, now) : []), [entries, now]);
-  const recommendations = useRecommendations(entries, genres, signedIn && now > 0);
 
   if (!signedIn || (authLoading && !previewEntries) || now === 0) return null;
   if (watchlistLoading) return <ForYouSkeleton />;
@@ -184,25 +180,7 @@ export function ForYou({
         </Container>
       )}
 
-      {recommendations.state !== "off" && (
-        <div className="mt-10 sm:mt-12">
-          <Container>
-            <h3 className="flex items-center gap-2 text-[17px] font-semibold tracking-[-0.01em] sm:text-[20px]">
-              <Sparkles size={16} className="text-brand-soft" aria-hidden />
-              {recommendations.title}
-            </h3>
-          </Container>
-          <div className="mt-4 sm:mt-5">
-            {recommendations.state === "loading" ? (
-              <Container>
-                <GameRailSkeleton count={6} />
-              </Container>
-            ) : (
-              <GameRail games={recommendations.games} />
-            )}
-          </div>
-        </div>
-      )}
+      <HomeRecs />
     </section>
   );
 }
@@ -258,84 +236,6 @@ function LibraryCard({ card }: { card: ShelfCard }) {
       </Link>
     </div>
   );
-}
-
-type RecommendationView =
-  | { state: "off" }
-  | { state: "loading"; title: string }
-  | { state: "ready"; title: string; games: GameSummary[] };
-
-/**
- * Taste-profile recommendations. Only the anonymous shape of the reader's
- * taste (genre ids, platform slugs) leaves the browser; see the API route.
- */
-/** Recommendations for an unchanged taste profile are reused on the device this long. */
-const RECS_TTL_MS = 6 * 60 * 60_000;
-
-function useRecommendations(entries: WatchlistEntry[], genres: Ref[], enabled: boolean): RecommendationView {
-  const profile = useMemo(
-    () =>
-      buildTasteProfile(
-        entries.map((entry) => ({
-          gameId: entry.gameId,
-          genreIds: entry.genreIds ?? [],
-          platformSlugs: entry.platformSlugs ?? [],
-          status: entry.status,
-          platform: entry.platform ?? null,
-          addedAt: entry.addedAt,
-          finishedAt: entry.finishedAt ?? null,
-        })),
-      ),
-    [entries],
-  );
-  const usable = enabled && profile.strength >= MIN_TASTE_STRENGTH && profile.genreIds.length > 0;
-  const key = usable
-    ? [profile.genreIds.join(","), profile.platformSlugs.join(","), profile.excludeIds.slice(0, 40).join(",")].join("|")
-    : "";
-  const [result, setResult] = useState<{ key: string; games: GameSummary[]; personalised: boolean } | null>(null);
-
-  useEffect(() => {
-    if (!key) return;
-    const [genreIds, platforms, exclude] = key.split("|");
-    // The same taste profile gets the same picks for hours; reuse them on this
-    // device instead of a Worker request on every home visit.
-    const cacheKey = `recs:${key}`;
-    const cached = readLocalCache<{ games: GameSummary[]; personalised: boolean }>(cacheKey, RECS_TTL_MS);
-    if (cached) {
-      const frame = requestAnimationFrame(() => setResult({ key, ...cached }));
-      return () => cancelAnimationFrame(frame);
-    }
-    const controller = new AbortController();
-    const params = new URLSearchParams({ genres: genreIds, platforms, exclude, limit: "14" });
-    fetch(`/api/recommendations?${params}`, { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : { results: [], personalised: false }))
-      .then((data: { results?: GameSummary[]; personalised?: boolean }) => {
-        const answer = { games: Array.isArray(data.results) ? data.results : [], personalised: data.personalised === true };
-        if (answer.games.length > 0) writeLocalCache(cacheKey, answer);
-        setResult({ key, ...answer });
-      })
-      .catch((error) => {
-        if (error instanceof Error && error.name !== "AbortError") setResult({ key, games: [], personalised: false });
-      });
-    return () => controller.abort();
-  }, [key]);
-
-  const named = useMemo(() => {
-    const byId = new Map(genres.map((genre) => [genre.id, genre.name]));
-    return profile.genreIds.map((id) => byId.get(id)).filter((name): name is string => Boolean(name)).slice(0, 2);
-  }, [genres, profile.genreIds]);
-
-  if (!usable) return { state: "off" };
-  const current = result?.key === key ? result : null;
-  const title = current && !current.personalised
-    ? "Highly rated, not in your library"
-    : named.length > 0
-      ? `Because you play ${named.join(" and ")}`
-      : "Picked from what you play";
-  if (!current) return { state: "loading", title };
-  // An empty answer isn't worth a heading that promises picks.
-  if (current.games.length === 0) return { state: "off" };
-  return { state: "ready", title, games: current.games };
 }
 
 function ForYouSkeleton() {

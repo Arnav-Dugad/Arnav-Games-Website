@@ -241,6 +241,17 @@ Matching is by Steam appid first, then an exact normalised title
 | `POST /api/cloud/match { ids }` | `CloudMatchResponse` (Game Pass + GeForce NOW per id) | ≤ ~27 / 0–2 |
 | `POST /api/recommendations/v2` | `RecommendationsV2` for a `RecsProfile` | ≤ ~19 / 0 |
 
+**In the UI.** The game page shows GeForce NOW and GOG in "Where to play",
+the US all-stores low as its own labelled line, anti-cheat in "Steam Deck and
+Linux", PCGamingWiki features and accessibility, a "Community" section (Steam
+tags, world records, mods) and key people under Credits; extras load once,
+when those sections near the viewport. `useRecommendationsV2`
+(`src/lib/recs/use-recommendations.ts`) is the one client for v2 — home, `/for-you`,
+the library's "For your devices" and a signed-in "More like this" share one
+answer, cached on the device for 6 h per profile; `useCloudMatches` does the
+same for the library's "Play in the cloud". Home adds Epic's free games for
+the visitor's country; Discover adds "Ready on GeForce NOW".
+
 **Recommendations v2** (`src/lib/recs/`). The browser builds an anonymous
 `RecsProfile` with `buildTasteProfile(entries, reviews, feedback, options)`
 (game ids and weights only). The server gathers candidates in one IGDB
@@ -268,6 +279,8 @@ answer is cached 6 h per profile.
 | `/watchlist` | Followed games and play status (want / playing / played), with Firebase-backed ownership and subscription access |
 | `/stats` | Private collection intelligence with unique-game ownership, follow, subscription, progress, platform, genre, release-era, timeline and review insights |
 | `/profile` | Identity, stats, review history, settings |
+| `/for-you` | Recommendations v2, every group with its reasons (top picks, "Because you liked X" per seed, hidden gems, new, coming soon, on your devices); thumbs-up / not-interested feedback saved to `users/{uid}/feedback` (device copy when signed out) |
+| `/person/[qid]` | A director, writer, composer… from Wikidata: photo, roles, Wikipedia and every game with the role held on it |
 
 Every game page also generates its own social card at
 `/game/[slug]/opengraph-image` — artwork, critic score and release date — so

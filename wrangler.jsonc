@@ -2,6 +2,9 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "arnav-games",
   "main": "worker.mjs",
+  // Minify at deploy (names kept): ~330 KiB less gzip, which keeps the Worker
+  // well inside the free plan's 3 MiB limit.
+  "minify": true,
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {

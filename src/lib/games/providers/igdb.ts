@@ -3225,42 +3225,6 @@ export async function igdbThemes(): Promise<Ref[] | null> {
   }
 }
 
-/**
- * Games matching a taste profile, excluding anything already seen.
- *
- * Used by the recommendation rail: the caller derives genre and theme ids from
- * a user's library, and this returns well-regarded matches they don't have.
- */
-export async function igdbRecommend(input: {
-  genreIds: number[];
-  themeIds: number[];
-  platformSlugs: string[];
-  excludeIds: number[];
-  limit: number;
-}): Promise<GameSummary[] | null> {
-  if (!igdbConfigured()) return null;
-  try {
-    const clauses = [MAIN_GAMES, "total_rating_count > 12", "aggregated_rating > 70"];
-    if (input.genreIds.length > 0) clauses.push(`genres = (${input.genreIds.join(",")})`);
-    if (input.themeIds.length > 0) clauses.push(`themes = (${input.themeIds.join(",")})`);
-    if (input.platformSlugs.length > 0) {
-      const ids = await platformIdsForFamilies(input.platformSlugs);
-      if (ids.length > 0) clauses.push(`platforms = (${ids.join(",")})`);
-    }
-    if (input.excludeIds.length > 0) {
-      clauses.push(`id != (${input.excludeIds.join(",")})`);
-    }
-
-    return await listGames(
-      { where: clauses.join(" & "), sort: "total_rating desc", limit: input.limit },
-      TTL.list,
-    );
-  } catch (err) {
-    warn("recommend", err);
-    return null;
-  }
-}
-
 export interface IgdbDiagnostics {
   ok: boolean;
   configured: boolean;

@@ -34,10 +34,10 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     icon: "discover",
     match: [
       "/discover", "/browse", "/genres", "/platforms", "/studios", "/studio/", "/franchises",
-      "/franchise/", "/series/", "/character/", "/compare", "/steam",
+      "/franchise/", "/series/", "/character/", "/person/", "/compare", "/steam",
     ],
   },
-  { href: "/library", label: "Library", icon: "library", match: ["/library", "/watchlist", "/stats", "/profile"] },
+  { href: "/library", label: "Library", icon: "library", match: ["/library", "/watchlist", "/stats", "/profile", "/for-you"] },
 ];
 
 export function isNavActive(item: NavItem, pathname: string | null): boolean {

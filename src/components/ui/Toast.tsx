@@ -23,14 +23,21 @@ import { cn } from "@/lib/utils/cn";
 
 type ToastTone = "success" | "error" | "info";
 
+/** One optional follow-up, e.g. "Undo" after dismissing a recommendation. */
+export interface ToastAction {
+  label: string;
+  onAction: () => void;
+}
+
 interface ToastItem {
   id: number;
   message: string;
   tone: ToastTone;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  toast: (message: string, tone?: ToastTone) => void;
+  toast: (message: string, tone?: ToastTone, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -62,12 +69,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toast = useCallback(
-    (message: string, tone: ToastTone = "info") => {
+    (message: string, tone: ToastTone = "info", action?: ToastAction) => {
       const id = nextId.current++;
-      setItems((prev) => [...prev.slice(-2), { id, message, tone }]);
+      setItems((prev) => [...prev.slice(-2), { id, message, tone, action }]);
       timers.current.set(
         id,
-        setTimeout(() => dismiss(id), 4200),
+        // An action needs a moment longer to reach.
+        setTimeout(() => dismiss(id), action ? 6000 : 4200),
       );
     },
     [dismiss],
@@ -104,6 +112,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 {ICONS[item.tone]}
               </span>
               <p className="min-w-0 flex-1 text-sm font-medium leading-snug">{item.message}</p>
+              {item.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    item.action?.onAction();
+                    dismiss(item.id);
+                  }}
+                  className="press min-h-9 shrink-0 rounded-full px-3 text-sm font-semibold text-brand-soft transition-colors hover:bg-fg/8 coarse:min-h-11"
+                >
+                  {item.action.label}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => dismiss(item.id)}

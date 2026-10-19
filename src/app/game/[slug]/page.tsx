@@ -3,7 +3,6 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ExternalLink, Layers } from "lucide-react";
-import { GameRail } from "@/components/game/GameRail";
 import {
   AgeRatingPanel,
   CharacterRail,
@@ -28,6 +27,8 @@ import { Elsewhere } from "@/components/game/detail/Elsewhere";
 import { GameHero } from "@/components/game/detail/GameHero";
 import { LengthSection } from "@/components/game/detail/LengthSection";
 import { GameLiveProvider } from "@/components/game/detail/live";
+import { CommunitySection, KeyPeople } from "@/components/game/detail/lazy";
+import { MoreLikeThis } from "@/components/game/detail/MoreLikeThis";
 import { LiveOnTwitch } from "@/components/game/detail/LiveSections";
 import { PcSection } from "@/components/game/detail/PcSection";
 import { LatestUpdates, OpinionTrends, ScoresSummary } from "@/components/game/detail/PlayersThink";
@@ -229,7 +230,7 @@ export default async function GamePage({ params, searchParams }: { params: Param
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
-      <GameLiveProvider request={{ id: game.id, steam: game.steamAppId, twitch: twitchId, microsoft: ids.microsoft, name: game.name }}>
+      <GameLiveProvider request={{ id: game.id, steam: game.steamAppId, twitch: twitchId, microsoft: ids.microsoft, name: game.name, slug: source === "igdb" ? game.slug : null }}>
         <GameHero
           game={game}
           local={local}
@@ -355,6 +356,8 @@ export default async function GamePage({ params, searchParams }: { params: Param
               </div>
             </DetailSection>
 
+            <CommunitySection />
+
             {hasPc && (
               <DetailSection id="pc" title="For PC players">
                 <PcSection ids={ids} rawRequirements={game.requirements} />
@@ -389,7 +392,7 @@ export default async function GamePage({ params, searchParams }: { params: Param
                     )}
                   </div>
                 </Container>
-                <GameRail games={related} />
+                <MoreLikeThis related={related} gameId={game.id} gameName={game.name} />
               </div>
             )}
           </section>
@@ -564,6 +567,8 @@ function GameSidebar({ game }: { game: GameDetail }) {
 function GameDetails({ game, hasThemeContent }: { game: GameDetail; hasThemeContent: boolean }) {
   return (
     <div className="space-y-8 pb-1">
+      <KeyPeople />
+
       {game.characters.length > 0 && (
         <div>
           <h4 className="mb-3 text-[15px] font-semibold text-text">Characters</h4>

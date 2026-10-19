@@ -22,7 +22,7 @@
  */
 
 import { useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, ArrowUpRight, BadgePercent, ChevronDown, Globe2, MapPin, RefreshCw, Sparkles, Store, TrendingDown } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, BadgePercent, ChevronDown, Globe2, History as HistoryIcon, MapPin, RefreshCw, Sparkles, Store, TrendingDown } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { brandIcon } from "@/components/brand/brand-icons";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -30,12 +30,12 @@ import { haptic } from "@/lib/haptics";
 import { valuePerHour } from "@/lib/games/market-rules";
 import { PRICE_REGIONS, usePriceRegion } from "@/lib/preferences/region";
 import { cn } from "@/lib/utils/cn";
-import type { GameMarket, LocalPrice, PricePoint, RegionalPrice, StoreRef } from "@/lib/games/types";
+import type { GameMarket, GeForceNowMembership, LocalPrice, PricePoint, RegionalPrice, StoreRef } from "@/lib/games/types";
 import { DetailSection } from "./DetailSection";
 import { Disclosure } from "./Disclosure";
 import { marketUrl, useEndpoint, type EndpointState, type GameIds } from "./endpoint";
 import { InfoTip } from "./InfoTip";
-import { useLiveField } from "./live";
+import { useLiveField, usePagePart } from "./live";
 import { bestPrice, DiscountTag, STORE_LABEL, StoreMark, useMarket, VERDICT, VerdictChip } from "./market-ui";
 import { countryName, formatMoney, formatRate } from "./money";
 import { hoursLabel } from "./summary";
@@ -51,7 +51,10 @@ const dayMs = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
 const formatDay = (iso: string) => DAY_FMT.format(new Date(dayMs(iso)));
 
 /** IGDB store slug ↔ the market's store, so one row carries both the link and the price. */
-const MARKET_STORE: Record<string, LocalPrice["store"]> = { steam: "steam", xbox: "microsoft" };
+const MARKET_STORE: Record<string, LocalPrice["store"]> = { steam: "steam", xbox: "microsoft", gog: "gog" };
+
+const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const MONTH_FMT = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 
 export function PriceSection({
   ids,
@@ -74,6 +77,8 @@ export function PriceSection({
   const latest = useMarket(ids, region);
   const market = useLastReady(latest);
   const gamePass = useLiveField((live) => (live.gamePass && (live.gamePass.console || live.gamePass.pc) ? live.gamePass : null));
+  const cloud = usePagePart("cloud");
+  const gfn = cloud?.status === "ready" && cloud.data.geforceNow && cloud.data.geforceNow.status !== "not-listed" ? cloud.data.geforceNow : null;
   const refreshing = latest.status === "loading" && market !== null;
 
   const best = market ? bestPrice(market) : null;
@@ -102,7 +107,7 @@ export function PriceSection({
             ) : (
               <PriceSkeleton />
             ))}
-          <StoreList stores={stores} market={market} best={best} gamePass={gamePass.state === "ready" ? gamePass.value : null} divided={Boolean(ids)} />
+          <StoreList stores={stores} market={market} best={best} gamePass={gamePass.state === "ready" ? gamePass.value : null} gfn={gfn} divided={Boolean(ids)} />
         </div>
 
         {market && priced && <History market={market} />}
@@ -190,6 +195,8 @@ function BestPrice({ best, market, free, mainHours }: { best: LocalPrice; market
             <StoreMark store={best.store} size={14} />
             {free ? `Free on ${STORE_LABEL[best.store]}` : market.prices.length > 1 ? `Best price · ${STORE_LABEL[best.store]}` : STORE_LABEL[best.store]}
           </p>
+          {/* The store sells an edition or bundle under its own name: say so, so its price isn't read as the base game's. */}
+          {best.productTitle && <p className="mt-0.5 text-[12px] text-faint">{best.productTitle}</p>}
           <p className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="font-display text-[40px] font-bold leading-none tracking-[-0.03em] text-text tabular-nums sm:text-[48px]">
               {free ? "Free to play" : formatMoney(best.price, best.currency, best.country)}
@@ -212,6 +219,18 @@ function BestPrice({ best, market, free, mainHours }: { best: LocalPrice; market
             <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-muted">
               <TrendingDown size={14} className="shrink-0 text-mint" />
               Lowest we&rsquo;ve seen: {formatMoney(market.lowest.price, best.currency, market.country)} on {formatDay(market.lowest.date)}
+            </p>
+          )}
+          {/* A US, all-stores historic marker — never a local price, so it's labelled as exactly that. */}
+          {!free && market.lowestEver && (
+            <p className="mt-1.5 flex items-start gap-1.5 text-[13px] text-muted">
+              <HistoryIcon size={14} className="mt-[3px] shrink-0 text-faint" aria-hidden />
+              <span>
+                {market.lowestEver.label}:{" "}
+                <span className="font-semibold tabular-nums text-text">{USD.format(market.lowestEver.price / 100)}</span>
+                {" · "}
+                {MONTH_FMT.format(new Date(`${market.lowestEver.date}T00:00:00Z`))}
+              </span>
             </p>
           )}
         </div>
@@ -255,12 +274,14 @@ function StoreList({
   market,
   best,
   gamePass,
+  gfn,
   divided,
 }: {
   stores: StoreRef[];
   market: GameMarket | null;
   best: LocalPrice | null;
   gamePass: { console: boolean; pc: boolean; leavingSoon: boolean; recentlyAdded: boolean } | null;
+  gfn: GeForceNowMembership | null;
   divided: boolean;
 }) {
   const prices = new Map((market?.prices ?? []).map((price) => [price.store, price]));
@@ -281,7 +302,7 @@ function StoreList({
   }
   // The best price already has the big card; its row would repeat it.
   const listed = rows.filter((row) => row.price !== best || !best);
-  if (listed.length === 0 && !gamePass) return null;
+  if (listed.length === 0 && !gamePass && !gfn) return null;
 
   return (
     <ul className={cn("divide-y divide-line", divided && "border-t border-line")}>
@@ -304,11 +325,15 @@ function StoreList({
           <span className="text-[13px] font-semibold text-mint">Included</span>
         </li>
       )}
+      {gfn && <GeForceNowRow gfn={gfn} />}
       {listed.map((row) => {
         const content = (
           <>
             <span aria-hidden className="grid w-5 shrink-0 place-items-center">{row.icon}</span>
-            <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-text">{row.name}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-medium text-text">{row.name}</span>
+              {row.price?.productTitle && <span className="block truncate text-[12px] text-faint">{row.price.productTitle}</span>}
+            </span>
             {row.price && (
               <>
                 <DiscountTag percent={row.price.discount} />
@@ -341,6 +366,41 @@ function StoreList({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * GeForce NOW as a "where to play" row: it streams the copy you own on one of
+ * NVIDIA's listed stores. Maintenance or patching is NVIDIA's own status,
+ * said plainly rather than hidden.
+ */
+function GeForceNowRow({ gfn }: { gfn: GeForceNowMembership }) {
+  const stores = gfn.stores.length > 0 ? gfn.stores : gfn.store ? [gfn.store] : [];
+  const status =
+    gfn.status === "available"
+      ? { text: "Play in the cloud", className: "text-mint" }
+      : gfn.status === "maintenance"
+        ? { text: "Under maintenance", className: "text-gold" }
+        : { text: "Updating", className: "text-gold" };
+  return (
+    <li>
+      <a
+        href="https://play.geforcenow.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex min-h-14 items-center gap-3 px-5 py-3 transition-colors fine:hover:bg-fg/[0.04] sm:px-6"
+      >
+        <span aria-hidden className="grid w-5 shrink-0 place-items-center">
+          <BrandIcon name="nvidia" size={16} tinted title={null} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-medium text-text">GeForce NOW</span>
+          {stores.length > 0 && <span className="block truncate text-[12px] text-faint">via {stores.slice(0, 3).join(", ")}</span>}
+        </span>
+        <span className={cn("shrink-0 text-[13px] font-semibold", status.className)}>{status.text}</span>
+        <ArrowUpRight size={14} className="shrink-0 text-faint" aria-hidden />
+      </a>
+    </li>
   );
 }
 
@@ -407,7 +467,7 @@ function History({ market }: { market: GameMarket }) {
                 )}
               >
                 <StoreMark store={option} size={13} />
-                {option === "steam" ? "Steam" : "Microsoft"}
+                {option === "microsoft" ? "Microsoft" : STORE_LABEL[option]}
               </button>
             ))}
           </div>

@@ -10,12 +10,13 @@ import {
   Compass,
   Flame,
   Gamepad2,
+  Heart,
   Layers,
   Shapes,
   Sparkles,
   Trophy,
 } from "lucide-react";
-import { GamePassShelf } from "@/components/home/HomeShelves";
+import { GamePassShelf, GeForceNowShelf } from "@/components/home/HomeShelves";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Container, SectionHeading } from "@/components/ui/SectionHeading";
 import { GameRailSkeleton } from "@/components/ui/Skeleton";
@@ -34,7 +35,7 @@ import { cn } from "@/lib/utils/cn";
  *
  * Mostly static, and deliberately so: the tiles render with no data at all,
  * so the hub works when the game database is slow or down. Only the genre
- * shortcuts and the Game Pass shelf need data, and both disappear quietly
+ * shortcuts and the Game Pass / GeForce NOW shelves need data, and they disappear quietly
  * rather than blocking the page. No scroll-triggered reveals either — the
  * tiles are the page, and they must never be waiting on an observer.
  */
@@ -95,6 +96,13 @@ const FEATURED: Tile[] = [
 ];
 
 const COLLECTIONS: Tile[] = [
+  {
+    href: "/for-you",
+    title: "For you",
+    body: "Picks from what you play",
+    icon: <Heart size={20} strokeWidth={1.9} />,
+    hue: [300, 340],
+  },
   {
     href: "/genres",
     title: "Genres",
@@ -203,8 +211,8 @@ export default async function DiscoverPage() {
             Explore by
           </h2>
           {/* A grouped list on phones and tablets (one thumb-sized row each,
-              like iOS Settings); a row of five tiles on desktop. */}
-          <ul className="mt-5 overflow-hidden rounded-2xl bg-panel sm:mt-6 lg:grid lg:grid-cols-5 lg:gap-4 lg:overflow-visible lg:rounded-none lg:bg-transparent">
+              like iOS Settings); a row of six tiles on desktop. */}
+          <ul className="mt-5 overflow-hidden rounded-2xl bg-panel sm:mt-6 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:rounded-none lg:bg-transparent">
             {COLLECTIONS.map((tile) => (
               <li key={tile.href} className="border-b border-line last:border-b-0 lg:border-b-0">
                 <Link
@@ -262,6 +270,10 @@ export default async function DiscoverPage() {
 
       <Suspense fallback={<GamePassFallback />}>
         <GamePassShelf />
+      </Suspense>
+
+      <Suspense fallback={<GamePassFallback />}>
+        <GeForceNowShelf />
       </Suspense>
     </>
   );

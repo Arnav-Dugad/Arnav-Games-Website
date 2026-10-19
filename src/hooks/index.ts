@@ -284,3 +284,66 @@ export function useScrollDirection(threshold = 8) {
 
   return { direction, scrolled };
 }
+
+/**
+ * True once the element comes within `margin` of the viewport, and stays
+ * true. For data that should load just before it's seen — each fetch is a
+ * Worker request on the free plan, so sections below the fold don't ask
+ * until a reader is heading their way.
+ */
+export function useNearViewport<T extends Element>(margin = "900px"): [(element: T | null) => void, boolean] {
+  const [near, setNear] = useState(false);
+  const observer = useRef<IntersectionObserver | null>(null);
+  const ref = useCallback(
+    (element: T | null) => {
+      observer.current?.disconnect();
+      observer.current = null;
+      if (!element || near) return;
+      if (typeof IntersectionObserver === "undefined") {
+        setNear(true);
+        return;
+      }
+      observer.current = new IntersectionObserver(
+        (records) => {
+          if (records.some((record) => record.isIntersecting)) {
+            setNear(true);
+            observer.current?.disconnect();
+          }
+        },
+        { rootMargin: `${margin} 0px` },
+      );
+      observer.current.observe(element);
+    },
+    [margin, near],
+  );
+  return [ref, near];
+}
+
+/**
+ * `useNearViewport` for an element rendered elsewhere on the page, by id —
+ * so a section that renders nothing until its data arrives can still start
+ * loading as the reader approaches the section before it.
+ */
+export function useNearId(id: string, margin = "900px"): boolean {
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    if (near) return;
+    const element = document.getElementById(id);
+    if (!element || typeof IntersectionObserver === "undefined") {
+      const frame = requestAnimationFrame(() => setNear(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    const observer = new IntersectionObserver(
+      (records) => {
+        if (records.some((record) => record.isIntersecting)) {
+          setNear(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: `${margin} 0px` },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [id, margin, near]);
+  return near;
+}

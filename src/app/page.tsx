@@ -1,9 +1,10 @@
+import { headers } from "next/headers";
 import { Suspense } from "react";
 import { CinematicHero } from "@/components/home/CinematicHero";
 import { ForYou } from "@/components/home/ForYou";
 import { GenreTiles, pickGenreTiles } from "@/components/home/GenreTiles";
 import { HomeSection } from "@/components/home/HomeSection";
-import { ChartsShelf, GamePassShelf, TodayShelf } from "@/components/home/HomeShelves";
+import { ChartsShelf, EpicFreeShelf, GamePassShelf, TodayShelf } from "@/components/home/HomeShelves";
 import { JoinCta } from "@/components/home/JoinCta";
 import { buildWeek, ThisWeek } from "@/components/home/ThisWeek";
 import { TodayStoriesSkeleton } from "@/components/home/TodayStories";
@@ -43,6 +44,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  *   this week     — the next seven days of releases, by day
  *   top charts    — trending / most anticipated / top rated, ranked
  *   new releases  — what just came out
+ *   epic free     — free to keep this week, in the visitor's country
  *   game pass     — just added / leaving soon
  *   genres        — where to go next
  *   join          — signed out only
@@ -77,6 +79,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   const preview = await devPreview(searchParams, [...trending.data, ...upcomingGames, ...topRated.data]);
   const heroGames = await devTakeover(searchParams, spotlight.data);
+  const country = await visitorCountry(searchParams);
 
   return (
     <>
@@ -90,7 +93,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         </Container>
       )}
 
-      <ForYou genres={genres.data} previewEntries={preview} />
+      <ForYou previewEntries={preview} />
 
       {/* Streamed: Today and Top charts wait on the hype index, Game Pass on
           Microsoft's catalogue. Each fallback matches its final geometry. */}
@@ -129,6 +132,10 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           <ComingSoon games={newReleases.data} label="New releases" />
         </HomeSection>
       )}
+
+      <Suspense fallback={null}>
+        <EpicFreeShelf country={country} />
+      </Suspense>
 
       <Suspense fallback={null}>
         <GamePassShelf />
@@ -177,6 +184,21 @@ function TodayFallback() {
       </Container>
     </section>
   );
+}
+
+/**
+ * The visitor's country for regional shelves (Epic's free games): Cloudflare's
+ * `cf-ipcountry`, the same signal the price region defaults to. `?country=XX`
+ * stands in during `next dev` only. Unknown → US, Epic's default storefront.
+ */
+async function visitorCountry(searchParams: SearchParams): Promise<string> {
+  let code = (await headers()).get("cf-ipcountry");
+  if (process.env.NODE_ENV === "development") {
+    const override = (await searchParams).country;
+    if (typeof override === "string") code = override;
+  }
+  const normalised = code?.trim().toUpperCase() ?? "";
+  return /^[A-Z]{2}$/.test(normalised) && normalised !== "XX" && normalised !== "T1" ? normalised : "US";
 }
 
 /**

@@ -15,14 +15,14 @@
 
 import { LayoutGroup, motion } from "motion/react";
 import { useId, useMemo, useState, type ReactNode } from "react";
-import { BadgeCheck, CircleAlert, CircleHelp, CircleSlash, Trophy, Users } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, CircleAlert, CircleHelp, CircleSlash, ShieldAlert, ShieldCheck, ShieldX, Trophy, Users } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import { compactNumber } from "@/lib/utils/format";
-import type { AchievementStats, DeckStatus, ProtonTier } from "@/lib/games/types";
+import type { AchievementStats, AntiCheatState, AntiCheatStatus, DeckStatus, ProtonTier } from "@/lib/games/types";
 import { Disclosure } from "./Disclosure";
 import type { GameIds } from "./endpoint";
 import { usePlayerHistory, useTwitchHistory } from "./history";
@@ -329,8 +329,29 @@ const PROTON: Record<ProtonTier, { label: string; dot: string }> = {
 };
 
 /** Steam Deck and ProtonDB, as one card. Renders nothing without either. */
-export function DeckLinuxCard({ deck, proton }: { deck: DeckStatus | null; proton: { tier: ProtonTier; reports: number; confidence: string | null } | null }) {
-  if (!deck && !proton) return null;
+/**
+ * AreWeAntiCheatYet's verdicts in plain words. "Not tracked" is never shown:
+ * a game missing from the list may simply have no kernel anti-cheat.
+ */
+const ANTI_CHEAT: Record<AntiCheatState, { label: string; detail: string; className: string; icon: ReactNode }> = {
+  supported: { label: "Works", detail: "enabled for Linux and Steam Deck.", className: "text-mint", icon: <ShieldCheck size={16} /> },
+  running: { label: "Partly", detail: "starts, but online play may be blocked.", className: "text-gold", icon: <ShieldAlert size={16} /> },
+  planned: { label: "Planned", detail: "Linux support is promised, not live yet.", className: "text-gold", icon: <ShieldAlert size={16} /> },
+  broken: { label: "Broken", detail: "online play doesn’t work on Linux or Steam Deck.", className: "text-flare", icon: <ShieldX size={16} /> },
+  denied: { label: "Blocked", detail: "the developer blocks Linux and Steam Deck.", className: "text-flare", icon: <ShieldX size={16} /> },
+};
+
+export function DeckLinuxCard({
+  deck,
+  proton,
+  antiCheat = null,
+}: {
+  deck: DeckStatus | null;
+  proton: { tier: ProtonTier; reports: number; confidence: string | null } | null;
+  antiCheat?: AntiCheatStatus | null;
+}) {
+  if (!deck && !proton && !antiCheat) return null;
+  const cheat = antiCheat ? ANTI_CHEAT[antiCheat.status] : null;
   return (
     <div className="glass rounded-3xl p-5 sm:p-6">
       <h3 className="text-[17px] font-semibold text-text">Steam Deck and Linux</h3>
@@ -350,7 +371,7 @@ export function DeckLinuxCard({ deck, proton }: { deck: DeckStatus | null; proto
           </div>
         )}
         {proton && (
-          <div className={cn("flex items-start gap-3", deck && "pt-3.5")}>
+          <div className={cn("flex items-start gap-3", deck && "pt-3.5", antiCheat && "pb-3.5")}>
             <span className="mt-0.5 shrink-0 text-muted" aria-hidden>
               <BrandIcon name="linux" size={16} title={null} />
             </span>
@@ -369,6 +390,30 @@ export function DeckLinuxCard({ deck, proton }: { deck: DeckStatus | null; proto
                   : proton.reports > 0
                     ? `ProtonDB, from ${full.format(proton.reports)} player ${proton.reports === 1 ? "report" : "reports"}${proton.confidence ? ` · ${proton.confidence} confidence` : ""}`
                     : "Not enough ProtonDB reports yet."}
+              </dd>
+            </div>
+          </div>
+        )}
+        {antiCheat && cheat && (
+          <div className={cn("flex items-start gap-3", (deck || proton) && "pt-3.5")}>
+            <span className={cn("mt-0.5 shrink-0", cheat.className)} aria-hidden>
+              {cheat.icon}
+            </span>
+            <div className="min-w-0">
+              <dt className="flex flex-wrap items-center gap-x-2 text-[15px] font-semibold text-text">
+                Anti-cheat <span className={cheat.className}>{cheat.label}</span>
+              </dt>
+              <dd className="mt-0.5 text-[13px] leading-snug text-muted">
+                {antiCheat.anticheats.length > 0 ? antiCheat.anticheats.join(" and ") : "Its anti-cheat"}: {cheat.detail}{" "}
+                <a
+                  href={antiCheat.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 whitespace-nowrap font-medium text-text underline decoration-line-strong underline-offset-2 fine:hover:decoration-current"
+                >
+                  AreWeAntiCheatYet
+                  <ArrowUpRight size={12} aria-hidden />
+                </a>
               </dd>
             </div>
           </div>

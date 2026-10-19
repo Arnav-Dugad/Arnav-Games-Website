@@ -25,10 +25,17 @@ import { useCallback } from "react";
 import type { WatchlistEntry } from "@/lib/firebase/db";
 import type { GameSummary } from "@/lib/games/types";
 
+/** A recommended card's feedback, offered as menu items ("More like this", "Not interested"). */
+export interface RecommendationMenu {
+  current: "up" | "down" | "not-interested" | "ignored" | null;
+  onFeedback: (kind: "up" | "not-interested") => void;
+}
+
 export interface GameMenuTarget {
   game: GameSummary;
   /** Claims the shared-element cover name before an "Open" navigation. */
   claimCover?: () => void;
+  recommendation?: RecommendationMenu;
 }
 
 const targets = new WeakMap<Element, GameMenuTarget>();
@@ -44,16 +51,16 @@ export function resolveGameMenuTarget(start: EventTarget | null): { element: HTM
   return target ? { element, target } : null;
 }
 
-export function useGameMenuTarget(game: GameSummary, claimCover?: () => void) {
+export function useGameMenuTarget(game: GameSummary, claimCover?: () => void, recommendation?: RecommendationMenu) {
   return useCallback(
     (element: HTMLElement | null) => {
       if (!element) return;
-      targets.set(element, { game, claimCover });
+      targets.set(element, { game, claimCover, recommendation });
       return () => {
         targets.delete(element);
       };
     },
-    [game, claimCover],
+    [game, claimCover, recommendation],
   );
 }
 

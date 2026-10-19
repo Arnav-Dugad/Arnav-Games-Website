@@ -138,6 +138,25 @@ service cloud.firestore {
         allow create, update: if isOwner(uid) && validPreferences();
       }
 
+      // --- Recommendation feedback ----------------------------------------
+      // users/{uid}/feedback/{gameId}: "more like this", "not interested" or
+      // thumbs-down on a recommendation (see src/lib/recs/feedback.ts). Only
+      // ever three fields; the document id must be the game's IGDB id so one
+      // game can never carry two opinions.
+      function validFeedback(gameId) {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['gameId', 'kind', 'at'])
+          && data.keys().hasAll(['gameId', 'kind', 'at'])
+          && data.gameId is int && data.gameId > 0 && data.gameId == int(gameId)
+          && data.kind in ['up', 'down', 'not-interested', 'ignored']
+          && data.at is int && data.at > 0;
+      }
+
+      match /feedback/{gameId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validFeedback(gameId);
+      }
+
       // --- Coming next (stubs, deliberately closed until built) ------------
       // Each is owner-only. When a feature lands, replace `false` with
       // `isOwner(uid) && valid…()` and a shape check like the ones above.
@@ -145,12 +164,6 @@ service cloud.firestore {
       // Play journal: users/{uid}/journal/{entryId} — owner-only.
       match /journal/{entryId} {
         allow read, write: if false; // TODO: isOwner(uid) && validJournalEntry()
-      }
-
-      // Recommendation feedback ("not interested", "more like this"):
-      // users/{uid}/feedback/{gameId} — owner-only.
-      match /feedback/{gameId} {
-        allow read, write: if false; // TODO: isOwner(uid) && validFeedback(gameId)
       }
 
       // Per-game playtime: users/{uid}/playtime/{gameId} — owner-only.

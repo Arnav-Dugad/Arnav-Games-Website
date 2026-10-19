@@ -23,7 +23,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { GameInsights, GameLiveData } from "@/lib/games/types";
+import type { GameExtras, GameInsights, GameLiveData } from "@/lib/games/types";
 import { usePriceRegion } from "@/lib/preferences/region";
 import { insightsUrl, useEndpoint, type EndpointState, type GameIds } from "./endpoint";
 
@@ -46,6 +46,7 @@ interface InsightsContextValue {
   ids: GameIds;
   insights: EndpointState<GameInsights>;
   retry: () => void;
+  request: LiveRequest;
 }
 
 /** Live refreshes by URL, newer than the insights answer they extend. */
@@ -65,6 +66,8 @@ export interface LiveRequest {
   twitch?: string | null;
   microsoft?: string | null;
   name: string;
+  /** IGDB slug: a hint that saves the extras route an IGDB lookup. */
+  slug?: string | null;
 }
 
 export function liveUrl({ id, steam, twitch, microsoft, name }: LiveRequest): string {
@@ -150,8 +153,8 @@ export function GameLiveProvider({ request, children }: { request: LiveRequest; 
     [data, status, refreshing, load],
   );
   const context = useMemo<InsightsContextValue>(
-    () => ({ ids, insights, retry: insights.retry }),
-    [ids, insights],
+    () => ({ ids, insights, retry: insights.retry, request }),
+    [ids, insights, request],
   );
 
   return (
@@ -173,7 +176,7 @@ const sameIds = (a: GameIds, b: GameIds) =>
  * `ids` aren't the page's game (the compare page, a related game) — callers
  * then fall back to the part's own route.
  */
-export function useInsightPart<K extends "market" | "pc" | "patches">(
+export function useInsightPart<K extends "market" | "pc" | "patches" | "cloud" | "antiCheat">(
   ids: GameIds | null,
   part: K,
 ): (EndpointState<NonNullable<GameInsights[K]>> & { retry: () => void }) | null {
@@ -185,6 +188,36 @@ export function useInsightPart<K extends "market" | "pc" | "patches">(
   if (value !== null && value !== undefined) return { status: "ready", data: value as NonNullable<GameInsights[K]>, retry };
   const failed = (insights.data.unavailable as string[]).includes(part);
   return { status: failed ? "error" : "missing", retry };
+}
+
+/**
+ * The page's second part (`/api/game/[id]/extras`: Steam tags, PCGamingWiki,
+ * speedruns, mods, credited people). Requested only once `enabled` (a
+ * section is near the viewport) and after the insights answer, whose
+ * resolved Steam id it reuses. Every section shares one request through the
+ * endpoint cache. Null outside a game page.
+ */
+export function useGameExtras(enabled: boolean): EndpointState<GameExtras> | null {
+  const context = useContext(InsightsContext);
+  const resolved = context?.insights.status === "ready" ? context.insights.data.ids : null;
+  const settled = context ? context.insights.status !== "loading" : false;
+  let url: string | null = null;
+  if (context && enabled && settled) {
+    const params = new URLSearchParams();
+    const steam = resolved?.steam ?? context.request.steam ?? null;
+    if (steam) params.set("steam", String(steam));
+    params.set("name", context.request.name.slice(0, 120));
+    if (context.request.slug) params.set("slug", context.request.slug);
+    url = `/api/game/${context.request.id}/extras?${params.toString()}`;
+  }
+  const state = useEndpoint<GameExtras>(url);
+  return context ? state : null;
+}
+
+/** A part of the page's own insights answer, whatever ids a section was given (e.g. none, for a game with no store ids). */
+export function usePagePart<K extends "cloud" | "antiCheat">(part: K) {
+  const context = useContext(InsightsContext);
+  return useInsightPart(context?.ids ?? null, part);
 }
 
 /** The page's resolved Twitch category (the server fills gaps IGDB leaves). */

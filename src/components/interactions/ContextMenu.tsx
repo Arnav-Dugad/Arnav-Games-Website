@@ -39,11 +39,13 @@ import {
   ChevronRight,
   Columns3,
   ExternalLink,
+  EyeOff,
   Gamepad2,
   Library,
   Loader2,
   Plus,
   Share,
+  ThumbsUp,
   Trophy,
 } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
@@ -448,7 +450,7 @@ function GameMenu({
   onClose: () => void;
   ready: boolean;
 }) {
-  const { game, claimCover } = state.target;
+  const { game, claimCover, recommendation } = state.target;
   const { user, enabled } = useAuth();
   const { isFollowed, toggleFollow, statusOf, setStatus, ensure, ownershipOf, setOwnership } = useWatchlist();
   const { toast } = useToast();
@@ -670,6 +672,33 @@ function GameMenu({
               >
                 Open in new tab
               </MenuItem>
+            )}
+            {recommendation && (
+              <>
+                <Separator />
+                <div role="group" aria-label="Tune your picks">
+                  <MenuItem
+                    role="menuitemcheckbox"
+                    checked={recommendation.current === "up"}
+                    icon={<ThumbsUp size={16} />}
+                    onSelect={() => {
+                      onClose();
+                      recommendation.onFeedback("up");
+                    }}
+                  >
+                    More like this
+                  </MenuItem>
+                  <MenuItem
+                    icon={<EyeOff size={16} />}
+                    onSelect={() => {
+                      onClose();
+                      recommendation.onFeedback("not-interested");
+                    }}
+                  >
+                    Not interested
+                  </MenuItem>
+                </div>
+              </>
             )}
             <Separator />
             <MenuItem icon={followed ? <BellRing size={17} /> : <BellPlus size={17} />} onSelect={follow}>
