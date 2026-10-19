@@ -54,10 +54,10 @@ export function Chip({
 }) {
   const classes = cn(
     "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium leading-none",
-    "min-h-9 coarse:min-h-11 coarse:px-4 transition-colors duration-200",
+    "press min-h-9 coarse:min-h-11 coarse:px-4 transition-colors duration-200",
     active
-      ? "border-brand/50 bg-brand/20 text-white"
-      : "border-line bg-white/[0.04] text-muted fine:hover:border-line-strong fine:hover:text-text",
+      ? "border-brand/50 bg-brand/25 text-white shadow-[inset_0_1px_0_#ffffff1f]"
+      : "border-white/[0.09] bg-white/[0.06] text-muted fine:hover:bg-white/[0.1] fine:hover:text-text",
     className,
   );
 

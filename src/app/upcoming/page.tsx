@@ -117,10 +117,10 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Sea
           </div>
         )}
 
-        <nav aria-label="Release horizon" className="mb-6 grid gap-2 rounded-3xl border border-line bg-panel/45 p-2 sm:grid-cols-2 lg:grid-cols-5">
+        <nav aria-label="Release horizon" className="no-scrollbar -mx-4 mb-6 flex snap-x gap-2 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:rounded-3xl sm:border sm:border-line sm:bg-panel/45 sm:p-2 lg:grid-cols-5">
           {WINDOWS.map((item) => {
             const active = timeframe === item.value;
-            return <Link key={item.value} href={upcomingHref({ genres, platforms, timeframe: item.value, showAll })} aria-current={active ? "page" : undefined} className={active ? "rounded-2xl border border-brand/35 bg-brand/15 p-4 text-white shadow-[0_18px_45px_-28px_rgba(124,92,255,0.9)]" : "rounded-2xl border border-transparent p-4 text-muted transition-colors hover:border-line hover:bg-white/[0.035] hover:text-text"}><span className="flex items-center gap-2 text-sm font-bold">{active ? <Sparkles size={14} className="text-brand-soft" /> : item.value === "tba" ? <CircleHelp size={14} className="text-faint" /> : <CalendarDays size={14} className="text-faint" />}{item.label}</span><span className="mt-1.5 block pl-[22px] text-[11px] text-faint">{item.detail}</span></Link>;
+            return <Link key={item.value} href={upcomingHref({ genres, platforms, timeframe: item.value, showAll })} aria-current={active ? "page" : undefined} className={`press shrink-0 snap-start whitespace-nowrap rounded-full px-4 py-2.5 sm:whitespace-normal sm:rounded-2xl sm:p-4 ${active ? "border border-brand/40 bg-brand/20 text-white shadow-[inset_0_1px_0_#ffffff1f,0_18px_45px_-28px_rgba(138,114,255,0.9)]" : "border border-line bg-white/[0.05] text-muted transition-colors hover:bg-white/[0.08] hover:text-text sm:border-transparent sm:bg-transparent"}`}><span className="flex items-center gap-2 text-sm font-semibold sm:font-bold">{active ? <Sparkles size={14} className="text-brand-soft" /> : item.value === "tba" ? <CircleHelp size={14} className="text-faint" /> : <CalendarDays size={14} className="text-faint" />}{item.label}</span><span className="mt-1.5 hidden pl-[22px] text-[11px] text-faint sm:block">{item.detail}</span></Link>;
           })}
         </nav>
 
@@ -228,7 +228,7 @@ function AccuracyMetric({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-white/[0.025] p-3 sm:p-4">
       <p className="font-display text-xl font-black tabular-nums sm:text-2xl">{value}</p>
-      <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.11em] text-faint">{label}</p>
+      <p className="mt-1 text-[10px] font-semibold uppercase leading-tight tracking-[0.05em] text-faint sm:truncate sm:tracking-[0.06em]">{label}</p>
     </div>
   );
 }

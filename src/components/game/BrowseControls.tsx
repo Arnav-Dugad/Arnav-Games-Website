@@ -201,10 +201,10 @@ export function BrowseControls({
             type="button"
             onClick={() => setSheetOpen(true)}
             className={cn(
-              "inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors fine:hidden min-[380px]:flex-none min-[380px]:px-4",
+              "press inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors fine:hidden min-[380px]:flex-none min-[380px]:px-4",
               filterCount > 0
                 ? "border-brand/50 bg-brand/15 text-white"
-                : "border-line bg-white/[0.04] text-muted",
+                : "border-white/[0.09] bg-white/[0.06] text-text",
             )}
           >
             <SlidersHorizontal size={15} />
@@ -257,7 +257,7 @@ export function BrowseControls({
       )}
 
       {/* Desktop: filters inline, always visible. */}
-      <div className="hidden rounded-2xl border border-line bg-panel/40 p-5 fine:block">
+      <div className="glass hidden rounded-3xl p-6 fine:block">
         {filterPanel}
       </div>
 
@@ -272,14 +272,14 @@ export function BrowseControls({
           <button
             type="button"
             onClick={clearAll}
-            className="min-h-12 flex-1 rounded-full border border-line text-sm font-medium text-muted"
+            className="press min-h-12 flex-1 rounded-full bg-white/[0.08] text-[15px] font-medium text-text"
           >
             Clear all
           </button>
           <button
             type="button"
             onClick={() => setSheetOpen(false)}
-            className="min-h-12 flex-[2] rounded-full bg-[linear-gradient(120deg,var(--color-brand),#9d7bff)] text-sm font-semibold text-white"
+            className="press min-h-12 flex-[2] rounded-full bg-brand text-[15px] font-semibold text-white shadow-[inset_0_1px_0_#ffffff40]"
           >
             Show results
           </button>
@@ -303,7 +303,7 @@ function FilterGroup({
   if (items.length === 0) return null;
   return (
     <div>
-      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
         {title}
       </h3>
       <div className="flex flex-wrap gap-2">
@@ -337,7 +337,7 @@ function PresetGroup({
 }) {
   return (
     <div>
-      <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{icon}{title}</h3>
+      <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">{icon}{title}</h3>
       <div className="flex flex-wrap gap-2">
         {items.map((item) => (
           <button
@@ -348,8 +348,8 @@ function PresetGroup({
             className={cn(
               "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
               active === item.value
-                ? "border-brand/45 bg-brand/15 text-white"
-                : "border-line bg-white/[0.025] text-muted hover:border-line-strong hover:text-text",
+                ? "border-brand/50 bg-brand/25 text-white"
+                : "border-white/[0.09] bg-white/[0.06] text-muted hover:bg-white/[0.1] hover:text-text",
             )}
           >
             {item.label}{active === item.value && <Check size={11} />}
@@ -397,7 +397,7 @@ function SortSelect({
         value={value}
         onChange={(e) => onChange(e.target.value as SortKey)}
         aria-label="Sort games"
-        className="min-h-11 w-full min-w-0 appearance-none rounded-full border border-line bg-white/[0.04] py-2 pl-9 pr-8 text-sm text-text outline-none transition-colors hover:border-line-strong focus-visible:border-brand min-[380px]:w-auto min-[380px]:pr-9"
+        className="min-h-11 w-full min-w-0 appearance-none rounded-full border border-white/[0.09] bg-white/[0.06] py-2 pl-9 pr-8 text-sm text-text outline-none transition-colors hover:bg-white/[0.1] focus-visible:border-brand min-[380px]:w-auto min-[380px]:pr-9"
       >
         {options.map((sort) => (
           <option key={sort.value} value={sort.value} className="bg-panel text-text">

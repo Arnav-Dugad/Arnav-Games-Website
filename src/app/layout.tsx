@@ -1,22 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Sora } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/layout/Providers";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { Footer } from "@/components/layout/Footer";
 
 /**
- * Sora carries the display voice (tight, geometric, high contrast at large
- * sizes); Inter handles body copy where legibility at 13–16px matters more.
- * Both are loaded as variables so CSS decides which is used where.
+ * SF Pro is used directly on Apple devices (see `--font-sans` in globals.css);
+ * Inter is the fallback everywhere else, being the closest open match to it.
  */
-const sora = Sora({
-  subsets: ["latin"],
-  variable: "--font-sora",
-  display: "swap",
-  weight: ["400", "600", "700", "800"],
-});
-
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -59,7 +51,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#04040a",
+  themeColor: "#000000",
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
@@ -71,7 +63,7 @@ export const viewport: Viewport = {
 /* Deliberately static so catalogue pages keep prerendering and ISR. */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sora.variable} ${inter.variable}`} suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className="min-h-dvh-safe bg-bg text-text antialiased">
         <a
           href="#main"

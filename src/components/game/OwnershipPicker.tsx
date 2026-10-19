@@ -26,10 +26,13 @@ export function OwnershipPicker({
   className,
   /** `icon` is the compact control for game cards; `full` is the page button. */
   variant = "full",
+  /** Smaller glass chip for overlaying a poster; keeps a 44px hit area. */
+  compact = false,
 }: {
   game: GameSummary;
   className?: string;
   variant?: "full" | "icon";
+  compact?: boolean;
 }) {
   const { user, enabled } = useAuth();
   const { ownershipOf, setOwnership, ensure } = useWatchlist();
@@ -87,14 +90,16 @@ export function OwnershipPicker({
         aria-label={variant === "icon" ? label : undefined}
         title={variant === "icon" ? label : undefined}
         className={cn(
-          "inline-flex items-center gap-2 border font-semibold transition-all duration-300 active:scale-[0.97]",
+          "press relative inline-flex items-center gap-2 border font-semibold transition-[background-color,border-color,color] duration-300",
           // A 36px target on cards, 44px+ on touch where it's the primary tap.
           variant === "icon"
-            ? "h-9 w-9 justify-center rounded-full coarse:h-11 coarse:w-11"
-            : "min-h-12 rounded-full px-5 text-sm",
+            ? compact
+              ? "h-[34px] w-[34px] justify-center rounded-full backdrop-blur-md after:absolute after:-inset-[5px] after:content-['']"
+              : "h-9 w-9 justify-center rounded-full coarse:h-11 coarse:w-11"
+            : "min-h-12 rounded-full px-5 text-[15px]",
           owned.length > 0
-            ? "border-mint/45 bg-mint/15 text-white"
-            : "border-line-strong bg-black/40 text-text backdrop-blur-sm fine:hover:bg-white/10",
+            ? "border-mint/45 bg-mint/20 text-white"
+            : "border-white/15 bg-black/45 text-text backdrop-blur-xl fine:hover:bg-white/[0.14]",
         )}
       >
         <Library size={variant === "icon" ? 15 : 17} />
@@ -118,7 +123,7 @@ export function OwnershipPicker({
         width={264}
         label="Where do you own this game?"
       >
-        <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+        <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
           Where do you own it?
         </p>
         <ul className="max-h-[min(68vh,24rem)] overflow-y-auto overscroll-contain">
@@ -127,7 +132,7 @@ export function OwnershipPicker({
             return (
               <li key={platform.slug}>
                 {(index === 0 || OWNERSHIP_PLATFORMS[index - 1]?.group !== platform.group) && (
-                  <p className="sticky top-0 z-10 bg-panel/95 px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-faint backdrop-blur-xl">
+                  <p className="sticky top-0 z-10 bg-panel/95 px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.07em] text-faint backdrop-blur-xl">
                     {platform.group}
                   </p>
                 )}

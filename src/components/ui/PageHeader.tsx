@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Aurora, GridLines } from "@/components/motion/Aurora";
+import { Aurora } from "@/components/motion/Aurora";
 import { TextReveal } from "@/components/motion/text";
 import { Reveal } from "@/components/motion/Reveal";
 import { Container } from "./SectionHeading";
@@ -26,12 +26,11 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "noise relative isolate overflow-hidden border-b border-line pb-8 pt-24 sm:pb-10 lg:pb-14 lg:pt-36",
+        "relative isolate overflow-hidden pb-6 pt-24 sm:pb-8 lg:pb-12 lg:pt-36",
         className,
       )}
     >
       <Aurora intensity="subtle" className="-z-10" />
-      <GridLines className="-z-10 opacity-60" />
       <div
         aria-hidden
         className="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-t from-bg to-transparent"
@@ -40,8 +39,7 @@ export function PageHeader({
       <Container>
         {eyebrow && (
           <Reveal>
-            <p className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-soft">
-              <span aria-hidden className="h-px w-6 bg-gradient-to-r from-brand to-transparent" />
+            <p className="mb-2.5 text-[13px] font-semibold tracking-[-0.005em] text-brand-soft sm:text-[15px]">
               {eyebrow}
             </p>
           </Reveal>
@@ -50,12 +48,12 @@ export function PageHeader({
         <TextReveal
           as="h1"
           text={title}
-          className="font-display text-[clamp(2rem,6.5vw,3.75rem)] font-black leading-[1.02] tracking-[-0.035em]"
+          className="font-display text-[clamp(2.125rem,7vw,4rem)] font-bold leading-[1.04] tracking-[-0.032em]"
         />
 
         {description && (
           <Reveal delay={0.15}>
-            <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted sm:text-base">
+            <p className="mt-4 max-w-2xl text-[17px] leading-[1.47] text-muted sm:text-[19px]">
               {description}
             </p>
           </Reveal>

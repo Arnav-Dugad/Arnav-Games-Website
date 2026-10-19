@@ -172,7 +172,7 @@ export default async function GamePage({ params }: { params: Params }) {
             <section id="media-archive" className="space-y-12 scroll-mt-32">
               <Reveal className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
-                  <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-neon"><Clapperboard size={13} /> Cinematic archive</p>
+                  <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-neon"><Clapperboard size={13} /> Cinematic archive</p>
                   <h2 className="text-3xl font-black sm:text-4xl">See the world in motion</h2>
                   <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-[15px]">Official footage, in-game captures, and production artwork—collected into one immersive gallery.</p>
                 </div>
@@ -199,14 +199,14 @@ export default async function GamePage({ params }: { params: Params }) {
 
           {hasDetails && <section id="details" className="space-y-14 scroll-mt-32">
             <Reveal>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-soft">Production dossier</p>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">Production dossier</p>
               <h2 className="text-3xl font-black sm:text-4xl">The complete game record</h2>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-[15px]">Cast, creators, hardware, release history, and the details that define how this game plays.</p>
             </Reveal>
 
             {game.characters.length > 0 && <div><Reveal><h3 className="mb-5 text-2xl font-bold sm:text-3xl">Characters</h3></Reveal><CharacterRail characters={game.characters} /></div>}
 
-            {game.companies.length > 0 && <Reveal><h3 className="mb-5 text-2xl font-bold sm:text-3xl">Who made it</h3><CompanyGrid companies={game.companies} />{game.engines.length > 0 && <div className="mt-5"><h4 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">Built with</h4><EngineRow engines={game.engines} /></div>}</Reveal>}
+            {game.companies.length > 0 && <Reveal><h3 className="mb-5 text-2xl font-bold sm:text-3xl">Who made it</h3><CompanyGrid companies={game.companies} />{game.engines.length > 0 && <div className="mt-5"><h4 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">Built with</h4><EngineRow engines={game.engines} /></div>}</Reveal>}
 
             {game.platformDetails.length > 0 && <Reveal><h3 className="mb-5 text-2xl font-bold sm:text-3xl">Platforms</h3><PlatformGrid platforms={game.platformDetails} /></Reveal>}
 
@@ -235,7 +235,7 @@ export default async function GamePage({ params }: { params: Params }) {
 
               {game.keywords.length > 0 && (
                 <div className="mt-5">
-                  <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+                  <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
                     Tags
                   </h3>
                   <ul className="flex flex-wrap gap-2">
@@ -396,7 +396,7 @@ function GameHero({ game }: { game: GameDetail }) {
           </div>
 
           <div className="min-w-0 flex-1">
-            <Reveal className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em] text-white/45">
+            <Reveal className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.07em] text-white/45">
               <span aria-hidden className="h-px w-8 bg-gradient-to-r from-brand-soft to-transparent" />
               Arnav Games dossier
             </Reveal>
@@ -456,16 +456,16 @@ function GameHero({ game }: { game: GameDetail }) {
 
         {/* Actions span the full width rather than sharing the narrow title
             column, which on a phone left no room for two buttons side by side. */}
-        <Reveal delay={0.24} className="mt-7 flex flex-wrap items-center gap-3">
+        <Reveal delay={0.24} className="mt-7 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           {/* Where you are with this game, and where you own it — the two
               things worth recording, side by side. The segmented control also
               starts tracking the game, so no separate watchlist button is
               needed here. */}
-          <SaveButton game={game} />
-          <WatchButton game={game} variant="full" />
-          <StatusPicker game={game} />
-          <OwnershipPicker game={game} />
-          <SubscriptionAccessPicker game={game} />
+          <SaveButton game={game} className="w-full justify-center sm:w-auto" />
+          <WatchButton game={game} variant="full" className="w-full px-4 sm:w-auto sm:px-6" />
+          <StatusPicker game={game} className="col-span-2 sm:col-span-1" />
+          <OwnershipPicker game={game} className="[&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto" />
+          <SubscriptionAccessPicker game={game} className="[&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto" />
           {game.website && (
             <Button
               href={game.website}
@@ -473,11 +473,12 @@ function GameHero({ game }: { game: GameDetail }) {
               variant="secondary"
               icon={<Globe size={16} />}
               iconRight={<ExternalLink size={13} />}
+              className="w-full sm:w-auto"
             >
               Official site
             </Button>
           )}
-          <Button href="#reviews" variant="ghost" icon={<Star size={16} />}>
+          <Button href="#reviews" variant="ghost" icon={<Star size={16} />} className="w-full sm:w-auto">
             Rate this game
           </Button>
         </Reveal>
@@ -703,7 +704,7 @@ function GameSidebar({ game }: { game: GameDetail }) {
       )}
 
       <Reveal delay={0.06} className="glass rounded-2xl p-5">
-        <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+        <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
           Details
         </h2>
         <dl className="space-y-3.5">
@@ -721,7 +722,7 @@ function GameSidebar({ game }: { game: GameDetail }) {
 
       {game.ageRatings.length > 0 && (
         <Reveal delay={0.09} className="glass rounded-2xl p-5">
-          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
             {game.ageRatings.length > 1 ? "Age ratings" : "Age rating"}
           </h2>
           <AgeRatingPanel ratings={game.ageRatings} />
@@ -730,7 +731,7 @@ function GameSidebar({ game }: { game: GameDetail }) {
 
       {game.parentPlatforms.length > 0 && (
         <Reveal delay={0.12} className="glass rounded-2xl p-5">
-          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
             Platforms
           </h2>
           <PlatformList platforms={game.parentPlatforms} />
@@ -739,7 +740,7 @@ function GameSidebar({ game }: { game: GameDetail }) {
 
       {game.stores.length > 0 && (
         <Reveal delay={0.18} className="glass rounded-2xl p-5">
-          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
             Where to buy
           </h2>
           <StoreLinks stores={game.stores} />
@@ -748,7 +749,7 @@ function GameSidebar({ game }: { game: GameDetail }) {
 
       {game.websites.some((site) => site.kind !== "official") && (
         <Reveal delay={0.21} className="glass rounded-2xl p-5">
-          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
             Links
           </h2>
           <CommunityLinks websites={game.websites} />
@@ -757,7 +758,7 @@ function GameSidebar({ game }: { game: GameDetail }) {
 
       {game.genres.length > 0 && (
         <Reveal delay={0.24} className="glass rounded-2xl p-5">
-          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
             Genres
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -792,7 +793,7 @@ function Requirements({ game }: { game: GameDetail }) {
               <div className="grid gap-px bg-line sm:grid-cols-2">
                 {req.minimum && (
                   <div className="bg-bg p-4">
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
                       Minimum
                     </p>
                     <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-muted">
@@ -802,7 +803,7 @@ function Requirements({ game }: { game: GameDetail }) {
                 )}
                 {req.recommended && (
                   <div className="bg-bg p-4">
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
                       Recommended
                     </p>
                     <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-muted">

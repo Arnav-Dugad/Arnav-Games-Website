@@ -270,7 +270,7 @@ function StudioCard({ studio, priority }: { studio: DirectoryRef; priority: bool
       <span className="line-clamp-2 text-[13px] font-semibold leading-snug transition-colors group-hover:text-brand-soft">
         {studio.name}
       </span>
-      <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
+      <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-faint">
         {studio.gameCount.toLocaleString()} {studio.gameCount === 1 ? "game" : "games"}
       </span>
     </Link>
@@ -299,13 +299,13 @@ function FranchiseCard({ franchise, index }: { franchise: DirectoryRef; index: n
         {franchise.name.charAt(0)}
       </span>
       <span className="relative">
-        <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
+        <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.07em] text-white/50">
           Franchise {String(index + 1).padStart(2, "0")}
         </span>
         <span className="line-clamp-2 font-display text-[15px] font-bold leading-tight text-white transition-colors group-hover:text-white">
           {franchise.name}
         </span>
-        <span className="mt-2 block text-[10px] font-medium uppercase tracking-[0.14em] text-white/45">
+        <span className="mt-2 block text-[10px] font-medium uppercase tracking-[0.07em] text-white/45">
           {franchise.gameCount.toLocaleString()} {franchise.gameCount === 1 ? "game" : "games"}
         </span>
       </span>

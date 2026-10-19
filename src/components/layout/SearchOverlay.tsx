@@ -169,34 +169,42 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             role="dialog"
             aria-modal="true"
             aria-label="Search all of Arnav Games"
-            className="glass glass-blur relative z-10 flex h-dvh-safe w-full flex-col overflow-hidden sm:h-auto sm:max-h-[84vh] sm:max-w-4xl sm:rounded-[2rem] sm:border-brand/20 sm:shadow-[0_40px_140px_-45px_rgba(124,92,255,0.75)]"
+            className="material relative z-10 flex h-dvh-safe w-full flex-col overflow-hidden sm:h-auto sm:max-h-[84vh] sm:max-w-4xl sm:rounded-[2rem] sm:shadow-[inset_0_1px_0_#ffffff21,0_40px_140px_-45px_rgba(0,0,0,0.9)]"
             initial={{ opacity: 0, y: 18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.99 }}
             transition={{ type: "spring", stiffness: 400, damping: 34 }}
             onKeyDown={onKeyDown}
           >
-            <div className="relative flex items-center gap-3 border-b border-line px-4 py-4 safe-t sm:px-6 sm:py-5">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-brand/12 text-brand-soft">
-                <Search size={18} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <label htmlFor="global-search" className="sr-only">Search games and the entire database</label>
-                <input
-                  id="global-search"
-                  ref={inputRef}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search games, franchises, studios, characters…"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  className="w-full bg-transparent text-base font-medium outline-none placeholder:text-faint sm:text-lg"
-                />
-                <p className="mt-0.5 hidden text-[11px] text-faint sm:block">One search across the complete game universe</p>
+            {/* Phones get iOS's own pattern — a rounded field and a text
+                Cancel — while desktop keeps the roomier command-bar layout. */}
+            <div className="relative flex items-center gap-3 border-b border-line px-3 py-3 safe-t sm:px-6 sm:py-5">
+              <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full bg-white/[0.09] px-3.5 sm:gap-3 sm:rounded-none sm:bg-transparent sm:px-0">
+                <span className="grid shrink-0 place-items-center text-muted sm:h-10 sm:w-10 sm:rounded-2xl sm:bg-brand/12 sm:text-brand-soft">
+                  <Search size={17} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="global-search" className="sr-only">Search games and the entire database</label>
+                  <input
+                    id="global-search"
+                    ref={inputRef}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Games, franchises, studios…"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    enterKeyHint="search"
+                    className="h-11 w-full bg-transparent text-[16px] font-medium outline-none placeholder:text-faint sm:h-auto sm:text-lg"
+                  />
+                  <p className="mt-0.5 hidden text-[11px] text-faint sm:block">One search across the complete game universe</p>
+                </div>
+                {loading && <Loader2 size={17} className="shrink-0 animate-spin text-brand-soft" />}
               </div>
-              {loading && <Loader2 size={17} className="shrink-0 animate-spin text-brand-soft" />}
-              <button type="button" onClick={onClose} aria-label="Close search" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-faint transition-colors hover:bg-white/8 hover:text-text">
+              <button type="button" onClick={onClose} className="press shrink-0 px-1 text-[16px] font-medium text-brand-soft sm:hidden">
+                Cancel
+              </button>
+              <button type="button" onClick={onClose} aria-label="Close search" className="press hidden h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.07] text-faint transition-colors hover:bg-white/[0.12] hover:text-text sm:grid">
                 <X size={17} />
               </button>
             </div>
@@ -209,7 +217,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-line bg-white/[0.04] text-faint"><Search size={22} /></span>
                   <p className="mt-5 max-w-full break-words font-display text-lg font-bold [overflow-wrap:anywhere]">No direct matches for “{query.trim()}”</p>
                   <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">Try a shorter spelling, or search the complete games catalogue for looser title matches.</p>
-                  <button type="button" onClick={openFullSearch} className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-bold text-bg">
+                  <button type="button" onClick={openFullSearch} className="press mt-6 inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-bg">
                     Open full search <ArrowRight size={15} />
                   </button>
                 </div>
@@ -222,7 +230,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                       return (
                         <section key={kind} aria-label={SEARCH_KIND_LABELS[kind]} className="mb-2 last:mb-0">
                           <div className="flex items-center justify-between px-3 pb-1.5 pt-3">
-                            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.17em] text-faint"><SearchKindIcon kind={kind} size={13} /> {SEARCH_KIND_LABELS[kind]}</p>
+                            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-faint"><SearchKindIcon kind={kind} size={13} /> {SEARCH_KIND_LABELS[kind]}</p>
                             <span className="text-[10px] tabular-nums text-faint">{hits.length}</span>
                           </div>
                           <ul className="space-y-1">
@@ -254,7 +262,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                   </div>
 
                   <aside className="hidden p-5 lg:block">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-brand-soft">Discovery map</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-soft">Discovery map</p>
                     <p className="mt-2 text-sm leading-relaxed text-muted">Results stay separated by what they are, so a genre can never masquerade as a franchise.</p>
                     <div className="mt-5 space-y-2">
                       {SEARCH_KIND_ORDER.map((kind) => {
@@ -294,7 +302,7 @@ function DiscoveryStart({ onClose }: { onClose: () => void }) {
     <div className="p-4 sm:p-6">
       <div className="mb-5 flex items-center gap-2">
         <Sparkles size={15} className="text-brand-soft" />
-        <p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-faint">Explore Arnav Games</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-faint">Explore Arnav Games</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {QUICK_LINKS.map((link, index) => (

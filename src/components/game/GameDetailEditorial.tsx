@@ -44,7 +44,7 @@ function PulseStat({ icon, label, value, tone = "brand" }: { icon: React.ReactNo
     <StaggerItem className="border-b border-line p-4 last:border-b-0 sm:border-r sm:[&:nth-child(2)]:border-r-0 lg:border-b-0 lg:[&:nth-child(2)]:border-r lg:last:border-r-0 sm:p-5">
       <div className="flex items-center gap-3">
         <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", tone === "gold" ? "bg-gold/10 text-gold" : tone === "neon" ? "bg-neon/10 text-neon" : tone === "mint" ? "bg-mint/10 text-mint" : "bg-brand/10 text-brand-soft")}>{icon}</span>
-        <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-faint">{label}</p><p className="mt-0.5 truncate text-sm font-semibold text-text">{value}</p></div>
+        <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-faint">{label}</p><p className="mt-0.5 truncate text-sm font-semibold text-text">{value}</p></div>
       </div>
     </StaggerItem>
   );
@@ -69,20 +69,20 @@ export function GameEditorialOverview({ game }: { game: GameDetail }) {
   return (
     <section id="overview" className="scroll-mt-32">
       <Reveal>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-soft">Editorial overview</p>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">Editorial overview</p>
         <h2 className="text-3xl font-black sm:text-4xl">Inside {game.name}</h2>
       </Reveal>
 
       <div className={cn("mt-6 grid gap-4", game.storyline && "lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]")}>
         <Reveal className="rounded-3xl border border-line bg-panel/35 p-5 sm:p-7">
-          <p className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-faint"><Sparkles size={13} className="text-brand-soft" /> What it is</p>
+          <p className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-faint"><Sparkles size={13} className="text-brand-soft" /> What it is</p>
           <ExpandableText text={game.description} paragraphClassName="text-[15px] leading-[1.85] text-muted sm:text-base" />
         </Reveal>
 
         {game.storyline && (
           <Reveal delay={0.08} className="relative isolate overflow-hidden rounded-3xl border border-brand/25 bg-[radial-gradient(circle_at_0%_0%,rgba(124,92,255,0.20),transparent_48%),linear-gradient(145deg,rgba(16,16,32,0.9),rgba(7,7,15,0.95))] p-5 sm:p-7">
             <MessageSquareQuote size={56} aria-hidden className="absolute -right-1 top-1 -z-10 text-white/[0.035]" />
-            <p className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-soft"><MessageSquareQuote size={13} /> The premise</p>
+            <p className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-soft"><MessageSquareQuote size={13} /> The premise</p>
             <ExpandableText text={game.storyline} collapsedRem={14} paragraphClassName="text-sm leading-[1.8] text-muted" />
           </Reveal>
         )}
@@ -94,7 +94,7 @@ export function GameEditorialOverview({ game }: { game: GameDetail }) {
             <StaggerItem key={insight.label}>
               <div className="flex h-full gap-3 rounded-2xl border border-line bg-white/[0.025] p-4">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-faint">{insight.icon}</span>
-                <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-faint">{insight.label}</p><p className="mt-1 text-sm leading-relaxed text-muted">{insight.value}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-faint">{insight.label}</p><p className="mt-1 text-sm leading-relaxed text-muted">{insight.value}</p></div>
               </div>
             </StaggerItem>
           ))}

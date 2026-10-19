@@ -29,14 +29,14 @@ export function UserMenu() {
   useEscapeKey(() => setOpen(false), open);
 
   if (loading) {
-    return <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-white/8" aria-hidden />;
+    return <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-white/8" aria-hidden />;
   }
 
   if (!user) {
     return (
       <Link
         href={`/login?next=${encodeURIComponent(pathname || "/")}`}
-        className="inline-flex min-h-9 items-center rounded-full bg-[linear-gradient(120deg,var(--color-brand),#9d7bff)] px-4 text-[13px] font-semibold text-white transition-transform duration-300 active:scale-95 fine:hover:brightness-110"
+        className="press inline-flex min-h-10 items-center rounded-full bg-brand px-4 text-[13px] font-semibold text-white shadow-[inset_0_1px_0_#ffffff40] fine:hover:brightness-110"
       >
         Sign in
       </Link>
@@ -62,7 +62,7 @@ export function UserMenu() {
         aria-expanded={open}
         aria-label="Account menu"
         className={cn(
-          "grid h-9 w-9 place-items-center overflow-hidden rounded-full border transition-all duration-300",
+          "press grid h-10 w-10 place-items-center overflow-hidden rounded-full border transition-all duration-300",
           open ? "border-brand/60 ring-2 ring-brand/25" : "border-line-strong fine:hover:border-brand/50",
         )}
         style={{
@@ -91,7 +91,7 @@ export function UserMenu() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.97 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="glass glass-blur absolute right-0 top-[calc(100%+10px)] z-50 w-60 origin-top-right overflow-hidden rounded-2xl p-1.5"
+            className="material absolute right-0 top-[calc(100%+14px)] z-50 w-64 origin-top-right overflow-hidden rounded-[22px] p-1.5"
           >
             <div className="border-b border-line px-3 py-2.5">
               <p className="truncate text-sm font-semibold">{name}</p>

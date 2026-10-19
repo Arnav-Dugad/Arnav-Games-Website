@@ -24,17 +24,18 @@ export type ButtonSize = "sm" | "md" | "lg";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "text-white shadow-[0_8px_30px_-8px_rgba(124,92,255,0.7)] bg-[linear-gradient(120deg,var(--color-brand),#9d7bff_45%,var(--color-neon))] bg-[length:200%_auto] hover:bg-[position:right_center]",
-  secondary: "glass text-text hover:border-line-strong hover:bg-panel-2/70",
-  ghost: "text-muted hover:text-text hover:bg-white/5",
-  outline: "border border-line-strong text-text hover:bg-white/5",
+    "bg-brand text-white shadow-[inset_0_1px_0_#ffffff40,0_10px_30px_-10px_rgba(138,114,255,0.75)] fine:hover:brightness-110",
+  secondary:
+    "material-thin text-text fine:hover:bg-white/[0.14]",
+  ghost: "text-muted hover:text-text hover:bg-white/[0.07]",
+  outline: "border border-white/20 text-text hover:bg-white/[0.07]",
   danger: "bg-flare/15 text-flare border border-flare/30 hover:bg-flare/25",
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  sm: "text-[13px] px-3.5 py-2.5 gap-1.5 coarse:min-h-11 fine:py-2",
-  md: "text-sm px-5 py-3 gap-2 min-h-11",
-  lg: "text-base px-7 py-4 gap-2.5 min-h-14",
+  sm: "text-[13px] px-4 py-2.5 gap-1.5 coarse:min-h-11 fine:py-2",
+  md: "text-[15px] px-5 py-3 gap-2 min-h-11",
+  lg: "text-[17px] px-7 py-4 gap-2.5 min-h-14",
 };
 
 export interface ButtonProps {
@@ -62,8 +63,8 @@ export interface ButtonProps {
 
 const BASE =
   "relative inline-flex items-center justify-center rounded-full font-semibold tracking-[-0.01em] " +
-  "transition-[background-position,background-color,border-color,color,transform,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] " +
-  "active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 select-none whitespace-nowrap";
+  "transition-[background-color,border-color,color,transform,box-shadow,filter] duration-300 ease-[var(--ease-apple)] " +
+  "active:scale-[0.96] active:duration-100 disabled:pointer-events-none disabled:opacity-50 select-none whitespace-nowrap";
 
 export const Button = forwardRef<HTMLButtonElement & HTMLAnchorElement, ButtonProps>(
   function Button(

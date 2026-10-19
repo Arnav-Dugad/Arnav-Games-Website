@@ -454,7 +454,7 @@ function WatchMetric({
         {icon}
       </div>
       <p className="font-display text-2xl font-bold tabular-nums sm:text-3xl">{value}</p>
-      <p className="mt-0.5 truncate text-[11px] uppercase tracking-[0.12em] text-faint">{label}</p>
+      <p className="mt-0.5 truncate text-[11px] uppercase tracking-[0.06em] text-faint">{label}</p>
     </div>
   );
 }

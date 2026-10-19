@@ -86,7 +86,7 @@ export function StatusPicker({
       role="group"
       aria-label="Your status with this game"
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border border-line bg-white/[0.04] p-1",
+        "flex items-center gap-1 rounded-full border border-white/[0.09] bg-white/[0.06] p-1 sm:inline-flex",
         className,
       )}
     >
@@ -101,10 +101,10 @@ export function StatusPicker({
             aria-pressed={active}
             disabled={busy !== null}
             className={cn(
-              "inline-flex min-h-10 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition-all duration-300",
+              "press inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-300 sm:flex-none",
               "disabled:opacity-60",
               active
-                ? "bg-[linear-gradient(120deg,var(--color-brand),#9d7bff)] text-white shadow-lg"
+                ? "bg-brand text-white shadow-[inset_0_1px_0_#ffffff40,0_6px_18px_-6px_rgba(138,114,255,0.7)]"
                 : "text-muted fine:hover:bg-white/8 fine:hover:text-text",
             )}
           >

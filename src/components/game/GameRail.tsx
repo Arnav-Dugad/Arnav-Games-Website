@@ -116,7 +116,7 @@ function RailButton({
       className={cn(
         "absolute top-1/2 hidden -translate-y-1/2 fine:grid",
         "h-11 w-11 place-items-center rounded-full",
-        "glass glass-blur text-text",
+        "material text-text",
         "opacity-0 transition-all duration-300 group-hover/rail:opacity-100 focus-visible:opacity-100",
         "hover:scale-110 hover:border-line-strong active:scale-95",
         "disabled:pointer-events-none disabled:opacity-0",

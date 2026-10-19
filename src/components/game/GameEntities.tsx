@@ -87,7 +87,7 @@ export function CompanyGrid({ companies }: { companies: CompanyRef[] }) {
               <p className="truncate text-sm font-semibold transition-colors group-hover/company:text-brand-soft">
                 {company.name}
               </p>
-              <p className="mt-0.5 truncate text-[11px] uppercase tracking-[0.1em] text-faint">
+              <p className="mt-0.5 truncate text-[11px] uppercase tracking-[0.06em] text-faint">
                 {rolesOf(company)}
               </p>
             </Link>
@@ -167,7 +167,7 @@ export function PlatformGrid({ platforms }: { platforms: PlatformRef[] }) {
           <div className="min-w-0">
             <p className="truncate text-[13px] font-medium leading-tight">{platform.name}</p>
             {(platform.category || platform.generation) && (
-              <p className="mt-0.5 truncate text-[10px] uppercase tracking-[0.1em] text-faint">
+              <p className="mt-0.5 truncate text-[10px] uppercase tracking-[0.06em] text-faint">
                 {[platform.category, platform.generation ? `Gen ${platform.generation}` : null]
                   .filter(Boolean)
                   .join(" · ")}
@@ -213,7 +213,7 @@ export function CharacterRail({ characters }: { characters: CharacterRef[] }) {
                 {character.name}
               </p>
               {(character.species || character.gender) && (
-                <p className="mt-0.5 truncate text-[10px] uppercase tracking-[0.1em] text-faint">
+                <p className="mt-0.5 truncate text-[10px] uppercase tracking-[0.06em] text-faint">
                   {[character.species, character.gender].filter(Boolean).join(" · ")}
                 </p>
               )}
@@ -287,7 +287,7 @@ export function AgeRatingPanel({ ratings }: { ratings: AgeRating[] }) {
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{rating.organization}</p>
-              <p className="text-[11px] uppercase tracking-[0.1em] text-faint">Age rating</p>
+              <p className="text-[11px] uppercase tracking-[0.06em] text-faint">Age rating</p>
             </div>
           </div>
           {rating.descriptors.length > 0 && (

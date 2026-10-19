@@ -185,7 +185,7 @@ function ReleaseRow({ game }: { game: GameSummary }) {
             <span className="font-display text-lg font-bold leading-none tabular-nums sm:text-xl">
               {DAY_LABEL.format(date)}
             </span>
-            <span className="mt-1 text-[10px] uppercase tracking-[0.1em] text-faint">
+            <span className="mt-1 text-[10px] uppercase tracking-[0.06em] text-faint">
               {WEEKDAY_LABEL.format(date)}
             </span>
           </>

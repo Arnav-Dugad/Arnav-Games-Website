@@ -76,7 +76,7 @@ export function StatsView({ genreDirectory }: { genreDirectory: Ref[] }) {
       <Reveal className="noise relative isolate overflow-hidden rounded-[2rem] border border-brand/25 bg-[radial-gradient(circle_at_10%_0%,rgba(124,92,255,0.28),transparent_34%),radial-gradient(circle_at_95%_90%,rgba(34,211,238,0.14),transparent_38%),linear-gradient(145deg,#111126,#07070e)] p-6 shadow-[0_45px_130px_-65px_rgba(124,92,255,0.9)] sm:p-8 lg:p-10">
         <div className="relative z-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-end">
           <div>
-            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-soft"><Sparkles size={13} /> Private library analytics</p>
+            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft"><Sparkles size={13} /> Private library analytics</p>
             <h2 className="mt-3 max-w-3xl font-display text-4xl font-black leading-[0.98] tracking-[-0.05em] sm:text-6xl">Your library,<br /><span className="text-gradient">clearly counted.</span></h2>
             <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">One game always counts once, even when you own several copies. Every percentage names its denominator, and TBA releases are included in Upcoming.</p>
           </div>
@@ -111,7 +111,7 @@ export function StatsView({ genreDirectory }: { genreDirectory: Ref[] }) {
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
         <Reveal className="noise relative isolate min-w-0 overflow-hidden rounded-[1.75rem] border border-brand/25 bg-[radial-gradient(circle_at_20%_0%,rgba(124,92,255,.24),transparent_48%),linear-gradient(145deg,rgba(16,16,32,.96),rgba(6,6,14,.98))] p-5 sm:p-7">
           <div className="relative z-10">
-            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-brand-soft"><ShieldCheck size={16} /> Counting rules</p>
+            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft"><ShieldCheck size={16} /> Counting rules</p>
             <p className="mt-4 font-display text-2xl font-black tracking-[-0.03em] sm:text-3xl">How every headline is calculated</p>
             <div className="mt-6 space-y-3">
               <CountingRule number="01" title="Games are deduplicated by IGDB id" detail="Steam + PlayStation + Xbox copies still equal one unique game." />
@@ -145,7 +145,7 @@ export function StatsView({ genreDirectory }: { genreDirectory: Ref[] }) {
                   <span title={`${month.added} added`} className="w-[38%] min-w-2 rounded-t-lg bg-gradient-to-t from-brand/35 to-brand" style={{ height: `${Math.max(month.added ? 10 : 2, (month.added / maxTimeline) * 100)}%` }} />
                   <span title={`${month.completed} completed`} className="w-[38%] min-w-2 rounded-t-lg bg-gradient-to-t from-mint/30 to-mint" style={{ height: `${Math.max(month.completed ? 10 : 2, (month.completed / maxTimeline) * 100)}%` }} />
                 </div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">{month.label}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{month.label}</span>
               </div>
             ))}
           </div>
@@ -189,7 +189,7 @@ export function StatsView({ genreDirectory }: { genreDirectory: Ref[] }) {
           {recent.map((game) => (
             <Link key={game.gameId} href={canonicalEntryHref(game)} className="group flex gap-3 bg-bg-elev p-4 transition-colors hover:bg-panel sm:flex-col">
               <span className="relative aspect-[3/4] w-16 shrink-0 overflow-hidden rounded-xl border border-line sm:w-full"><GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={360} sizes="(max-width:640px) 64px, 18vw" /></span>
-              <span className="min-w-0"><span className="line-clamp-2 text-sm font-bold leading-snug transition-colors group-hover:text-brand-soft">{game.name}</span><span className="mt-1 block text-[10px] uppercase tracking-[0.12em] text-faint">{game.status === "played" ? "Completed" : game.status === "playing" ? "Playing" : game.status === "want" ? "Want to play" : "No status"}</span></span>
+              <span className="min-w-0"><span className="line-clamp-2 text-sm font-bold leading-snug transition-colors group-hover:text-brand-soft">{game.name}</span><span className="mt-1 block text-[10px] uppercase tracking-[0.06em] text-faint">{game.status === "played" ? "Completed" : game.status === "playing" ? "Playing" : game.status === "want" ? "Want to play" : "No status"}</span></span>
             </Link>
           ))}
         </div>
@@ -209,11 +209,11 @@ function ProgressRing({ value }: { value: number }) {
 
 function Metric({ icon, label, value, note, tone }: { icon: React.ReactNode; label: string; value: number; note?: string; tone: "brand" | "mint" | "gold" | "neon" }) {
   const colors = { brand: "bg-brand/10 text-brand-soft", mint: "bg-mint/10 text-mint", gold: "bg-gold/10 text-gold", neon: "bg-neon/10 text-neon" };
-  return <StaggerItem><div className="glass h-full min-w-0 rounded-3xl p-5 sm:p-6"><span className={cn("grid h-10 w-10 place-items-center rounded-2xl", colors[tone])}>{icon}</span><p className="mt-5 font-display text-3xl font-black tabular-nums sm:text-4xl">{value}</p><p className="mt-1 text-xs text-muted">{label}</p>{note && <p className="mt-2 break-words text-[10px] font-semibold uppercase tracking-[0.11em] text-faint">{note}</p>}</div></StaggerItem>;
+  return <StaggerItem><div className="glass h-full min-w-0 rounded-3xl p-5 sm:p-6"><span className={cn("grid h-10 w-10 place-items-center rounded-2xl", colors[tone])}>{icon}</span><p className="mt-5 font-display text-3xl font-black tabular-nums sm:text-4xl">{value}</p><p className="mt-1 text-xs text-muted">{label}</p>{note && <p className="mt-2 break-words text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{note}</p>}</div></StaggerItem>;
 }
 
 function PanelHeading({ icon, eyebrow, title }: { icon: React.ReactNode; eyebrow: string; title: string }) {
-  return <div><p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-brand-soft">{icon}{eyebrow}</p><h2 className="mt-2 font-display text-xl font-black sm:text-2xl">{title}</h2></div>;
+  return <div><p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft">{icon}{eyebrow}</p><h2 className="mt-2 font-display text-xl font-black sm:text-2xl">{title}</h2></div>;
 }
 
 function Legend({ tone, label }: { tone: string; label: string }) { return <span className="flex items-center gap-2"><span className={cn("h-2 w-2 rounded-full", tone)} />{label}</span>; }
@@ -226,7 +226,7 @@ function StatusBar({ label, value, total, tone }: { label: string; value: number
 function MiniFact({ icon, value, label }: { icon: React.ReactNode; value: string | number; label: string }) { return <div><span className="text-brand-soft">{icon}</span><p className="mt-2 font-display text-lg font-black tabular-nums">{value}</p><p className="mt-0.5 text-[10px] leading-tight text-faint">{label}</p></div>; }
 
 function Insight({ label, value, detail }: { label: string; value: string | number; detail: string }) {
-  return <div className="min-w-0 rounded-2xl border border-white/[0.07] bg-black/20 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.15em] text-faint">{label}</p><p className="mt-2 font-display text-2xl font-black tabular-nums">{value}</p><p className="mt-1 break-words text-[11px] leading-relaxed text-muted">{detail}</p></div>;
+  return <div className="min-w-0 rounded-2xl border border-white/[0.07] bg-black/20 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.07em] text-faint">{label}</p><p className="mt-2 font-display text-2xl font-black tabular-nums">{value}</p><p className="mt-1 break-words text-[11px] leading-relaxed text-muted">{detail}</p></div>;
 }
 
 function CountingRule({ number, title, detail }: { number: string; title: string; detail: string }) {

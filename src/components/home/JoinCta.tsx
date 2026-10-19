@@ -48,7 +48,7 @@ export function JoinCta() {
             <Aurora intensity="normal" className="-z-10" />
             <GridLines className="-z-10 opacity-50" />
 
-            <p className="flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-soft">
+            <p className="flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">
               <Sparkles size={13} />
               {eyebrow}
             </p>

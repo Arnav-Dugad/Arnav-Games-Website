@@ -149,7 +149,7 @@ export function Popover({
             visibility: position ? "visible" : "hidden",
           }}
           className={cn(
-            "glass glass-blur fixed z-[300] overflow-hidden rounded-2xl p-1.5 shadow-2xl",
+            "material fixed z-[300] overflow-hidden rounded-[22px] p-1.5",
             className,
           )}
         >

@@ -21,7 +21,7 @@ export function ScrollProgress() {
   return (
     <motion.div
       aria-hidden
-      className="fixed inset-x-0 top-0 z-[100] h-[2px] origin-left"
+      className="fixed inset-x-0 top-0 z-[160] h-[2px] origin-left opacity-80"
       style={{
         scaleX: reduced ? scrollYProgress : scaleX,
         background:

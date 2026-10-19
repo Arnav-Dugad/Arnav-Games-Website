@@ -204,7 +204,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       <div className="my-6 flex items-center gap-4">
         <span className="h-px flex-1 bg-line" />
-        <span className="text-[11px] uppercase tracking-[0.16em] text-faint">or</span>
+        <span className="text-[11px] uppercase tracking-[0.07em] text-faint">or</span>
         <span className="h-px flex-1 bg-line" />
       </div>
 

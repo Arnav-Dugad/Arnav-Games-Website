@@ -98,7 +98,7 @@ export default async function SteamPage() {
                 <Section key={chart.key} className="py-8">
                   <div className="mb-1 flex items-center gap-2 text-brand-soft">
                     <Icon size={16} />
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em]">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.07em]">
                       Steam
                     </span>
                   </div>

@@ -85,7 +85,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-t from-bg to-transparent" />
         <Container>
           <Reveal>
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-soft"><Sparkles size={14} /> Universal discovery</p>
+            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft"><Sparkles size={14} /> Universal discovery</p>
             <h1 className="mt-4 max-w-4xl font-display text-[clamp(2.5rem,7vw,5.6rem)] font-black leading-[0.95] tracking-[-0.055em]">
               Find anything in the <span className="text-gradient">game universe.</span>
             </h1>
@@ -128,7 +128,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
           <div className="grid gap-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-14">
             <aside className="hidden lg:block">
               <div className="sticky top-28 rounded-3xl border border-line bg-panel/35 p-3">
-                <p className="px-3 pb-3 pt-2 text-[10px] font-semibold uppercase tracking-[0.17em] text-faint">Result map</p>
+                <p className="px-3 pb-3 pt-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-faint">Result map</p>
                 {populatedKinds.map((kind) => (
                   <a key={kind} href={`#${kind}`} className="group flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-muted transition-colors hover:bg-white/[0.05] hover:text-text">
                     <span className="flex items-center gap-2.5"><SearchKindIcon kind={kind} size={14} /> {SEARCH_KIND_LABELS[kind]}</span>
@@ -154,7 +154,7 @@ function ResultSection({ kind, hits }: { kind: SearchKind; hits: SearchHit[] }) 
     <section id={kind} className="scroll-mt-28">
       <Reveal className="mb-5 flex items-end justify-between gap-4 border-b border-line pb-4">
         <div>
-          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-soft"><SearchKindIcon kind={kind} size={14} /> Entity type</p>
+          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-soft"><SearchKindIcon kind={kind} size={14} /> Entity type</p>
           <h2 className="mt-1.5 font-display text-2xl font-black sm:text-3xl">{SEARCH_KIND_LABELS[kind]}</h2>
         </div>
         <span className="rounded-full border border-line bg-white/[0.03] px-3 py-1.5 text-xs text-faint">{hits.length} {hits.length === 1 ? "match" : "matches"}</span>
@@ -166,7 +166,7 @@ function ResultSection({ kind, hits }: { kind: SearchKind; hits: SearchHit[] }) 
             <Link href={hrefForSearchHit(hit)} className="group flex h-full min-h-32 min-w-0 items-center gap-4 overflow-hidden rounded-3xl border border-line bg-panel/30 p-4 transition-[transform,border-color,background-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-brand/35 hover:bg-panel/55 hover:shadow-[0_24px_60px_-38px_rgba(124,92,255,0.65)]">
               <SearchHitVisual hit={hit} size="card" />
               <span className="min-w-0 flex-1">
-                <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.15em] text-faint"><SearchKindIcon kind={hit.kind} size={11} /> {SEARCH_KIND_LABELS[hit.kind]}</span>
+                <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.07em] text-faint"><SearchKindIcon kind={hit.kind} size={11} /> {SEARCH_KIND_LABELS[hit.kind]}</span>
                 <span className="mt-1.5 line-clamp-2 max-w-full break-words font-display text-base font-bold leading-snug transition-colors [overflow-wrap:anywhere] group-hover:text-brand-soft">{hit.name}</span>
                 {hit.subtitle && <span className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted">{hit.subtitle}</span>}
               </span>

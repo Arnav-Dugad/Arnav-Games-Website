@@ -307,12 +307,19 @@ export function CinematicHero({ games }: { games: GameSummary[] }) {
                 )}
               </motion.div>
 
-              <div className="mt-7 flex flex-wrap items-center gap-3">
-                <Button href={`/game/${active.slug}`} size="lg" iconRight={<ArrowRight size={17} />}>
+              {/* Phones: a full-width primary with the two secondary actions
+                  sharing the row beneath, instead of wrapping into an orphan. */}
+              <div className="mt-7 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+                <Button
+                  href={`/game/${active.slug}`}
+                  size="lg"
+                  iconRight={<ArrowRight size={17} />}
+                  className="col-span-2 sm:col-span-1"
+                >
                   View details
                 </Button>
-                <WatchButton game={active} variant="full" />
-                <OwnershipPicker game={active} />
+                <WatchButton game={active} variant="full" className="w-full px-4 sm:w-auto sm:px-6" />
+                <OwnershipPicker game={active} className="[&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto" />
               </div>
             </motion.div>
           </AnimatePresence>

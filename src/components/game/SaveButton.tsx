@@ -48,10 +48,10 @@ export function SaveButton({ game, className }: { game: GameSummary; className?:
       disabled={busy}
       aria-pressed={saved}
       className={cn(
-        "inline-flex min-h-12 items-center justify-center gap-2 rounded-full border px-6 text-sm font-semibold transition-all duration-300 active:scale-[0.97]",
+        "inline-flex min-h-12 items-center justify-center gap-2 rounded-full border px-6 text-sm font-semibold press transition-[background-color,border-color,color] duration-300",
         saved
           ? "border-mint/45 bg-mint/15 text-white"
-          : "border-line-strong bg-white/[0.05] text-text fine:hover:bg-white/10",
+          : "border-white/15 bg-white/[0.08] text-text backdrop-blur-xl fine:hover:bg-white/[0.14]",
         busy && "opacity-60",
         className,
       )}

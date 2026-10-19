@@ -29,10 +29,10 @@ export function NotificationBell() {
         aria-expanded={open}
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
         className={cn(
-          "relative grid h-9 w-9 place-items-center rounded-full border transition-all duration-300",
+          "press relative grid h-10 w-10 place-items-center rounded-full border transition-all duration-300",
           open
             ? "border-brand/55 bg-brand/15 text-white ring-2 ring-brand/20"
-            : "border-line bg-black/25 text-muted backdrop-blur-md fine:hover:border-line-strong fine:hover:text-text",
+            : "border-white/10 bg-white/[0.07] text-muted fine:hover:border-line-strong fine:hover:text-text",
         )}
       >
         {unreadCount > 0 ? <BellRing size={16} /> : <Bell size={16} />}
@@ -52,7 +52,7 @@ export function NotificationBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -5, scale: 0.98 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="glass glass-blur absolute right-0 top-[calc(100%+10px)] z-50 w-[min(25rem,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-3xl shadow-[0_28px_90px_-30px_rgba(0,0,0,0.9)]"
+            className="material absolute right-0 top-[calc(100%+14px)] z-50 w-[min(25rem,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-3xl shadow-[0_28px_90px_-30px_rgba(0,0,0,0.9)]"
           >
             <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3.5">
               <div>

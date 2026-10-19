@@ -59,7 +59,7 @@ export function NotificationItem({
 
       <span className="min-w-0 flex-1">
         <span className="flex items-center justify-between gap-2">
-          <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]", meta.tone)}>
+          <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]", meta.tone)}>
             <Icon size={10} /> {meta.label}
           </span>
           {!read && <span className="h-2 w-2 shrink-0 rounded-full bg-brand shadow-[0_0_12px_var(--color-brand)]" aria-label="Unread" />}

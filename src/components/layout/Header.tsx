@@ -1,12 +1,7 @@
 "use client";
 
 /**
- * Desktop-first header.
- *
- * It hides on scroll-down and returns on scroll-up, which reclaims vertical
- * space on phones without taking navigation away. The glass background only
- * engages once the page has scrolled, so the hero sits behind a fully
- * transparent bar.
+ * Floating glass header.
  *
  * Primary navigation is duplicated in `MobileTabBar` for touch — this bar keeps
  * only the logo, search and account controls at small sizes.
@@ -42,35 +37,25 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
 
   return (
     /*
-      Pinned at all times.
+      Pinned at all times, as a floating glass capsule.
 
-      This used to slide away on scroll-down to reclaim vertical space. In
-      practice that trades a permanently available navigation and search for a
-      little height, and it means the one control people reach for mid-page —
-      search — is never where they left it. The bar only gains its glass
-      background once the page has scrolled, so a hero still sits behind a fully
-      transparent header.
+      The bar used to slide away on scroll-down; that traded always-available
+      navigation and search for a little height. It now floats inset from the
+      edges in Apple's frosted material, so it reads cleanly over a bright hero
+      and over plain content alike — at the top it is a touch more transparent,
+      and firms up once the page scrolls.
     */
-    <header
-      className={cn(
-        "fixed inset-x-0 top-0 z-[150] transition-[background-color,border-color,backdrop-filter] duration-500",
-        scrolled
-          ? "border-b border-line bg-bg/70 backdrop-blur-xl backdrop-saturate-150"
-          : "border-b border-transparent bg-transparent",
-      )}
-    >
-      {/* Soft scrim so the bar stays legible over bright hero frames. */}
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-[150] px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-4 lg:pt-3">
       <div
-        aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 -z-10 h-28 bg-gradient-to-b from-black/55 via-black/20 to-transparent transition-opacity duration-500",
-          scrolled ? "opacity-0" : "opacity-100",
+          "pointer-events-auto mx-auto flex h-14 w-full max-w-[1400px] items-center gap-3 rounded-[22px] pl-3 pr-2 transition-[background-color,box-shadow,border-color] duration-500 lg:h-[60px] lg:gap-4 lg:pl-4",
+          "material",
+          scrolled && "shadow-[inset_0_1px_0_#ffffff21,0_24px_60px_-20px_#000]",
         )}
-      />
-      <div className="mx-auto flex h-16 w-full max-w-[1400px] items-center gap-4 px-4 lg:h-[72px] lg:px-6 xl:px-10">
+      >
         <Logo />
 
-        <nav aria-label="Primary" className="ml-6 hidden lg:block">
+        <nav aria-label="Primary" className="ml-2 hidden lg:block xl:ml-4">
           <ul className="flex items-center gap-1">
             {NAV.map((item) => {
               const active = isActive(item.href);
@@ -80,7 +65,7 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "relative inline-flex items-center rounded-full px-3.5 py-2 text-sm font-medium transition-colors duration-300",
+                      "relative inline-flex items-center rounded-full px-3 py-2 text-[13.5px] font-medium tracking-[-0.01em] transition-colors duration-300 xl:px-3.5",
                       active ? "text-text" : "text-muted hover:text-text",
                     )}
                   >
@@ -89,7 +74,7 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
                       // cross-fading, which makes the nav feel physical.
                       <motion.span
                         layoutId="nav-active-pill"
-                        className="absolute inset-0 -z-10 rounded-full bg-white/[0.07] ring-1 ring-inset ring-white/10"
+                        className="absolute inset-0 -z-10 rounded-full bg-white/[0.12] shadow-[inset_0_1px_0_#ffffff26] ring-1 ring-inset ring-white/10"
                         transition={{ type: "spring", stiffness: 420, damping: 34 }}
                       />
                     )}
@@ -107,14 +92,15 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
             onClick={onOpenSearch}
             aria-label="Search the complete database"
             className={cn(
-              "group flex items-center gap-2.5 rounded-full border border-line bg-black/25 text-muted backdrop-blur-md transition-colors duration-300",
-              "h-9 w-9 justify-center fine:hover:border-line-strong fine:hover:text-text",
-              "lg:h-9 lg:w-56 lg:justify-start lg:px-3.5",
+              "group items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.07] text-muted transition-colors duration-300 press",
+              // Below lg the tab bar carries search, so the header doesn't repeat it.
+              "hidden h-10 w-10 justify-center lg:flex fine:hover:border-line-strong fine:hover:text-text",
+              "xl:h-10 xl:w-56 xl:justify-start xl:px-3.5",
             )}
           >
             <Search size={16} className="shrink-0" />
-            <span className="hidden text-[13px] lg:inline">Search everything…</span>
-            <kbd className="ml-auto hidden items-center gap-0.5 rounded border border-line px-1.5 py-0.5 text-[10px] text-faint lg:inline-flex">
+            <span className="hidden text-[13px] xl:inline">Search everything…</span>
+            <kbd className="ml-auto hidden items-center gap-0.5 rounded border border-line px-1.5 py-0.5 text-[10px] text-faint xl:inline-flex">
               ⌘K
             </kbd>
           </button>

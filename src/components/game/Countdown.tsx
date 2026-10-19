@@ -77,7 +77,7 @@ export function Countdown({ date, className, size = "lg" }: CountdownProps) {
           </span>
           <span
             className={cn(
-              "mt-1 font-medium uppercase tracking-[0.14em] text-faint",
+              "mt-1 font-medium uppercase tracking-[0.07em] text-faint",
               size === "lg" ? "text-[10px]" : "text-[8px]",
             )}
           >

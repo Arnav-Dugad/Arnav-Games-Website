@@ -236,7 +236,7 @@ export function LibraryView() {
         </div>
 
         <div>
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
             Store
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -258,7 +258,7 @@ export function LibraryView() {
         </div>
 
         <div>
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
             Release state
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -276,7 +276,7 @@ export function LibraryView() {
         </div>
 
         <div>
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
             Status
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -465,7 +465,7 @@ function LibraryMetric({
         tone === "gold" && "bg-amber-400/10 text-amber-300",
       )}>{icon}</div>
       <p className="font-display text-2xl font-bold tabular-nums sm:text-3xl">{value}</p>
-      <p className="mt-0.5 truncate text-[11px] uppercase tracking-[0.12em] text-faint">{label}</p>
+      <p className="mt-0.5 truncate text-[11px] uppercase tracking-[0.06em] text-faint">{label}</p>
     </div>
   );
 }

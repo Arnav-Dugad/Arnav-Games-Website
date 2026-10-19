@@ -47,7 +47,7 @@ export function Sheet({
       {open && (
         <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center sm:p-6">
           <motion.div
-            className="absolute inset-0 bg-black/70 backdrop-blur-md"
+            className="absolute inset-0 bg-black/55 backdrop-blur-[6px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -62,16 +62,16 @@ export function Sheet({
             aria-modal="true"
             aria-label={title}
             className={cn(
-              "glass glass-blur relative z-10 w-full outline-none",
+              "material relative z-10 w-full outline-none",
               "max-h-[88dvh] overflow-y-auto overscroll-contain",
-              "rounded-t-[28px] pb-[env(safe-area-inset-bottom)]",
-              "sm:max-w-lg sm:rounded-[24px] sm:pb-0",
+              "rounded-t-[34px] pb-[env(safe-area-inset-bottom)]",
+              "sm:max-w-lg sm:rounded-[30px] sm:pb-0",
               className,
             )}
             initial={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.94, y: 12 }}
             animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
             exit={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.96, y: 8 }}
-            transition={{ type: "spring", stiffness: 380, damping: 34 }}
+            transition={{ type: "spring", stiffness: 420, damping: 40, mass: 0.9 }}
             drag={isMobile ? "y" : false}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.55 }}
@@ -82,7 +82,7 @@ export function Sheet({
           >
             {isMobile && (
               <div className="sticky top-0 z-10 flex justify-center pt-3 pb-1">
-                <span aria-hidden className="h-1.5 w-11 rounded-full bg-white/25" />
+                <span aria-hidden className="h-[5px] w-9 rounded-full bg-white/30" />
               </div>
             )}
 
@@ -98,7 +98,7 @@ export function Sheet({
                   type="button"
                   onClick={onClose}
                   aria-label="Close"
-                  className="-mr-1 grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-white/8 hover:text-text"
+                  className="press -mr-1 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/[0.09] text-muted transition-colors hover:bg-white/[0.15] hover:text-text"
                 >
                   <X size={18} />
                 </button>

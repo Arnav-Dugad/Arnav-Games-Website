@@ -127,7 +127,7 @@ export function GameCollectionShowcase({ game }: { game: GameDetail }) {
         <div>
           <Reveal className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-soft">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">
                 Content map
               </p>
               <h2 className="text-3xl font-black sm:text-4xl">Everything connected to this release</h2>
@@ -151,7 +151,7 @@ export function GameCollectionShowcase({ game }: { game: GameDetail }) {
                   <PackageOpen size={20} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold">Base-game relationship</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-gold">Base-game relationship</p>
                   <Link href={`/game/${game.parentGame.slug}`} className="mt-1 block truncate font-display text-lg font-bold transition-colors hover:text-gold">
                     {game.parentGame.name}
                   </Link>
@@ -185,7 +185,7 @@ function UniverseShowcase({ game }: { game: GameDetail }) {
   return (
     <div id="universe">
       <Reveal className="mb-6">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-soft">Beyond this game</p>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">Beyond this game</p>
         <h2 className="text-3xl font-black sm:text-4xl">Explore the complete universe</h2>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-[15px]">
           One complete franchise view connects the main releases, spin-offs, settings, and related game families.
@@ -215,7 +215,7 @@ function UniverseCard({ entry, kind, href, backdrop, index }: { entry: Ref; kind
       <span className="absolute inset-0 -z-10 bg-gradient-to-t from-bg via-bg/78 to-bg/25" />
       <span className="absolute inset-0 -z-10 bg-gradient-to-r from-bg/85 via-transparent to-transparent" />
       <span className="mt-auto max-w-xl">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/30 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-soft backdrop-blur-md">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/30 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-soft backdrop-blur-md">
           <Layers3 size={12} /> {kind}
         </span>
         <span className="mt-3 block font-display text-2xl font-black leading-tight text-white sm:text-3xl">{entry.name}</span>
@@ -236,7 +236,7 @@ function RelationShelf({ group }: { group: RelationGroup }) {
         <div className="flex min-w-0 items-start gap-3.5">
           <span className={cn("mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-2xl border", toneClasses(group.tone))}><Icon size={18} /></span>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-faint">{group.eyebrow}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-faint">{group.eyebrow}</p>
             <h3 className="mt-1 text-2xl font-bold sm:text-3xl">{group.title}</h3>
             <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">{group.description}</p>
           </div>
@@ -269,7 +269,7 @@ function RelationPoster({ game, label, requirement, tone }: { game: GameSummary;
             <span className="mt-1.5 block text-[11px] text-white/60">{releaseLabel(game)}</span>
           </span>
         </span>
-        <span className="mt-2.5 block truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-faint">{requirement}</span>
+        <span className="mt-2.5 block truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{requirement}</span>
       </Link>
     </article>
   );

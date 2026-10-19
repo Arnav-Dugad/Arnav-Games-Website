@@ -87,7 +87,7 @@ export function EntityPage({
 
               <div className="min-w-0 flex-1">
                 <Reveal>
-                  <p className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-soft">
+                  <p className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">
                     <span aria-hidden className="h-px w-6 bg-gradient-to-r from-brand to-transparent" />
                     {eyebrow}
                   </p>
@@ -130,7 +130,7 @@ export function EntityPage({
 
       <Container className="py-10 lg:py-16">
         <div className="mb-7">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-soft">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-brand-soft">
             {collectionPage ? "Complete collection" : kind === "company" ? "Studio catalogue" : "Gameography"}
           </p>
           <h2 className="text-2xl font-bold sm:text-3xl">
@@ -168,7 +168,7 @@ function EntityStat({
     <div className={cn("glass rounded-2xl p-4", className)}>
       <span className="mb-3 grid h-8 w-8 place-items-center rounded-xl bg-brand/12 text-brand-soft">{icon}</span>
       <p className="font-display text-lg font-bold text-text">{value}</p>
-      <p className="mt-0.5 text-[11px] uppercase tracking-[0.12em] text-faint">{label}</p>
+      <p className="mt-0.5 text-[11px] uppercase tracking-[0.06em] text-faint">{label}</p>
     </div>
   );
 }

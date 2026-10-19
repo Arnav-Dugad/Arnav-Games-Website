@@ -57,7 +57,7 @@ export function SearchHitVisual({
           sizes={size === "card" ? "80px" : "44px"}
         />
         {upcoming && (
-          <span className="absolute inset-x-1 bottom-1 rounded-md bg-brand/90 px-1 py-0.5 text-center text-[8px] font-black uppercase tracking-[0.1em] text-white">
+          <span className="absolute inset-x-1 bottom-1 rounded-md bg-brand/90 px-1 py-0.5 text-center text-[8px] font-black uppercase tracking-[0.06em] text-white">
             Upcoming
           </span>
         )}

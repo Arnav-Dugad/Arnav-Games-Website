@@ -77,10 +77,10 @@ export function PlatformPicker({
             className="fixed inset-0 z-20 cursor-default"
             onClick={() => setOpen(false)}
           />
-          <ul className="glass glass-blur absolute left-0 top-[calc(100%+6px)] z-30 max-h-[min(24rem,65vh)] w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-xl p-1">
+          <ul className="material absolute left-0 top-[calc(100%+6px)] z-30 max-h-[min(24rem,65vh)] w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-xl p-1">
             {groups.map((group, groupIndex) => (
               <li key={group} className={cn(groupIndex > 0 && "mt-1 border-t border-line pt-1")}>
-                <p className="px-3 pb-1 pt-2 text-[9px] font-bold uppercase tracking-[0.16em] text-faint">{group}</p>
+                <p className="px-3 pb-1 pt-2 text-[9px] font-bold uppercase tracking-[0.07em] text-faint">{group}</p>
                 <ul>
                   {PLAYING_LOCATIONS.filter((location) => location.group === group).map((location) => (
                     <li key={location.slug}>

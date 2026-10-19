@@ -7,36 +7,49 @@
    ========================================================================= */
 
 @theme {
-  /* Surfaces, darkest → lightest */
-  --color-bg: #04040a;
-  --color-bg-elev: #0a0a14;
-  --color-panel: #101020;
-  --color-panel-2: #16162a;
+  /* Surfaces, darkest → lightest. Apple's dark-mode system greys: true black
+     canvas, #1c1c1e grouped panels, #2c2c2e raised controls. */
+  --color-bg: #000000;
+  --color-bg-elev: #0c0c0e;
+  --color-panel: #1c1c1e;
+  --color-panel-2: #2c2c2e;
 
-  /* Hairlines & text */
-  --color-line: #ffffff14;
-  --color-line-strong: #ffffff26;
-  --color-text: #f1f1f7;
-  --color-muted: #9494ac;
-  --color-faint: #61617a;
+  /* Hairlines & text — Apple's label/secondaryLabel/tertiaryLabel ramp */
+  --color-line: #ffffff17;
+  --color-line-strong: #ffffff2b;
+  --color-text: #f5f5f7;
+  --color-muted: #a1a1a6;
+  --color-faint: #6e6e73;
 
-  /* Accents */
-  --color-brand: #7c5cff;
-  --color-brand-soft: #a892ff;
-  --color-neon: #22d3ee;
-  --color-flare: #ff3d8b;
-  --color-gold: #ffc857;
-  --color-mint: #4ade80;
+  /* Accents, tuned to Apple's dark-mode system colours */
+  --color-brand: #8a72ff;
+  --color-brand-soft: #b9adff;
+  --color-neon: #64d2ff;
+  --color-flare: #ff375f;
+  --color-gold: #ffd60a;
+  --color-mint: #30d158;
 
-  /* Type */
-  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, monospace;
+  /* Continuous, generous radii. Re-scaling the theme rounds every existing
+     `rounded-*` usage at once instead of restyling components one by one. */
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.375rem;
+  --radius-3xl: 1.75rem;
+  --radius-4xl: 2.25rem;
+
+  /* Apple display type is bold, not black. */
+  --font-weight-black: 800;
+
+  /* Type — SF Pro on Apple devices, Inter (its closest open cousin) elsewhere */
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "SF Pro Text", -apple-system, BlinkMacSystemFont, var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", "JetBrains Mono", Menlo, monospace;
 
   /* Motion — one shared easing vocabulary keeps transitions feeling related */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
 
   --animate-shimmer: shimmer 2.2s linear infinite;
   --animate-aurora: aurora 22s ease-in-out infinite;
@@ -138,16 +151,23 @@
     overscroll-behavior-y: none;
   }
 
-  @media (hover: none) and (pointer: coarse) {
+  /* Matches where MobileTabBar renders: touch at any width, or any pointer
+     below the header's own nav breakpoint. */
+  @media (hover: none) and (pointer: coarse), (max-width: 1023px) {
     body {
-      padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+      padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
     }
   }
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.03em;
+    letter-spacing: -0.028em;
     text-wrap: balance;
+  }
+
+  /* Tap highlight is replaced by explicit pressed states. */
+  a, button {
+    -webkit-tap-highlight-color: transparent;
   }
 
   p {
@@ -161,8 +181,7 @@
 
   :focus-visible {
     outline: 2px solid var(--color-brand-soft);
-    outline-offset: 2px;
-    border-radius: 4px;
+    outline-offset: 3px;
   }
 
   /* Desktop scrollbar. Left native on touch, where overlay scrollbars are
@@ -209,24 +228,75 @@
    ========================================================================= */
 
 @layer utilities {
-  /* Frosted panel. The layered inset shadow is what sells the "thickness" —
-     a top highlight plus a soft ambient drop. */
+  /*
+    Glass materials, modelled on Apple's.
+
+    `.glass` is the everyday panel: a translucent white tint with a hairline
+    and a specular top edge. It deliberately carries no backdrop blur — grids
+    render dozens of these, and per-card blur is what makes phones stutter.
+
+    `.glass-blur` adds the blur where something actually sits over content.
+    `.material` is the full chrome recipe (header, tab bar, sheets, menus):
+    a dark tint, heavy blur and saturation so colour bleeds through like
+    frosted glass rather than greying out.
+  */
   .glass {
-    background: linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--color-panel) 88%, transparent),
-      color-mix(in oklab, var(--color-bg-elev) 92%, transparent)
-    );
-    border: 1px solid var(--color-line);
+    background: linear-gradient(180deg, #ffffff12, #ffffff08);
+    border: 1px solid #ffffff17;
     box-shadow:
-      inset 0 1px 0 0 #ffffff14,
-      0 1px 2px 0 #00000066,
-      0 12px 40px -12px #00000099;
+      inset 0 1px 0 0 #ffffff1a,
+      0 1px 1px 0 #00000059,
+      0 18px 40px -20px #000000b3;
   }
 
   .glass-blur {
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    --material-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
+  }
+
+  .material {
+    background: color-mix(in oklab, #1c1c1e 68%, transparent);
+    border: 1px solid #ffffff1c;
+    box-shadow:
+      inset 0 1px 0 0 #ffffff21,
+      inset 0 -1px 0 0 #ffffff08,
+      0 20px 50px -18px #000000cc;
+    --material-filter: blur(30px) saturate(190%);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
+  }
+
+  /* Lighter, more see-through variant for controls floating over imagery. */
+  .material-thin {
+    background: #ffffff14;
+    border: 1px solid #ffffff1f;
+    box-shadow: inset 0 1px 0 0 #ffffff1f;
+    --material-filter: blur(20px) saturate(170%);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
+  }
+
+  /*
+    The filter goes through a custom property on purpose. Written as two
+    literal declarations, Lightning CSS collapses them into the -webkit- one
+    only, which Chromium ignores — every "blurred" surface rendered unblurred.
+  */
+
+  /* Without backdrop-filter support, fall back to an opaque surface so text
+     never ends up on a busy, unblurred background. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .material { background: #1c1c1ef2; }
+    .material-thin { background: #2c2c2ee6; }
+  }
+
+  /* Apple's pressed state: a quick, slightly springy shrink. */
+  .press {
+    transition: transform 0.35s var(--ease-apple);
+  }
+  .press:active {
+    transform: scale(0.96);
+    transition-duration: 0.12s;
   }
 
   /* Film grain. Pure CSS/SVG so it costs no network request. */

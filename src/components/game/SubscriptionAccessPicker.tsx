@@ -125,20 +125,27 @@ export function SubscriptionAccessPicker({
         aria-expanded={open}
         aria-haspopup="dialog"
         className={cn(
-          "inline-flex min-h-12 items-center gap-2 rounded-full border px-5 text-sm font-semibold transition-all active:scale-[0.97]",
+          "inline-flex min-h-12 items-center gap-2 rounded-full border px-5 text-sm font-semibold press transition-[background-color,border-color,color]",
           access.length
             ? "border-neon/40 bg-neon/10 text-white"
-            : "border-line-strong bg-black/40 text-text backdrop-blur-sm hover:bg-white/10",
+            : "border-white/15 bg-white/[0.08] text-text backdrop-blur-xl hover:bg-white/[0.14]",
           busy && "opacity-60",
         )}
       >
         <Sparkles size={17} className={access.length ? "text-neon" : undefined} />
-        {access.length ? `Subscription · ${access.length}` : "Played via subscription"}
+        {access.length ? (
+          `Subscription · ${access.length}`
+        ) : (
+          <>
+            <span className="sm:hidden">Subscription</span>
+            <span className="hidden sm:inline">Played via subscription</span>
+          </>
+        )}
       </button>
 
       <Popover open={open} onClose={close} anchorRef={triggerRef} width={340} label="Subscription play history">
         <div className="border-b border-line px-3 pb-3 pt-2">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-neon">Access history</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-neon">Access history</p>
           <p className="mt-1 text-xs leading-relaxed text-muted">Record the service and the platform you actually used. This never counts as ownership.</p>
         </div>
 

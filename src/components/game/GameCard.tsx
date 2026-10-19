@@ -18,8 +18,8 @@
  * scaled down:
  *  - fine pointers: 3D tilt, a glare sweep, and the ownership control fading in
  *    on hover
- *  - coarse pointers: no tilt, the control permanently visible at a 44px
- *    target, and press feedback via `active:scale`
+ *  - coarse pointers: no tilt, the controls permanently visible as glass
+ *    chips on the poster (44px hit areas), and press feedback via `active:scale`
  */
 
 import Link from "next/link";
@@ -60,15 +60,16 @@ export function GameCard({
 
   return (
     <div className={cn("group/card", className)}>
+      <div className="relative">
       <TiltCard className="rounded-2xl" intensity={7} scale={1.03}>
         <Link
           href={`/game/${game.slug}`}
           aria-label={game.name}
           className={cn(
-            "group relative block w-full overflow-hidden rounded-2xl border border-line bg-panel",
+            "group relative block w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-panel shadow-[0_14px_34px_-18px_#000]",
             "transition-[border-color,box-shadow] duration-500",
-            "fine:hover:border-line-strong fine:hover:shadow-[0_24px_60px_-24px_rgba(124,92,255,0.55)]",
-            "active:scale-[0.985] coarse:transition-transform",
+            "fine:hover:border-white/20 fine:hover:shadow-[0_28px_60px_-24px_rgba(138,114,255,0.5)]",
+            "coarse:transition-transform coarse:duration-300 coarse:active:scale-[0.97] coarse:active:duration-100",
             shape === "poster" ? "aspect-[3/4]" : "aspect-[16/9]",
           )}
         >
@@ -93,11 +94,14 @@ export function GameCard({
           <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black/55 to-transparent" />
 
           <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2.5">
-            <OwnedBadge gameId={game.id} />
+            {/* On touch the ownership chip below already shows this. */}
+            <div className="hidden fine:block">
+              <OwnedBadge gameId={game.id} />
+            </div>
             <div className="ml-auto flex flex-col items-end gap-1.5">
               <ScorePill score={game.metacritic} />
               {upcoming && (
-                <span className="rounded-md bg-brand/90 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.11em] text-white backdrop-blur-sm">
+                <span className="rounded-full bg-black/45 px-2 py-[3px] text-[9px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_0_0_1px_#ffffff24] backdrop-blur-md">
                   Upcoming
                 </span>
               )}
@@ -105,9 +109,9 @@ export function GameCard({
           </div>
 
           {upcoming && (
-            <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-[#090916] via-[#090916]/95 to-transparent px-3 pb-3 pt-10">
+            <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-3 pb-3 pt-10">
               <CalendarClock size={13} className="shrink-0 text-brand-soft" />
-              <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.11em] text-white/90">
+              <span className="min-w-0 truncate text-[11px] font-semibold tracking-[-0.005em] text-white/95">
                 {releaseLabel(game)}
               </span>
             </div>
@@ -116,16 +120,24 @@ export function GameCard({
           {/* Hover-only inner glow ring. */}
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-1 ring-inset ring-brand/40 transition-opacity duration-500 fine:group-hover:opacity-100"
+            className="pointer-events-none absolute inset-0 rounded-2xl shadow-[inset_0_1px_0_#ffffff1f] ring-1 ring-inset ring-white/0 transition-[box-shadow] duration-500 fine:group-hover:ring-white/15"
           />
         </Link>
       </TiltCard>
+
+      {/* Touch: the actions ride on the poster as glass chips, so the title
+          below gets the full card width instead of being squeezed. */}
+      <div className="absolute left-2 top-2 z-10 flex gap-1.5 fine:hidden">
+        <WatchButton game={game} compact />
+        {showOwnership && <OwnershipPicker game={game} variant="icon" compact />}
+      </div>
+      </div>
 
       <div className="mt-2.5 flex items-start gap-2">
         <Link
           href={`/game/${game.slug}`}
           className={cn(
-            "min-w-0 flex-1 font-display font-semibold leading-snug text-text transition-colors",
+            "min-w-0 flex-1 font-display font-semibold leading-snug tracking-[-0.01em] text-text transition-colors",
             "line-clamp-2 fine:group-hover/card:text-brand-soft",
             size === "large" ? "text-[15px] lg:text-base" : "text-[13px] lg:text-sm",
           )}
@@ -141,7 +153,7 @@ export function GameCard({
           for the library, stats, and recommendations. Following still
           lives on the game page, where there is room to explain it.
         */}
-        <div className="-mt-0.5 flex shrink-0 gap-1.5 opacity-100 transition-opacity duration-300 fine:opacity-0 fine:group-hover/card:opacity-100 fine:group-focus-within/card:opacity-100">
+        <div className="-mt-0.5 hidden shrink-0 gap-1.5 transition-opacity duration-300 fine:flex fine:opacity-0 fine:group-hover/card:opacity-100 fine:group-focus-within/card:opacity-100">
           <WatchButton game={game} />
           {showOwnership && <OwnershipPicker game={game} variant="icon" />}
         </div>

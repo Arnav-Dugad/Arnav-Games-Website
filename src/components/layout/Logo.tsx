@@ -23,7 +23,7 @@ export function Logo({ className, compact = false }: { className?: string; compa
       </span>
 
       {!compact && (
-        <span className="whitespace-nowrap font-display text-[17px] font-extrabold tracking-[0.005em] text-text">
+        <span className="whitespace-nowrap font-display text-[17px] font-extrabold tracking-[0.005em] text-text max-[359px]:sr-only">
           Arnav{" "}
           <span className="bg-[linear-gradient(90deg,var(--color-brand-soft),var(--color-neon))] bg-clip-text text-transparent">
             Games

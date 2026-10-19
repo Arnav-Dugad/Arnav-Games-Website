@@ -115,7 +115,7 @@ export function PersonalCommandCenter({ genres }: { genres: Ref[] }) {
         <div className="noise relative isolate overflow-hidden rounded-[2rem] border border-brand/20 bg-[radial-gradient(circle_at_10%_0%,rgba(124,92,255,0.2),transparent_34%),radial-gradient(circle_at_100%_100%,rgba(34,211,238,0.11),transparent_38%),linear-gradient(145deg,rgba(16,16,32,0.94),rgba(5,5,12,0.98))] p-4 shadow-[0_40px_120px_-60px_rgba(124,92,255,0.7)] sm:p-6 lg:p-8">
           <Reveal className="relative z-10 mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-              <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-soft"><Radar size={13} /> Personalized command center</p>
+              <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft"><Radar size={13} /> Personalized command center</p>
               <h2 id="command-center-title" className="text-3xl font-black sm:text-4xl">Welcome back, {firstName(user.displayName)}</h2>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">Your library, release radar, progress, and taste profile—synchronized into one live briefing.</p>
             </div>
@@ -131,7 +131,7 @@ export function PersonalCommandCenter({ genres }: { genres: Ref[] }) {
               <span className="absolute inset-0 bg-gradient-to-t from-black via-black/42 to-black/5" />
               <span className="absolute inset-0 bg-gradient-to-r from-black/55 via-transparent to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neon">{focusLabel}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.07em] text-neon">{focusLabel}</p>
                 <h3 className="mt-2 max-w-2xl font-display text-2xl font-black leading-tight text-white sm:text-4xl">{focus.name}</h3>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/60">
                   <span className="rounded-full border border-white/15 bg-black/30 px-2.5 py-1 backdrop-blur-md">{statusLabel(focus.status)}</span>
@@ -167,7 +167,7 @@ export function PersonalCommandCenter({ genres }: { genres: Ref[] }) {
 
           <Reveal className="relative z-10 mt-4 flex flex-col gap-4 rounded-2xl border border-line bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div>
-              <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-faint"><Sparkles size={13} className="text-brand-soft" /> Taste signal</p>
+              <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.07em] text-faint"><Sparkles size={13} className="text-brand-soft" /> Taste signal</p>
               <p className="mt-1.5 text-sm text-muted">{profileUsable ? `Built from ${entries.length} tracked ${entries.length === 1 ? "game" : "games"}, weighted toward what you finish.` : "Mark games as playing or played to sharpen your recommendations."}</p>
             </div>
             {tasteGenres.length > 0 ? <div className="flex flex-wrap gap-2">{tasteGenres.map((genre) => <Link key={genre.id} href={`/browse?genres=${genre.slug}`} className="rounded-full border border-brand/20 bg-brand/[0.08] px-3 py-1.5 text-xs font-semibold text-brand-soft transition-colors hover:border-brand/40 hover:text-white">{genre.name}</Link>)}</div> : <Button href="/browse" variant="secondary" size="sm">Build your taste profile</Button>}
@@ -179,7 +179,7 @@ export function PersonalCommandCenter({ genres }: { genres: Ref[] }) {
         <div className="mt-10">
           <Container>
             <Reveal className="flex items-end justify-between gap-5">
-              <div><p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-soft">Your next obsession</p><h2 className="text-2xl font-black sm:text-3xl">{!currentRecommendations ? "Calibrating your next picks" : currentRecommendations.personalised ? `Because you play ${tasteGenres.slice(0, 2).map((genre) => genre.name).join(" and ") || "your favorites"}` : "High-quality picks beyond your library"}</h2><p className="mt-2 max-w-xl text-sm text-muted">Everything already tracked is excluded. The recommendation gets stronger as your play history grows.</p></div>
+              <div><p className="mb-2 text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft">Your next obsession</p><h2 className="text-2xl font-black sm:text-3xl">{!currentRecommendations ? "Calibrating your next picks" : currentRecommendations.personalised ? `Because you play ${tasteGenres.slice(0, 2).map((genre) => genre.name).join(" and ") || "your favorites"}` : "High-quality picks beyond your library"}</h2><p className="mt-2 max-w-xl text-sm text-muted">Everything already tracked is excluded. The recommendation gets stronger as your play history grows.</p></div>
               <Button href="/browse" variant="secondary" size="sm" className="hidden sm:inline-flex">Explore more</Button>
             </Reveal>
           </Container>
@@ -193,12 +193,12 @@ export function PersonalCommandCenter({ genres }: { genres: Ref[] }) {
 }
 
 function BriefingCard({ icon, eyebrow, tone, children }: { icon: React.ReactNode; eyebrow: string; tone: "brand" | "mint"; children: React.ReactNode }) {
-  return <Reveal className="flex min-h-0 flex-col rounded-[1.5rem] border border-line bg-white/[0.025] p-5"><div className="mb-4 flex items-center gap-2"><span className={cn("grid h-9 w-9 place-items-center rounded-xl", tone === "mint" ? "bg-mint/10 text-mint" : "bg-brand/10 text-brand-soft")}>{icon}</span><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-faint">{eyebrow}</p></div>{children}</Reveal>;
+  return <Reveal className="flex min-h-0 flex-col rounded-[1.5rem] border border-line bg-white/[0.025] p-5"><div className="mb-4 flex items-center gap-2"><span className={cn("grid h-9 w-9 place-items-center rounded-xl", tone === "mint" ? "bg-mint/10 text-mint" : "bg-brand/10 text-brand-soft")}>{icon}</span><p className="text-[10px] font-bold uppercase tracking-[0.07em] text-faint">{eyebrow}</p></div>{children}</Reveal>;
 }
 
 function ReleaseSignal({ entry, now, releasesSoon }: { entry: WatchlistEntry; now: number; releasesSoon: number }) {
   const days = daysUntilRelease(entry.released, now);
-  return <Link href={canonicalEntryHref(entry)} className="group flex min-h-0 flex-1 items-center gap-3"><span className="relative h-20 w-15 shrink-0 overflow-hidden rounded-xl border border-line"><GameCover name={entry.name} slug={entry.slug} image={entry.image} imageFallback={entry.imageFallback} width={180} sizes="60px" /></span><span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-brand-soft">{days === 0 ? "Releases today" : days === 1 ? "Tomorrow" : `In ${days} days`}</span><span className="mt-1 block line-clamp-2 font-display text-base font-bold leading-snug transition-colors group-hover:text-brand-soft">{entry.name}</span><span className="mt-1 block text-xs text-faint">{formatDate(entry.released)}{releasesSoon > 1 ? ` · ${releasesSoon} due in 30 days` : ""}</span></span></Link>;
+  return <Link href={canonicalEntryHref(entry)} className="group flex min-h-0 flex-1 items-center gap-3"><span className="relative h-20 w-15 shrink-0 overflow-hidden rounded-xl border border-line"><GameCover name={entry.name} slug={entry.slug} image={entry.image} imageFallback={entry.imageFallback} width={180} sizes="60px" /></span><span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft">{days === 0 ? "Releases today" : days === 1 ? "Tomorrow" : `In ${days} days`}</span><span className="mt-1 block line-clamp-2 font-display text-base font-bold leading-snug transition-colors group-hover:text-brand-soft">{entry.name}</span><span className="mt-1 block text-xs text-faint">{formatDate(entry.released)}{releasesSoon > 1 ? ` · ${releasesSoon} due in 30 days` : ""}</span></span></Link>;
 }
 
 function QuietSignal({ title, body, success = false }: { title: string; body: string; success?: boolean }) {
@@ -220,7 +220,7 @@ function CommandCenterOnboarding({ name }: { name: string }) {
     { icon: <Gamepad2 size={17} />, title: "Set your status", body: "Playing and completed games shape your taste." },
     { icon: <Sparkles size={17} />, title: "Unlock your briefing", body: "Get release, progress, and recommendation signals." },
   ];
-  return <section className="py-8 sm:py-11"><Container><Reveal className="relative overflow-hidden rounded-[2rem] border border-brand/20 bg-[radial-gradient(circle_at_0%_0%,rgba(124,92,255,0.2),transparent_45%),rgba(16,16,32,0.72)] p-5 sm:p-8"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-soft">Your command center</p><h2 className="mt-2 text-3xl font-black">Let&apos;s make Arnav Games yours, {name}</h2><p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">Track one game to activate a personal homepage. Nothing is guessed and no placeholder activity is invented.</p><Stagger className="mt-7 grid gap-3 sm:grid-cols-3" gap={0.05} onMount>{steps.map((step) => <StaggerItem key={step.title}><div className="h-full rounded-2xl border border-line bg-black/20 p-4"><span className="grid h-9 w-9 place-items-center rounded-xl bg-brand/10 text-brand-soft">{step.icon}</span><h3 className="mt-3 text-sm font-bold">{step.title}</h3><p className="mt-1 text-xs leading-relaxed text-muted">{step.body}</p></div></StaggerItem>)}</Stagger><div className="mt-6 flex flex-wrap gap-3"><Button href="/browse">Find your first game</Button><Button href="/upcoming" variant="secondary">Explore upcoming releases</Button></div></Reveal></Container></section>;
+  return <section className="py-8 sm:py-11"><Container><Reveal className="relative overflow-hidden rounded-[2rem] border border-brand/20 bg-[radial-gradient(circle_at_0%_0%,rgba(124,92,255,0.2),transparent_45%),rgba(16,16,32,0.72)] p-5 sm:p-8"><p className="text-[10px] font-bold uppercase tracking-[0.07em] text-brand-soft">Your command center</p><h2 className="mt-2 text-3xl font-black">Let&apos;s make Arnav Games yours, {name}</h2><p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">Track one game to activate a personal homepage. Nothing is guessed and no placeholder activity is invented.</p><Stagger className="mt-7 grid gap-3 sm:grid-cols-3" gap={0.05} onMount>{steps.map((step) => <StaggerItem key={step.title}><div className="h-full rounded-2xl border border-line bg-black/20 p-4"><span className="grid h-9 w-9 place-items-center rounded-xl bg-brand/10 text-brand-soft">{step.icon}</span><h3 className="mt-3 text-sm font-bold">{step.title}</h3><p className="mt-1 text-xs leading-relaxed text-muted">{step.body}</p></div></StaggerItem>)}</Stagger><div className="mt-6 flex flex-wrap gap-3"><Button href="/browse">Find your first game</Button><Button href="/upcoming" variant="secondary">Explore upcoming releases</Button></div></Reveal></Container></section>;
 }
 
 function firstName(name: string | null): string {

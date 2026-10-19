@@ -49,13 +49,20 @@ export function Pagination({
         href={hrefFor(page - 1)}
         disabled={page <= 1}
         aria-label="Previous page"
-        className="px-3"
+        className="px-4 sm:px-3"
       >
         <ChevronLeft size={16} />
         <span className="hidden sm:inline">Prev</span>
       </PageLink>
 
-      <ul className="flex items-center gap-1.5">
+      {/* Phones get a compact "Page 2 of 63" between the arrows; the full
+          numbered strip doesn't fit a 320px screen. */}
+      <p className="min-w-0 px-2 text-center text-sm text-muted tabular-nums sm:hidden" aria-live="polite">
+        Page <span className="font-semibold text-text">{page.toLocaleString("en-US")}</span>
+        {totalPages ? <> of {totalPages.toLocaleString("en-US")}</> : null}
+      </p>
+
+      <ul className="hidden items-center gap-1.5 sm:flex">
         {windowed.map((entry, i) =>
           entry === "gap" ? (
             <li key={`gap-${i}`} className="px-1 text-faint">
@@ -81,7 +88,7 @@ export function Pagination({
         href={hrefFor(page + 1)}
         disabled={!hasNext}
         aria-label="Next page"
-        className="px-3"
+        className="px-4 sm:px-3"
       >
         <span className="hidden sm:inline">Next</span>
         <ChevronRight size={16} />
@@ -106,10 +113,10 @@ function PageLink({
 } & React.AriaAttributes) {
   const classes = cn(
     // `relative` anchors the pending overlay to the link itself.
-    "relative inline-flex min-h-11 items-center gap-1 overflow-hidden rounded-full border text-sm font-medium transition-colors duration-200",
+    "press relative inline-flex min-h-11 items-center gap-1 overflow-hidden rounded-full border text-sm font-medium transition-colors duration-200",
     active
-      ? "border-brand/50 bg-brand/20 text-white"
-      : "border-line bg-white/[0.03] text-muted fine:hover:border-line-strong fine:hover:text-text",
+      ? "border-brand/50 bg-brand/25 text-white shadow-[inset_0_1px_0_#ffffff1f]"
+      : "border-white/[0.09] bg-white/[0.06] text-muted fine:hover:bg-white/[0.1] fine:hover:text-text",
     disabled && "pointer-events-none opacity-35",
     className,
   );

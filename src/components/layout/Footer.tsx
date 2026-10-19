@@ -70,7 +70,7 @@ export function Footer() {
 
           {COLUMNS.map((column) => (
             <nav key={column.title} aria-label={column.title}>
-              <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
                 {column.title}
               </h3>
               <ul className="mt-4 space-y-2.5">
@@ -96,7 +96,7 @@ export function Footer() {
 
           {/* Auth-aware, so signed-in visitors aren't invited to sign up. */}
           <nav aria-label="Account">
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.07em] text-faint">
               Account
             </h3>
             <AccountLinks />

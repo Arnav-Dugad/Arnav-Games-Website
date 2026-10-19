@@ -155,11 +155,11 @@ export function MediaGallery({
                   />
                 ) : <span className="absolute inset-0 bg-panel-2" />}
                 <span className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10" />
-                <span className="absolute bottom-2.5 left-2.5 rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/75 backdrop-blur-md sm:bottom-3 sm:left-3">
+                <span className="absolute bottom-2.5 left-2.5 rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-white/75 backdrop-blur-md sm:bottom-3 sm:left-3">
                   {index === 0 ? "Featured capture" : `${index + 1} / ${items.length}`}
                 </span>
                 {more > 0 ? (
-                  <span className="absolute inset-0 grid place-items-center bg-black/55 text-center backdrop-blur-[2px]"><span><span className="block font-display text-2xl font-black text-white">+{more}</span><span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-white/65">More images</span></span></span>
+                  <span className="absolute inset-0 grid place-items-center bg-black/55 text-center backdrop-blur-[2px]"><span><span className="block font-display text-2xl font-black text-white">+{more}</span><span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.07em] text-white/65">More images</span></span></span>
                 ) : (
                   <span className="absolute bottom-2.5 right-2.5 grid h-8 w-8 place-items-center rounded-lg bg-black/55 text-white backdrop-blur-md sm:bottom-3 sm:right-3"><Expand size={14} /></span>
                 )}
@@ -323,7 +323,7 @@ function RailArrow({
       aria-label={direction === "left" ? "Scroll left" : "Scroll right"}
       className={cn(
         "absolute top-1/2 hidden -translate-y-1/2 fine:grid",
-        "h-11 w-11 place-items-center rounded-full glass glass-blur text-text",
+        "h-11 w-11 place-items-center rounded-full material text-text",
         "opacity-0 transition-all duration-300 group-hover/media:opacity-100 focus-visible:opacity-100",
         "hover:scale-110 hover:border-line-strong active:scale-95",
         "disabled:pointer-events-none disabled:opacity-0",
