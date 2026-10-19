@@ -23,12 +23,12 @@ const inter = Inter({
   display: "swap",
 });
 
-const SITE_NAME = "LUDEX";
+const SITE_NAME = "Arnav Games";
 const SITE_DESCRIPTION =
   "Track every upcoming video game release, browse critic scores, platforms and screenshots, and build a watchlist of what you're waiting for.";
 
 export const metadata: Metadata = {
-  // Set NEXT_PUBLIC_SITE_URL on Vercel so social cards resolve absolute URLs.
+  // Set NEXT_PUBLIC_SITE_URL at build time so social cards resolve absolute URLs.
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: {
     default: `${SITE_NAME} — Upcoming video game releases & database`,

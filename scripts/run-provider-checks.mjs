@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 try {
   os.userInfo();
 } catch {
-  os.userInfo = () => ({ username: "ludex-checks" });
+  os.userInfo = () => ({ username: "arnav-games-checks" });
 }
 
 const require = createRequire(import.meta.url);

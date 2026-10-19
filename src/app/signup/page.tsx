@@ -4,7 +4,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 
 export const metadata: Metadata = {
   title: "Create your account",
-  description: "Create a free LUDEX account to track upcoming releases and rate what you play.",
+  description: "Create a free Arnav Games account to track upcoming releases and rate what you play.",
   robots: { index: false, follow: false },
 };
 

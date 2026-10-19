@@ -1,5 +1,5 @@
 {
-  "name": "ludex",
+  "name": "arnav-games",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,30 +13,35 @@
     "quality:runtime": "node scripts/quality-audit.mjs",
     "test:e2e": "playwright test",
     "audit:security": "npm audit --audit-level=high",
-    "icons": "node scripts/generate-brand-icons.mjs"
+    "icons": "node scripts/generate-brand-icons.mjs",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "firebase": "^12.17.1",
     "lucide-react": "^1.29.0",
     "motion": "^13.0.0",
-    "next": "16.3.0",
+    "next": "^16.4.2",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
+    "@opennextjs/cloudflare": "^1.20.12",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "^16.4.2",
     "playwright-core": "^1.62.1",
     "simple-icons": "^16.28.0",
     "simple-icons-legacy": "npm:simple-icons@^11.15.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.10",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.151.1"
   }
 }

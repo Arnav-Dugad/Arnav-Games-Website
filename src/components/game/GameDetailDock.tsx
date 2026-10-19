@@ -41,7 +41,7 @@ export function GameDetailDock({
   }, [sections]);
 
   const share = async () => {
-    const data = { title: gameName, text: `Explore ${gameName} on LUDEX`, url: window.location.href };
+    const data = { title: gameName, text: `Explore ${gameName} on Arnav Games`, url: window.location.href };
     try {
       if (navigator.share) {
         await navigator.share(data);

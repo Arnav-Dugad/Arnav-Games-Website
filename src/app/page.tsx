@@ -33,7 +33,8 @@ export default async function HomePage() {
   const [spotlight, upcoming, trending, topRated, newReleases, genres, totalGames] =
     await Promise.all([
       getSpotlight(6),
-      getUpcoming(18),
+      // Notable only, matching the calendar's default view.
+      getUpcoming(18, 1, { notableOnly: true }),
       getTrending(14),
       getTopRated(10),
       getNewReleases(14),

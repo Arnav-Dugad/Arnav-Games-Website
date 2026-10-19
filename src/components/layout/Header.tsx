@@ -59,6 +59,14 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
           : "border-b border-transparent bg-transparent",
       )}
     >
+      {/* Soft scrim so the bar stays legible over bright hero frames. */}
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 -z-10 h-28 bg-gradient-to-b from-black/55 via-black/20 to-transparent transition-opacity duration-500",
+          scrolled ? "opacity-0" : "opacity-100",
+        )}
+      />
       <div className="mx-auto flex h-16 w-full max-w-[1400px] items-center gap-4 px-4 lg:h-[72px] lg:px-6 xl:px-10">
         <Logo />
 
@@ -99,7 +107,7 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
             onClick={onOpenSearch}
             aria-label="Search the complete database"
             className={cn(
-              "group flex items-center gap-2.5 rounded-full border border-line bg-white/[0.04] text-muted transition-colors duration-300",
+              "group flex items-center gap-2.5 rounded-full border border-line bg-black/25 text-muted backdrop-blur-md transition-colors duration-300",
               "h-9 w-9 justify-center fine:hover:border-line-strong fine:hover:text-text",
               "lg:h-9 lg:w-56 lg:justify-start lg:px-3.5",
             )}

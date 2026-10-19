@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="LUDEX">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Arnav Games">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#7C5CFF"/>
@@ -6,5 +6,5 @@
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="15" fill="url(#g)"/>
-  <path d="M22 16h7.5v24.5H45V48H22z" fill="#fff"/>
+  <path d="M27.6 15h8.8L49 49h-8.3l-2.6-7.4H25.9L23.3 49H15zm-.1 19.9h9L32 21.6z" fill="#fff"/>
 </svg>

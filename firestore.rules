@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Firestore security rules for LUDEX.
+// Firestore security rules for Arnav Games.
 //
 // Paste into Firebase console → Firestore Database → Rules, then Publish.
 //

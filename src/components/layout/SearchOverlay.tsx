@@ -168,7 +168,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             tabIndex={-1}
             role="dialog"
             aria-modal="true"
-            aria-label="Search all of LUDEX"
+            aria-label="Search all of Arnav Games"
             className="glass glass-blur relative z-10 flex h-dvh-safe w-full flex-col overflow-hidden sm:h-auto sm:max-h-[84vh] sm:max-w-4xl sm:rounded-[2rem] sm:border-brand/20 sm:shadow-[0_40px_140px_-45px_rgba(124,92,255,0.75)]"
             initial={{ opacity: 0, y: 18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -294,7 +294,7 @@ function DiscoveryStart({ onClose }: { onClose: () => void }) {
     <div className="p-4 sm:p-6">
       <div className="mb-5 flex items-center gap-2">
         <Sparkles size={15} className="text-brand-soft" />
-        <p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-faint">Explore LUDEX</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-faint">Explore Arnav Games</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {QUICK_LINKS.map((link, index) => (

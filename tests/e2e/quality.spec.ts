@@ -45,7 +45,7 @@ for (const route of PUBLIC_ROUTES) {
     await expect(page.locator("main#main")).toHaveCount(1);
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Skip to content" })).toHaveCount(1);
-    await expect(page).toHaveTitle(/LUDEX/);
+    await expect(page).toHaveTitle(/Arnav Games/);
     await expectHealthyImages(page);
     expect(pageErrors).toEqual([]);
   });
@@ -56,7 +56,7 @@ test("global search traps and restores keyboard focus", async ({ page }) => {
   const trigger = page.getByRole("button", { name: "Search the complete database" }).first();
   await trigger.click();
 
-  const dialog = page.getByRole("dialog", { name: "Search all of LUDEX" });
+  const dialog = page.getByRole("dialog", { name: "Search all of Arnav Games" });
   await expect(dialog).toBeVisible();
   await expect(page.locator("#global-search")).toBeFocused();
 
@@ -86,9 +86,9 @@ test("mobile navigation remains thumb-reachable and opens search", async ({ brow
     await expect(mobileNav).toBeVisible();
     await expect(mobileNav.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
     await mobileNav.getByRole("button", { name: "Search the complete database" }).click();
-    await expect(page.getByRole("dialog", { name: "Search all of LUDEX" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Search all of Arnav Games" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Search all of LUDEX" })).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Search all of Arnav Games" })).toBeHidden();
   } finally {
     await context.close();
   }

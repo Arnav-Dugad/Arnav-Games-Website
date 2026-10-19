@@ -32,7 +32,7 @@ export function NotificationBell() {
           "relative grid h-9 w-9 place-items-center rounded-full border transition-all duration-300",
           open
             ? "border-brand/55 bg-brand/15 text-white ring-2 ring-brand/20"
-            : "border-line bg-white/[0.04] text-muted fine:hover:border-line-strong fine:hover:text-text",
+            : "border-line bg-black/25 text-muted backdrop-blur-md fine:hover:border-line-strong fine:hover:text-text",
         )}
       >
         {unreadCount > 0 ? <BellRing size={16} /> : <Bell size={16} />}

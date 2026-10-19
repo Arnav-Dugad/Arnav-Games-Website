@@ -48,7 +48,7 @@ async function request(path, init) {
       redirect: "follow",
       ...init,
       signal: controller.signal,
-      headers: { "User-Agent": "LUDEX-quality-audit/1.0", ...init?.headers },
+      headers: { "User-Agent": "ArnavGames-quality-audit/1.0", ...init?.headers },
     });
   } finally {
     clearTimeout(timer);
@@ -91,7 +91,7 @@ function tagCount(html, tag) {
 function titleOf(html) {
   const titles = [...html.matchAll(/<title>([^<]+)<\/title>/gi)]
     .map((match) => decodeAttribute(match[1]?.trim() ?? ""));
-  return titles.find((title) => /LUDEX/i.test(title)) ?? titles.at(-1) ?? "";
+  return titles.find((title) => /Arnav Games/i.test(title)) ?? titles.at(-1) ?? "";
 }
 
 function badTarget(value) {
@@ -238,7 +238,7 @@ async function auditApis() {
 }
 
 async function main() {
-  console.log(`LUDEX production quality audit — ${BASE_URL}`);
+  console.log(`Arnav Games production quality audit — ${BASE_URL}`);
   await waitForServer();
   await auditPages();
   await auditLinksAndAssets();

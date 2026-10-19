@@ -20,10 +20,11 @@ import {
 } from "react";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { getUserPreferences, saveUserPreferences } from "@/lib/firebase/db";
+import { STORAGE_PREFIX, migrateLegacyStorage, upgradeKeyedMap } from "@/lib/utils/storage-keys";
 
-const MOTION_KEY = "ludex:reduce-motion";
-const POSTER_KEY = "ludex:poster-sizes";
-const NOTIFICATION_RELEASES_KEY = "ludex:notifications:releases";
+const MOTION_KEY = `${STORAGE_PREFIX}reduce-motion`;
+const POSTER_KEY = `${STORAGE_PREFIX}poster-sizes`;
+const NOTIFICATION_RELEASES_KEY = `${STORAGE_PREFIX}notifications:releases`;
 
 interface PreferencesValue {
   /** User-level motion opt-out, on top of the OS setting. */
@@ -64,6 +65,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     // the cookie converges the two, and reading the cookie as a fallback covers
     // a browser that kept cookies but cleared site storage.
     const frame = requestAnimationFrame(() => {
+      migrateLegacyStorage();
       try {
         setReduceMotionState(window.localStorage.getItem(MOTION_KEY) === "true");
 
@@ -72,7 +74,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           const parsed: unknown = JSON.parse(storedSizes);
           // Guard the shape: a hand-edited or stale value must not poison state.
           if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            setPosterSizesState(parsed as Record<string, string>);
+            setPosterSizesState(upgradeKeyedMap(parsed as Record<string, string>));
           }
         }
         setNotificationReleasesState(window.localStorage.getItem(NOTIFICATION_RELEASES_KEY) !== "false");
@@ -107,7 +109,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
           const hasLocalSizes = window.localStorage.getItem(POSTER_KEY) !== null;
           if (!hasLocalSizes && prefs.posterSizes) {
-            setPosterSizesState(prefs.posterSizes);
+            setPosterSizesState(upgradeKeyedMap(prefs.posterSizes));
           }
           const hasLocalReleaseAlerts = window.localStorage.getItem(NOTIFICATION_RELEASES_KEY) !== null;
           if (!hasLocalReleaseAlerts && typeof prefs.notificationReleases === "boolean") {

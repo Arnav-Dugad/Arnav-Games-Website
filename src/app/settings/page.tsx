@@ -4,7 +4,7 @@ import { SettingsView } from "@/components/settings/SettingsView";
 
 export const metadata: Metadata = {
   title: "Settings",
-  description: "Notification, motion, account and data preferences for LUDEX.",
+  description: "Notification, motion, account and data preferences for Arnav Games.",
   robots: { index: false, follow: false },
 };
 

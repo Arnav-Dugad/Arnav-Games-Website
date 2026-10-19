@@ -32,9 +32,9 @@ export function Footer() {
       {/* Oversized wordmark bleeding off the bottom edge. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -bottom-6 select-none text-center font-display text-[22vw] font-black leading-none tracking-tighter text-white/[0.022] lg:-bottom-12"
+        className="pointer-events-none absolute inset-x-0 -bottom-4 select-none whitespace-nowrap text-center font-display text-[14vw] font-black uppercase leading-none tracking-tighter text-white/[0.025] lg:-bottom-8"
       >
-        LUDEX
+        Arnav Games
       </div>
 
       <Container className="relative py-14 lg:py-20">
@@ -104,7 +104,7 @@ export function Footer() {
         </Reveal>
 
         <div className="mt-12 flex flex-col items-start justify-between gap-4 border-t border-line pt-6 text-xs text-faint sm:flex-row sm:items-center">
-          <p>© {new Date().getFullYear()} LUDEX. Not affiliated with any publisher or platform holder.</p>
+          <p>© {new Date().getFullYear()} Arnav Games. Not affiliated with any publisher or platform holder.</p>
           <a href="#main" className="inline-flex items-center gap-1.5 transition-colors hover:text-muted">
             <ArrowUp size={13} />
             Back to top

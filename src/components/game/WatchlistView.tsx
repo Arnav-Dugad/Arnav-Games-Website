@@ -73,7 +73,7 @@ export function WatchlistView() {
   const [batchMode, setBatchMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const { size: posterSize, setSize: setPosterSize } = usePosterSize(
-    "ludex:watchlist-size",
+    "arnav-games:watchlist-size",
     "list",
   );
 

@@ -2189,9 +2189,11 @@ export const igdbProvider: GameProvider = {
     try {
       const base = await buildWhere(filters);
       if (base === null) return { results: [], count: 0, hasNext: false, page };
-      // Calendar days begin at UTC midnight. Comparing against the current
-      // second hid every game releasing *today* after 00:00 UTC — and made the
-      // query body, and therefore its cache key, change every second.
+      // Calendar days begin at UTC midnight, and a game releasing today is
+      // already "released" (see `releaseState`). Starting the window tomorrow
+      // keeps today's launches from filling the page only to be filtered out
+      // below — which left the home rail with 2 of 18 slots. The bound is
+      // day-aligned so the query body, and its cache key, stay stable.
       const tbaOnly = filters.releaseTiming === "tba";
       const releaseFields = tbaOnly ? (await schema()).release : [];
       const formatField = releaseFields.some((field) => field.endsWith(".date_format"))
@@ -2202,7 +2204,7 @@ export const igdbProvider: GameProvider = {
       if (tbaOnly && !formatField) return { results: [], count: 0, hasNext: false, page };
       const where = tbaOnly
         ? `${base} & first_release_date = null & release_dates.${formatField} = 7`
-        : `${base} & first_release_date >= ${todayStartSeconds()}`;
+        : `${base} & first_release_date >= ${todayEndSeconds()}`;
       // Independent queries — see `browse`.
       const [candidateResults, count] = await Promise.all([
         listGames(
@@ -2304,7 +2306,8 @@ export const igdbProvider: GameProvider = {
     try {
       return await listGames(
         {
-          where: `${MAIN_GAMES} & first_release_date > ${daysFromNow(-60)} & first_release_date <= ${todayEndSeconds()}`,
+          // Strictly before tomorrow 00:00 UTC; `<=` let tomorrow's launches in.
+          where: `${MAIN_GAMES} & first_release_date > ${daysFromNow(-60)} & first_release_date < ${todayEndSeconds()}`,
           sort: "first_release_date desc",
           limit: pageSize,
         },
@@ -3058,7 +3061,7 @@ export async function igdbDiagnostics(): Promise<IgdbDiagnostics> {
     return {
       ...base,
       problem: "IGDB_CLIENT_ID and/or IGDB_CLIENT_SECRET are not set.",
-      hint: "Add both to your environment (Vercel → Settings → Environment Variables), then redeploy.",
+      hint: "Add both as Worker secrets (npx wrangler secret put IGDB_CLIENT_ID / IGDB_CLIENT_SECRET), then redeploy.",
     };
   }
 

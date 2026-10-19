@@ -1,9 +1,12 @@
-# LUDEX
+# Arnav Games
+
+**Live:** https://arnav-games.arnavrival12.workers.dev
 
 A release calendar and reference database for video games — upcoming releases with
 live countdowns, critic scores, screenshots, platforms, and a personal watchlist.
 
-Built with Next.js 16 (App Router), React 19, Tailwind CSS v4, Motion and Firebase.
+Built with Next.js 16 (App Router), React 19, Tailwind CSS v4, Motion and Firebase,
+and hosted on Cloudflare Workers via the [OpenNext adapter](https://opennext.js.org/cloudflare).
 
 ---
 
@@ -79,21 +82,36 @@ configured instead of failing.
 
 ---
 
-## Deploying to Vercel
+## Deploying to Cloudflare Workers
 
-1. Push this repo to GitHub
-2. Import it at [vercel.com/new](https://vercel.com/new) — the framework is detected
-   automatically, no build settings to change
-3. Add your environment variables under **Settings → Environment Variables**
-4. Deploy
+The site runs on Cloudflare Workers through `@opennextjs/cloudflare`. Config
+lives in [`wrangler.jsonc`](./wrangler.jsonc) and
+[`open-next.config.ts`](./open-next.config.ts).
 
-Every variable is optional — the site builds and runs with none of them set.
+```bash
+npx wrangler login                                   # once
+npx wrangler r2 bucket create arnav-games-opennext-cache   # once — Next's data cache
+npx wrangler secret put IGDB_CLIENT_ID               # once per secret
+npx wrangler secret put IGDB_CLIENT_SECRET
+npm run deploy                                       # build + deploy
+```
+
+`npm run preview` builds the same bundle and serves it locally in the Workers
+runtime, which is the closest thing to production.
+
+The R2 bucket backs Next's incremental cache, so `unstable_cache` and route
+`revalidate` windows actually hold between requests — without it every page view
+would hit IGDB directly and trip its rate limit.
+
+`NEXT_PUBLIC_*` variables are inlined **at build time**, so they must be present
+in `.env.local` (or the shell) on the machine running `npm run deploy`.
+`IGDB_*` are runtime secrets and live in Cloudflare (`wrangler secret put`).
 
 | Variable | Needed for | Notes |
 | --- | --- | --- |
 | `IGDB_CLIENT_ID` | Full multi-platform game data | Server-only |
 | `IGDB_CLIENT_SECRET` | Full multi-platform game data | Server-only |
-| `NEXT_PUBLIC_SITE_URL` | Canonical URLs, sitemap, social cards | e.g. `https://ludex.vercel.app`, no trailing slash |
+| `NEXT_PUBLIC_SITE_URL` | Canonical URLs, sitemap, social cards | e.g. `https://arnav-games.arnavrival12.workers.dev`, no trailing slash |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Accounts, watchlist, reviews | Public by design |
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Accounts | |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Accounts | |
@@ -102,11 +120,9 @@ Every variable is optional — the site builds and runs with none of them set.
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Accounts | |
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | — | Unused; Analytics is not wired up |
 
-Set each for **Production, Preview and Development** unless you want them to
-differ per environment.
-
-If you add Firebase after the first deploy, remember step 6 above — add the Vercel
-domain to Firebase's authorised domains or Google sign-in will be rejected.
+If you add Firebase after the first deploy, remember step 6 above — add the
+`workers.dev` (or custom) domain to Firebase's authorised domains or Google
+sign-in will be rejected.
 
 ### Notifications
 
@@ -115,8 +131,8 @@ so the inbox needs no server, no scheduler, no permissions and no extra
 configuration — it works as soon as Firebase accounts are set up.
 
 There is deliberately no outbound push or email channel. Both need
-infrastructure the free tiers don't comfortably cover: Vercel's Hobby plan
-triggers cron jobs only once a day at an approximate hour, and Resend requires a
+infrastructure the free tiers don't comfortably cover: a scheduler to scan
+releases for every user, and Resend requires a
 sending domain you own. An inbox that always works beats a delivery pipeline
 that half-works, so alerts live in the app and nowhere else.
 
@@ -226,6 +242,8 @@ silently forcing unsafe major-version downgrades.
 npm run dev         # development server
 npm run build       # production build
 npm run start       # serve the production build
+npm run preview     # build for Cloudflare and serve locally in the Workers runtime
+npm run deploy      # build for Cloudflare and deploy
 npm run check:types # TypeScript without emitting files
 npm run lint        # eslint
 npm run check:data  # self-checks for date parsing, slug round-trips, platform mapping
@@ -240,7 +258,7 @@ date parsing, provider slug round-trips, platform vocabulary normalisation and
 IGDB image resizing. These decide what date a user is shown and which provider
 owns a URL, so they are pinned down rather than assumed.
 
-For the runtime audit, build and start LUDEX on port `3137` first. Set
+For the runtime audit, build and start the site on port `3137` first. Set
 `QUALITY_BASE_URL` to target another deployment, and `QUALITY_REQUIRE_PROVIDER=1`
 when IGDB and storefront connectivity must be live rather than explicitly degraded.
 

@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  turbopack: {
+    resolveAlias: {
+      // Firestore's Node build pulls in gRPC + protobufjs, which generates code
+      // with `new Function` — forbidden on Cloudflare Workers, so every SSR'd
+      // page that merely imports it would 500. Firestore never initialises on
+      // the server (see lib/firebase/config.ts), so the browser build, which
+      // talks over fetch, is the right one everywhere.
+      "@firebase/firestore": "./node_modules/@firebase/firestore/dist/index.esm.js",
+    },
+  },
   redirects() {
     return [
       { source: "/series", destination: "/franchises", permanent: true },
@@ -28,6 +38,10 @@ const nextConfig: NextConfig = {
       // itself is not loaded until the user presses play).
       { protocol: "https", hostname: "i.ytimg.com", pathname: "/**" },
     ],
+    // Served straight from the provider CDNs. IGDB and Steam already publish
+    // pre-sized assets, and on Cloudflare Workers this avoids routing every
+    // poster through the metered Images transformation quota.
+    unoptimized: true,
     formats: ["image/avif", "image/webp"],
     // Tuned to the breakpoints the grid actually renders at, so the optimiser
     // never generates sizes nothing requests.
@@ -52,3 +66,6 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+// Lets `next dev` read Cloudflare bindings (R2 cache) from wrangler.jsonc.
+import("@opennextjs/cloudflare").then((m) => m.initOpenNextCloudflareForDev());

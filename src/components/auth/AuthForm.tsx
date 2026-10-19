@@ -64,7 +64,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
     try {
       if (mode === "signup") {
         await signUp(name, email, password);
-        toast("Welcome to LUDEX", "success");
+        toast("Welcome to Arnav Games", "success");
       } else {
         await signIn(email, password);
         toast("Signed in", "success");

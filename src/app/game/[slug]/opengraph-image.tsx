@@ -16,7 +16,7 @@ import { initials, releaseLabel } from "@/lib/utils/format";
  * hop that can fail, and the built-in face is perfectly legible at this size.
  */
 
-export const alt = "Game details on LUDEX";
+export const alt = "Game details on Arnav Games";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -135,7 +135,7 @@ export default async function OpengraphImage({
                 color: "#fff",
               }}
             >
-              L
+              A
             </div>
             <div
               style={{
@@ -146,7 +146,7 @@ export default async function OpengraphImage({
                 display: "flex",
               }}
             >
-              LUDEX
+              Arnav Games
             </div>
           </div>
 

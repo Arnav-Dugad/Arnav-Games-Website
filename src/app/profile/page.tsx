@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata: Metadata = {
   title: "Your profile",
-  description: "Your LUDEX account, review history and preferences.",
+  description: "Your Arnav Games account, review history and preferences.",
   robots: { index: false, follow: false },
 };
 

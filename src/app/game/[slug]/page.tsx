@@ -398,7 +398,7 @@ function GameHero({ game }: { game: GameDetail }) {
           <div className="min-w-0 flex-1">
             <Reveal className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em] text-white/45">
               <span aria-hidden className="h-px w-8 bg-gradient-to-r from-brand-soft to-transparent" />
-              LUDEX game dossier
+              Arnav Games dossier
             </Reveal>
             <Reveal className="mb-3 flex flex-wrap items-center gap-2 sm:mb-4">
               {game.genres.slice(0, 3).map((genre) => (

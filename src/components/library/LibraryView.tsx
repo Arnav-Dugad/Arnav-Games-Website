@@ -69,7 +69,7 @@ export function LibraryView() {
   const [query, setQuery] = useState("");
   const [batchMode, setBatchMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const { size: posterSize, setSize: setPosterSize } = usePosterSize("ludex:library-size");
+  const { size: posterSize, setSize: setPosterSize } = usePosterSize("arnav-games:library-size");
 
   /** Only games the reader has actually marked as owned somewhere. */
   const owned = useMemo(

@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/firebase/AuthProvider";
 import { getUserPreferences, saveUserPreferences } from "@/lib/firebase/db";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { usePreferences } from "@/lib/preferences/PreferencesProvider";
+import { STORAGE_PREFIX, migrateLegacyStorage } from "@/lib/utils/storage-keys";
 import {
   releaseNotifications,
   sortNotifications,
@@ -34,7 +35,7 @@ interface NotificationsContextValue {
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
 function storageKey(uid: string) {
-  return `ludex:notifications:read:${uid}`;
+  return `${STORAGE_PREFIX}notifications:read:${uid}`;
 }
 
 /**
@@ -91,6 +92,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const frame = requestAnimationFrame(() => {
       let localIds: string[] = [];
       try {
+        migrateLegacyStorage();
         const stored = window.localStorage.getItem(storageKey(user.uid));
         const parsed: unknown = stored ? JSON.parse(stored) : [];
         if (Array.isArray(parsed)) localIds = parsed.filter((id): id is string => typeof id === "string");

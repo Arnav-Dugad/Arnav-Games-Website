@@ -37,8 +37,10 @@ yarn-error.log*
 # ...but the template carries no secrets and must be committed.
 !.env.local.example
 
-# vercel
-.vercel
+# cloudflare
+/.open-next/
+/.wrangler/
+.dev.vars*
 
 # typescript
 *.tsbuildinfo
