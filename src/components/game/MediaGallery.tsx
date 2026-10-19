@@ -137,13 +137,11 @@ export function MediaGallery({
                   previewItems.length === 2 && index === 1 && "lg:row-span-2",
                   previewItems.length === 4 && index === 3 && "lg:col-span-2",
                   /*
-                   * Five previews is the common case and was the only count with
-                   * no span rule: tile 0 took column 1 across both rows, tiles
-                   * 1–3 filled row 1, tile 4 landed at row 2 column 2, and row 2
-                   * columns 3–4 stayed empty inside a fixed 520px-tall grid.
-                   * Widening the last tile closes the hole.
+                   * Five previews need no rule: tile 0 spans two columns and
+                   * both rows, and tiles 1–4 fill the remaining 2×2 exactly.
+                   * (A `col-span-2` on tile 4 here pushed it into a third,
+                   * zero-height row — an empty cell and a stray hairline.)
                    */
-                  previewItems.length === 5 && index === 4 && "lg:col-span-2",
                 )}
               >
                 {poster ? (

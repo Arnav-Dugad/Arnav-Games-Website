@@ -10,8 +10,37 @@ import { DataSourceNotice, SourceAttribution } from "@/components/ui/DataSourceN
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getGenres, getPlatforms, getUpcoming, isDegraded } from "@/lib/games/source";
-import type { SortKey } from "@/lib/games/types";
+import type { GameSummary, SortKey } from "@/lib/games/types";
 import { releaseState } from "@/lib/games/release-state";
+import { getDelayCounts } from "@/lib/games/release-history";
+import { hypeIndexFor } from "@/lib/games/providers/igdb-extras";
+import type { ReleaseSignals } from "@/components/game/ReleaseTimeline";
+
+/**
+ * Delay counts (our own D1 history) and hype index per row, fetched together.
+ * Both are decoration: any failure yields no badges rather than a broken page,
+ * and hype only exists for IGDB ids.
+ */
+async function releaseSignals(games: GameSummary[], igdb: boolean): Promise<ReleaseSignals> {
+  if (games.length === 0) return {};
+  const ids = games.map((game) => game.id);
+  const [delays, hype] = await Promise.all([
+    getDelayCounts(ids).catch(() => new Map<number, number>()),
+    igdb ? hypeIndexFor(ids).catch(() => new Map()) : Promise.resolve(new Map()),
+  ]);
+  const signals: ReleaseSignals = {};
+  for (const id of ids) {
+    const delayCount = delays.get(id);
+    const hypeScore = hype.get(id)?.score;
+    if (delayCount || typeof hypeScore === "number") {
+      signals[id] = {
+        ...(delayCount ? { delays: delayCount } : {}),
+        ...(typeof hypeScore === "number" ? { hype: hypeScore } : {}),
+      };
+    }
+  }
+  return signals;
+}
 
 export const revalidate = 3600;
 
@@ -79,6 +108,7 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Sea
   const games = data.results.filter((game) =>
     releaseState(game) === "upcoming" && (timeframe === "tba" ? game.tba : !game.tba),
   );
+  const signals = await releaseSignals(games, source === "igdb");
   const exact = games.filter((game) => game.released).length;
   const windowed = games.filter((game) => game.releaseWindow).length;
   const tba = games.filter((game) => game.tba).length;
@@ -163,7 +193,7 @@ export default async function UpcomingPage({ searchParams }: { searchParams: Sea
             <EmptyCalendar filtered={filtered} showAll={showAll} tba={timeframe === "tba"} />
           ) : (
             <>
-              <ReleaseTimeline games={games} />
+              <ReleaseTimeline games={games} signals={signals} />
               <Pagination
                 page={page}
                 hasNext={data.hasNext}

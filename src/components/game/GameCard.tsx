@@ -76,7 +76,7 @@ export function GameCard({
           onClick={cover.claim}
           data-menu-preview
           className={cn(
-            "group relative block w-full overflow-hidden rounded-2xl border border-fg/[0.08] bg-panel shadow-[0_14px_34px_-18px_#000]",
+            "group relative block w-full overflow-hidden rounded-2xl border border-fg/[0.08] bg-panel shadow-[0_14px_34px_-18px_#000] light:shadow-[0_12px_28px_-18px_#00000066]",
             "transition-[border-color,box-shadow] duration-500",
             "fine:hover:border-fg/20 fine:hover:shadow-[0_28px_60px_-24px_rgba(138,114,255,0.5)]",
             "coarse:transition-transform coarse:duration-300 coarse:active:scale-[0.97] coarse:active:duration-100",
@@ -111,7 +111,7 @@ export function GameCard({
               <OwnedBadge gameId={game.id} />
             </div>
             <div className="ml-auto flex flex-col items-end gap-1.5">
-              <ScorePill score={game.metacritic} />
+              <ScorePill score={game.metacritic} onImage />
               {upcoming && (
                 <span className="rounded-full bg-black/45 px-2 py-[3px] text-[9px] font-bold uppercase tracking-[0.08em] text-white shadow-[inset_0_0_0_1px_#ffffff24] backdrop-blur-md">
                   Upcoming

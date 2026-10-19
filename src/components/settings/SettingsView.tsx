@@ -64,7 +64,7 @@ function SettingCard({
     <Reveal id={id} delay={delay} blur={false}>
       <section className="glass rounded-3xl p-5 sm:p-7">
         <header className="flex items-start gap-4">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-line bg-white/[0.04] text-brand-soft">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-line bg-fg/[0.04] text-brand-soft">
             {icon}
           </span>
           <div className="min-w-0">
@@ -172,7 +172,9 @@ function ThemeThumbnail({ kind, active }: { kind: ThemePreference; active: boole
   return (
     <span
       className={cn(
-        "block aspect-[3/4] w-full max-w-[96px] overflow-hidden rounded-2xl ring-2 ring-offset-2 ring-offset-bg transition-[box-shadow]",
+        // The hairline keeps the light thumbnail's edge visible on a white card;
+        // the ring offset matches that card in the light theme.
+        "block aspect-[3/4] w-full max-w-[96px] overflow-hidden rounded-2xl shadow-[0_0_0_1px_var(--color-line)] ring-2 ring-offset-2 ring-offset-bg transition-[box-shadow] light:ring-offset-panel",
         active ? "ring-brand" : "ring-transparent",
       )}
     >
@@ -247,15 +249,15 @@ function AccountCard() {
       ) : user ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-white/[0.04] px-4 py-2 text-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2 text-sm">
               <span className="truncate font-medium">{user.displayName || user.email}</span>
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-white/[0.04] px-4 py-2 text-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2 text-sm">
               <Bookmark size={14} className="text-brand-soft" />
               <span className="font-semibold tabular-nums">{entries.length}</span>
               <span className="text-muted">tracked</span>
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-white/[0.04] px-4 py-2 text-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2 text-sm">
               <span className="font-semibold tabular-nums">{owned}</span>
               <span className="text-muted">owned</span>
             </span>
@@ -368,7 +370,7 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center gap-4 rounded-2xl border border-line bg-white/[0.03] px-4 py-3.5 text-left transition-colors hover:border-line-strong"
+      className="flex w-full items-center gap-4 rounded-2xl border border-line bg-fg/[0.03] px-4 py-3.5 text-left transition-colors hover:border-line-strong"
     >
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium">{label}</span>
@@ -377,12 +379,12 @@ function Toggle({
       <span
         className={cn(
           "relative h-6 w-11 shrink-0 rounded-full transition-colors duration-300",
-          checked ? "bg-brand" : "bg-white/15",
+          checked ? "bg-brand" : "bg-fg/15",
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_2px_5px_#00000040] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
             checked ? "translate-x-[22px]" : "translate-x-0.5",
           )}
         />

@@ -709,7 +709,7 @@ function Tooltip({
         transform: below ? `translate(-50%, ${offset}px)` : `translate(-50%, calc(-100% - ${offset}px))`,
       }}
     >
-      <div className="material animate-[fade-up_0.28s_var(--ease-out-expo)_both] rounded-2xl p-2.5">
+      <div className="material material-menu animate-[fade-up_0.28s_var(--ease-out-expo)_both] rounded-2xl p-2.5">
         <div className="flex gap-3">
           <div className="relative aspect-[3/4] w-12 shrink-0 overflow-hidden rounded-lg bg-panel-2">
             <GameCover

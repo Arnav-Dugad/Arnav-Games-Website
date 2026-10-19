@@ -151,7 +151,7 @@ export function HeroShowcase({ games }: { games: GameSummary[] }) {
               {/* Only an exact, still-future date can be counted down to; a
                   window renders as its label in the meta row above instead. */}
               {active.released && isUnreleased(active) && (
-                <Countdown date={active.released} className="mt-6" />
+                <Countdown date={active.released} className="mt-6" tone="onImage" />
               )}
 
               <div className="mt-7 flex flex-wrap items-center gap-3">

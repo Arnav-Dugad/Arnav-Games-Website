@@ -46,7 +46,7 @@ export function NotificationsView() {
       </Stagger>
 
       <Reveal onMount className="mt-8 flex flex-col gap-3 rounded-2xl border border-line bg-panel/40 p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex overflow-x-auto rounded-xl border border-line bg-black/20 p-1 no-scrollbar">
+        <div className="flex overflow-x-auto rounded-xl border border-line bg-fg/[0.04] p-1 no-scrollbar">
           <FilterButton active={filter === "all"} onClick={() => setFilter("all")}>All <span>{notifications.length}</span></FilterButton>
           <FilterButton active={filter === "unread"} onClick={() => setFilter("unread")}>Unread <span>{unreadCount}</span></FilterButton>
         </div>
@@ -72,7 +72,7 @@ export function NotificationsView() {
         )}
       </section>
 
-      <Reveal className="mt-10 overflow-hidden rounded-3xl border border-brand/20 bg-[radial-gradient(circle_at_0%_0%,rgba(124,92,255,0.16),transparent_44%),rgba(16,16,32,0.55)] p-5 sm:p-7">
+      <Reveal className="mt-10 overflow-hidden rounded-3xl border border-brand/20 bg-[radial-gradient(circle_at_0%_0%,rgba(124,92,255,0.16),transparent_44%),color-mix(in_oklab,var(--color-panel)_55%,transparent)] p-5 sm:p-7">
         <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
           <div className="flex gap-4">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-mint/20 bg-mint/10 text-mint"><Radio size={18} /></span>
@@ -96,5 +96,5 @@ function Metric({ icon, label, value, tone }: { icon: React.ReactNode; label: st
 }
 
 function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button type="button" aria-pressed={active} onClick={onClick} className={cn("flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition-colors", active ? "bg-white/10 text-text" : "text-muted hover:text-text", "[&_span]:text-[10px] [&_span]:text-faint [&_span]:tabular-nums")}>{children}</button>;
+  return <button type="button" aria-pressed={active} onClick={onClick} className={cn("flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold transition-colors", active ? "bg-fg/10 text-text" : "text-muted hover:text-text", "[&_span]:text-[10px] [&_span]:text-faint [&_span]:tabular-nums")}>{children}</button>;
 }

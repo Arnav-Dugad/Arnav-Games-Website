@@ -331,7 +331,7 @@ function CoverFlowItem({
         aria-label={centred ? `Open ${game.name}` : `Show ${game.name}, ${releaseLabel(game)}`}
         aria-current={centred ? "true" : undefined}
         onClick={() => onActivate(index, cover.claim)}
-        className="cover-flow-reflect relative block h-full w-full overflow-hidden rounded-[14px] bg-panel shadow-[0_24px_50px_-22px_#000] outline-offset-4"
+        className="cover-flow-reflect relative block h-full w-full overflow-hidden rounded-[14px] bg-panel shadow-[0_24px_50px_-22px_#000] outline-offset-4 light:shadow-[0_24px_44px_-24px_#00000073]"
       >
         <CoverTransition slug={game.slug} active={cover.active}>
           <GameCover
@@ -345,7 +345,7 @@ function CoverFlowItem({
           />
         </CoverTransition>
         {/* Neighbours dim as they turn away from the light. */}
-        <motion.span aria-hidden className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: shade }} />
+        <motion.span aria-hidden className="pointer-events-none absolute inset-0 bg-bg" style={{ opacity: shade }} />
         <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_1px_0_#ffffff26] ring-1 ring-inset ring-fg/10" />
       </button>
     </motion.div>

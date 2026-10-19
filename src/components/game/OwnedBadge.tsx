@@ -44,7 +44,7 @@ export function OwnedBadge({
       <span
         title={`Owned on ${owned.join(", ")}`}
         className={cn(
-          "grid h-6 w-6 place-items-center rounded-full bg-mint/90 text-black shadow-lg backdrop-blur-sm",
+          "grid h-6 w-6 place-items-center rounded-full bg-[#30d158]/90 text-black shadow-lg backdrop-blur-sm",
           className,
         )}
       >
@@ -57,7 +57,7 @@ export function OwnedBadge({
     <span
       title={`Owned on ${owned.join(", ")}`}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full bg-mint/90 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-black shadow-lg backdrop-blur-sm",
+        "inline-flex items-center gap-1.5 rounded-full bg-[#30d158]/90 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-black shadow-lg backdrop-blur-sm",
         className,
       )}
     >

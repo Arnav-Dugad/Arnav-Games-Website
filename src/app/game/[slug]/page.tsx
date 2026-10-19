@@ -184,7 +184,12 @@ export default async function GamePage({ params, searchParams }: { params: Param
     critic: {
       score: game.metacritic,
       label: criticLabel,
-      caption: source === "steam" ? "Metacritic" : "IGDB critic aggregate",
+      caption:
+        source === "steam"
+          ? "Metacritic"
+          : game.criticCount
+            ? `${game.criticCount.toLocaleString("en-US")} critic ${game.criticCount === 1 ? "review" : "reviews"} · IGDB`
+            : "IGDB critic aggregate",
     },
     userRating: game.rating > 0 ? { rating: game.rating, count: game.ratingsCount } : null,
     hasSteam,

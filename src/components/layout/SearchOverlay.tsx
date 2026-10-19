@@ -136,7 +136,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
       {open && (
         <div className="fixed inset-0 z-[250] flex items-start justify-center p-0 sm:p-6 sm:pt-[8vh]">
           <motion.div
-            className="absolute inset-0 bg-black/80 backdrop-blur-xl"
+            className="absolute inset-0 bg-bg/80 backdrop-blur-xl light:bg-black/25"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -211,10 +211,10 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                 <DiscoveryStart onClose={onClose} />
               ) : results.length === 0 && !loading ? (
                 <div className="px-6 py-16 text-center sm:py-20">
-                  <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-line bg-white/[0.04] text-faint"><Search size={22} /></span>
+                  <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-line bg-fg/[0.04] text-faint"><Search size={22} /></span>
                   <p className="mt-5 max-w-full break-words font-display text-lg font-bold [overflow-wrap:anywhere]">No direct matches for “{query.trim()}”</p>
                   <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">Try a shorter spelling, or search the complete games catalogue for looser title matches.</p>
-                  <button type="button" onClick={openFullSearch} className="press mt-6 inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-bg">
+                  <button type="button" onClick={openFullSearch} className="press mt-6 inline-flex min-h-11 items-center gap-2 rounded-full bg-text px-5 text-sm font-semibold text-bg">
                     Open full search <ArrowRight size={15} />
                   </button>
                 </div>
@@ -299,7 +299,7 @@ function DiscoveryStart({ onClose }: { onClose: () => void }) {
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {QUICK_LINKS.map((link, index) => (
-          <Link key={link.href} href={link.href} onClick={onClose} className="group rounded-2xl border border-line bg-white/[0.025] p-4 transition-[border-color,background-color,transform] hover:-translate-y-0.5 hover:border-line-strong hover:bg-white/[0.05]">
+          <Link key={link.href} href={link.href} onClick={onClose} className="group rounded-2xl border border-line bg-fg/[0.025] p-4 transition-[border-color,background-color,transform] hover:-translate-y-0.5 hover:border-line-strong hover:bg-fg/[0.05]">
             <span className="flex items-center justify-between"><TrendingUp size={15} className={index % 2 ? "text-neon" : "text-brand-soft"} /><ArrowRight size={14} className="text-faint transition-transform group-hover:translate-x-1" /></span>
             <span className="mt-4 block text-sm font-bold">{link.label}</span>
             <span className="mt-1 block text-xs text-faint">{link.detail}</span>
@@ -311,5 +311,5 @@ function DiscoveryStart({ onClose }: { onClose: () => void }) {
 }
 
 function Key({ children }: { children: React.ReactNode }) {
-  return <kbd className="inline-grid h-5 min-w-5 place-items-center rounded border border-line bg-white/5 px-1 font-sans text-[10px] text-muted">{children}</kbd>;
+  return <kbd className="inline-grid h-5 min-w-5 place-items-center rounded border border-line bg-fg/5 px-1 font-sans text-[10px] text-muted">{children}</kbd>;
 }

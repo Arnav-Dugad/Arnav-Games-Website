@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -263,10 +263,8 @@ function FranchiseCard({ franchise, index }: { franchise: DirectoryRef; index: n
   return (
     <Link
       href={`/franchise/${franchise.slug}`}
-      className="group relative flex h-32 items-end overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:-translate-y-1 fine:hover:border-line-strong fine:hover:shadow-[0_25px_60px_-32px_rgba(124,92,255,0.8)]"
-      style={{
-        background: `linear-gradient(140deg, hsl(${hue} 58% 21%), hsl(${(hue + 45) % 360} 52% 8%))`,
-      }}
+      className="hue-tile group relative flex h-32 items-end overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:-translate-y-1 fine:hover:border-line-strong fine:hover:shadow-[0_25px_60px_-32px_rgba(124,92,255,0.8)]"
+      style={{ "--tile-hue": hue, "--tile-hue-2": (hue + 45) % 360 } as CSSProperties}
     >
       <span
         aria-hidden
@@ -279,13 +277,13 @@ function FranchiseCard({ franchise, index }: { franchise: DirectoryRef; index: n
         {franchise.name.charAt(0)}
       </span>
       <span className="relative">
-        <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.07em] text-white/50">
+        <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.07em] text-white/65">
           Franchise {String(index + 1).padStart(2, "0")}
         </span>
-        <span className="line-clamp-2 font-display text-[15px] font-bold leading-tight text-white transition-colors group-hover:text-white">
+        <span className="line-clamp-2 font-display text-[15px] font-bold leading-tight text-white">
           {franchise.name}
         </span>
-        <span className="mt-2 block text-[10px] font-medium uppercase tracking-[0.07em] text-white/45">
+        <span className="mt-2 block text-[10px] font-medium uppercase tracking-[0.07em] text-white/60">
           {franchise.gameCount.toLocaleString()} {franchise.gameCount === 1 ? "game" : "games"}
         </span>
       </span>

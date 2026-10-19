@@ -29,7 +29,7 @@ export function UserMenu() {
   useEscapeKey(() => setOpen(false), open);
 
   if (loading) {
-    return <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-white/8" aria-hidden />;
+    return <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-fg/8" aria-hidden />;
   }
 
   if (!user) {
@@ -91,7 +91,7 @@ export function UserMenu() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.97 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="material absolute right-0 top-[calc(100%+14px)] z-50 w-64 origin-top-right overflow-hidden rounded-[22px] p-1.5"
+            className="material material-menu absolute right-0 top-[calc(100%+14px)] z-50 w-64 origin-top-right overflow-hidden rounded-[22px] p-1.5"
           >
             <div className="border-b border-line px-3 py-2.5">
               <p className="truncate text-sm font-semibold">{name}</p>
@@ -147,7 +147,7 @@ function MenuLink({
       href={href}
       role="menuitem"
       onClick={onClick}
-      className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-muted transition-colors hover:bg-white/6 hover:text-text"
+      className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-muted transition-colors hover:bg-fg/6 hover:text-text"
     >
       <span className="text-faint">{icon}</span>
       {children}

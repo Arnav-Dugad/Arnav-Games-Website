@@ -41,8 +41,8 @@ export function SectionHeading({
           className={cn(
             // Phones: App Store-style accent text link. Desktop: a glass pill.
             "press group inline-flex shrink-0 items-center gap-1 text-[15px] font-medium text-brand-soft",
-            "sm:gap-2 sm:rounded-full sm:border sm:border-white/10 sm:bg-white/[0.06] sm:px-4 sm:py-2.5 sm:text-sm sm:text-text",
-            "transition-colors duration-300 sm:hover:bg-white/[0.11]",
+            "sm:gap-2 sm:rounded-full sm:border sm:border-fg/10 sm:bg-fg/[0.06] sm:px-4 sm:py-2.5 sm:text-sm sm:text-text",
+            "transition-colors duration-300 sm:hover:bg-fg/[0.11]",
           )}
         >
           {linkLabel}

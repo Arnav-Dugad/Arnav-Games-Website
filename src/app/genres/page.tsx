@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import type { CSSProperties } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Container } from "@/components/ui/SectionHeading";
 import { DataSourceNotice } from "@/components/ui/DataSourceNotice";
@@ -40,10 +41,8 @@ export default async function GenresPage() {
               <StaggerItem key={genre.id}>
                 <Link
                   href={`/browse?genres=${genre.slug}`}
-                  className="group relative flex h-32 flex-col justify-end overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:border-line-strong fine:hover:shadow-[0_20px_50px_-24px_rgba(124,92,255,0.6)] lg:h-40"
-                  style={{
-                    background: `linear-gradient(150deg, hsl(${hue} 55% 21%), hsl(${(hue + 50) % 360} 50% 9%))`,
-                  }}
+                  className="hue-tile group relative flex h-32 flex-col justify-end overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:border-line-strong fine:hover:shadow-[0_20px_50px_-24px_rgba(124,92,255,0.6)] lg:h-40"
+                  style={{ "--tile-hue": hue, "--tile-hue-2": (hue + 50) % 360 } as CSSProperties}
                 >
                   <span
                     aria-hidden
@@ -62,7 +61,7 @@ export default async function GenresPage() {
                   />
                   <ArrowUpRight
                     size={16}
-                    className="absolute right-4 top-4 text-white/40 transition-all duration-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white/80"
+                    className="absolute right-4 top-4 text-white/55 transition-all duration-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white/80"
                   />
                   <span className="relative font-display text-lg font-bold leading-tight lg:text-xl">
                     {genre.name}

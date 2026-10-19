@@ -8,8 +8,14 @@
  * sliding, which is what separates it from a stock fade-in.
  */
 
-import { motion, useReducedMotion, type Variants } from "motion/react";
+import { motion, type Variants } from "motion/react";
 import type { ReactNode } from "react";
+// Hydration-safe: `false` on the server and the hydrating pass, so the
+// server-rendered variants match, then the real setting on the next render.
+// Motion's own `useReducedMotion` reads the media query during the first
+// client render, which made every reveal a hydration mismatch for readers
+// with reduced motion on.
+import { usePrefersReducedMotion as useReducedMotion } from "@/hooks";
 
 export type RevealDirection = "up" | "down" | "left" | "right" | "none";
 

@@ -11,7 +11,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, Clock } from "lucide-react";
+import { CalendarDays, Clock, Flame, History } from "lucide-react";
 import { GameCover } from "./GameCover";
 import { CountdownInline } from "./Countdown";
 import { PlatformIcons } from "./PlatformIcons";
@@ -75,6 +75,19 @@ export function groupByMonth(games: GameSummary[]): MonthGroup[] {
       continue;
     }
 
+    // A month-level window ("Nov 2026") belongs to that month's group, listed
+    // after the exactly-dated titles; otherwise the calendar shows two
+    // headings for the same month.
+    const window = releaseWindowInfo(game.releaseWindow);
+    if (window?.precision === "month") {
+      const key = window.start.slice(0, 7);
+      if (!months.has(key)) {
+        months.set(key, { key, label: MONTH_LABEL.format(new Date(`${window.start}T00:00:00Z`)), games: [] });
+      }
+      months.get(key)!.games.push(game);
+      continue;
+    }
+
     if (game.releaseWindow) {
       const key = `w:${game.releaseWindow}`;
       if (!windows.has(key)) {
@@ -88,6 +101,10 @@ export function groupByMonth(games: GameSummary[]): MonthGroup[] {
   }
 
   const ordered = [...months.values()].sort((a, b) => a.key.localeCompare(b.key));
+  // Within a month: dated titles by day, then the month-window ones.
+  for (const group of ordered) {
+    group.games.sort((a, b) => (a.released ?? "9999").localeCompare(b.released ?? "9999"));
+  }
   ordered.push(...[...windows.values()].sort((a, b) => {
     const aStart = releaseWindowInfo(a.label)?.start ?? "9999";
     const bStart = releaseWindowInfo(b.label)?.start ?? "9999";
@@ -103,7 +120,10 @@ function groupId(key: string) {
   return `month-${key.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase()}`;
 }
 
-export function ReleaseTimeline({ games }: { games: GameSummary[] }) {
+/** Per-game list signals, keyed by game id. Plain data so it crosses the server/client boundary. */
+export type ReleaseSignals = Record<number, { delays?: number; hype?: number }>;
+
+export function ReleaseTimeline({ games, signals }: { games: GameSummary[]; signals?: ReleaseSignals }) {
   const groups = groupByMonth(games);
 
   if (groups.length === 0) {
@@ -157,7 +177,7 @@ export function ReleaseTimeline({ games }: { games: GameSummary[] }) {
                     arrive while the reader is already scrolled past where a
                     scroll trigger would fire. */}
                 <Reveal delay={Math.min(i, 5) * 0.04} blur={false} onMount>
-                  <ReleaseRow game={game} />
+                  <ReleaseRow game={game} signal={signals?.[game.id]} />
                 </Reveal>
               </li>
             ))}
@@ -240,7 +260,7 @@ function MonthJump({ groups }: { groups: MonthGroup[] }) {
   );
 }
 
-function ReleaseRow({ game }: { game: GameSummary }) {
+function ReleaseRow({ game, signal }: { game: GameSummary; signal?: ReleaseSignals[number] }) {
   const date = parseISO(game.released);
 
   return (
@@ -296,10 +316,32 @@ function ReleaseRow({ game }: { game: GameSummary }) {
           <PlatformIcons platforms={game.parentPlatforms} size={12} max={4} />
         </div>
 
-        {game.genres.length > 0 && (
-          <p className="truncate text-[11px] text-faint">
-            {game.genres.slice(0, 3).map((g) => g.name).join(" · ")}
-          </p>
+        {(signal?.delays || signal?.hype !== undefined || game.genres.length > 0) && (
+          <div className="flex min-w-0 items-center gap-1.5">
+            {signal?.delays ? (
+              <span
+                title="Release date moved later since Arnav Games began tracking it"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-flare/12 px-1.5 py-0.5 text-[10px] font-semibold text-flare"
+              >
+                <History size={10} />
+                Delayed {signal.delays}×
+              </span>
+            ) : null}
+            {signal?.hype !== undefined && (
+              <span
+                title="Hype index: anticipation and attention signals, 0–100"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-gold/12 px-1.5 py-0.5 text-[10px] font-semibold text-gold tabular-nums"
+              >
+                <Flame size={10} />
+                {signal.hype}
+              </span>
+            )}
+            {game.genres.length > 0 && (
+              <p className="min-w-0 truncate text-[11px] text-faint">
+                {game.genres.slice(0, 3).map((g) => g.name).join(" · ")}
+              </p>
+            )}
+          </div>
         )}
       </div>
 

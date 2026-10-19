@@ -108,6 +108,12 @@ export function OwnershipPicker({
             : variant === "icon"
               ? "border-white/15 bg-black/45 text-white backdrop-blur-xl fine:hover:bg-black/70"
               : "border-fg/15 bg-fg/[0.08] text-text backdrop-blur-xl fine:hover:bg-fg/[0.14]",
+          // A non-compact icon sits on a page row, not a poster (see WatchButton).
+          variant === "icon" &&
+            !compact &&
+            (owned.length > 0
+              ? "light:bg-mint/12 light:text-mint"
+              : "light:border-fg/10 light:bg-fg/[0.05] light:text-muted light:fine:hover:bg-fg/[0.09] light:fine:hover:text-text"),
         )}
       >
         <Library size={variant === "icon" ? 15 : 17} />

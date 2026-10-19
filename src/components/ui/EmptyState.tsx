@@ -45,7 +45,7 @@ export function EmptyState({
         <span
           className={cn(
             "grid h-14 w-14 place-items-center rounded-2xl",
-            tone === "unavailable" ? "bg-flare/10 text-flare" : "bg-white/5 text-faint",
+            tone === "unavailable" ? "bg-flare/10 text-flare" : "bg-fg/5 text-faint",
           )}
         >
           {icon}

@@ -106,7 +106,7 @@ export function ExpandableText({
           aria-expanded={expanded}
           className={cn(
             "group mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line",
-            "bg-white/[0.04] px-4 text-[13px] font-semibold text-muted",
+            "bg-fg/[0.04] px-4 text-[13px] font-semibold text-muted",
             "transition-colors duration-300 fine:hover:border-line-strong fine:hover:text-text",
           )}
         >

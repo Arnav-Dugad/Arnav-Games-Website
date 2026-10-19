@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils/cn";
  * Logos arrive in three tones (see `GameLogo` in types.ts). On this dark UI:
  *
  *  - "light" (white marks) render as-is, with a soft shadow so they hold up
- *    over bright key art.
+ *    over bright key art — and are inverted on the light theme's pale
+ *    surfaces, unless `surface="dark"`.
  *  - "dark" (black marks) are inverted — otherwise they vanish into the
  *    background. The inversion is a class keyed off `data-logo-tone` and is
  *    undone under `[data-theme="light"]`, so the light theme shows the mark
@@ -38,14 +39,25 @@ export interface GameLogoProps {
   surface?: "auto" | "dark";
 }
 
+/*
+ * White marks get the mirror treatment of black ones: on the light theme's
+ * pale surfaces they would vanish, so they are inverted to dark (the
+ * hue-rotate keeps any accent colour close to its original hue) and lose the
+ * shadow that only made sense over art.
+ */
 const TONE_CLASSES: Record<GameLogoData["tone"], string> = {
-  light: "drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]",
+  light:
+    "drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)] [:root[data-theme=light]_&]:invert [:root[data-theme=light]_&]:hue-rotate-180 [:root[data-theme=light]_&]:drop-shadow-none",
   dark: "invert brightness-110 [:root[data-theme=light]_&]:invert-0 [:root[data-theme=light]_&]:brightness-100",
   color: "drop-shadow-[0_1px_6px_rgba(0,0,0,0.3)]",
 };
 
-/** Black marks on a surface that is dark regardless of theme. */
-const DARK_SURFACE_DARK_TONE = "invert brightness-110";
+/** On a surface that is dark regardless of theme, only black marks change. */
+const DARK_SURFACE_CLASSES: Record<GameLogoData["tone"], string> = {
+  light: "drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]",
+  dark: "invert brightness-110",
+  color: "drop-shadow-[0_1px_6px_rgba(0,0,0,0.3)]",
+};
 
 export function GameLogo({
   name,
@@ -79,7 +91,7 @@ export function GameLogo({
         className={cn(
           "block w-auto max-w-full select-none object-contain",
           align === "center" ? "mx-auto object-center" : "object-left",
-          surface === "dark" && usable.tone === "dark" ? DARK_SURFACE_DARK_TONE : TONE_CLASSES[usable.tone],
+          (surface === "dark" ? DARK_SURFACE_CLASSES : TONE_CLASSES)[usable.tone],
           className,
         )}
       />

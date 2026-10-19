@@ -192,7 +192,7 @@ function GamePreview({
             style={{ background: `radial-gradient(120% 90% at 20% 100%, ${tint}, transparent 70%)` }}
           />
         )}
-        <ScorePill score={game.metacritic} className="absolute right-3 top-3" />
+        <ScorePill score={game.metacritic} onImage className="absolute right-3 top-3" />
       </div>
 
       <div className="relative -mt-12 flex min-h-0 flex-1 flex-col px-5 pb-5">

@@ -41,7 +41,8 @@ export default async function StatsPreviewPage({
   const analytics = buildPersonalAnalytics(entries, { timeToBeat: hoursStatus === "ready" ? timeToBeat : null });
 
   return (
-    <Container className="py-8 lg:py-12">
+    // No PageHeader here, so clear the fixed header capsule ourselves.
+    <Container className="pb-8 pt-24 lg:pb-12 lg:pt-28">
       <p className="mb-5 rounded-2xl border border-gold/30 bg-gold/[0.06] px-4 py-3 text-xs leading-relaxed text-muted">
         <span className="font-semibold text-text">Dev preview.</span> Sample library of {entries.length} games, rendered through the real analytics pipeline. This route 404s outside <code>next dev</code>.
       </p>

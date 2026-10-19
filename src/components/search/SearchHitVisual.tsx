@@ -47,7 +47,7 @@ export function SearchHitVisual({
       tba: hit.tba ?? false,
     });
     return (
-      <span className={cn("relative shrink-0 overflow-hidden border border-white/10", dimensions)}>
+      <span className={cn("relative shrink-0 overflow-hidden border border-fg/10", dimensions)}>
         <GameCover
           name={hit.name}
           slug={hit.slug}
@@ -67,7 +67,7 @@ export function SearchHitVisual({
 
   if (hit.image) {
     return (
-      <span className={cn("relative shrink-0 overflow-hidden border border-white/10 bg-white/[0.05]", dimensions, hit.kind === "company" || hit.kind === "platform" ? "p-2" : "")}>
+      <span className={cn("relative shrink-0 overflow-hidden border border-fg/10 bg-fg/[0.05]", dimensions, hit.kind === "company" || hit.kind === "platform" ? "p-2" : "")}>
         <ResilientMediaImage
           src={hit.image}
           alt=""
@@ -79,7 +79,7 @@ export function SearchHitVisual({
   }
 
   return (
-    <span className={cn("grid shrink-0 place-items-center border border-white/10 bg-gradient-to-br", dimensions, TONES[hit.kind])}>
+    <span className={cn("grid shrink-0 place-items-center border border-fg/10 bg-gradient-to-br", dimensions, TONES[hit.kind])}>
       <Icon size={size === "card" ? 25 : 17} />
     </span>
   );

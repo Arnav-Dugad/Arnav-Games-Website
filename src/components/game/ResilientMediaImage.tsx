@@ -26,7 +26,7 @@ export function ResilientMediaImage({
 
   if (failedSrc === src) {
     return (
-      <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_30%_20%,rgba(124,92,255,0.2),transparent_55%),linear-gradient(145deg,#12101d,#09090f)] text-white/35">
+      <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_30%_20%,rgba(124,92,255,0.2),transparent_55%),linear-gradient(145deg,var(--color-panel-2),var(--color-panel))] text-faint">
         <ImageOff size={24} aria-hidden />
         <span className="sr-only">Media unavailable</span>
       </span>

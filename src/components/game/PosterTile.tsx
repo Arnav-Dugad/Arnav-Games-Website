@@ -74,7 +74,7 @@ export function PosterTile({
 
         <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-1.5 p-2">
           {owned.length > 0 ? (
-            <span className="flex items-center gap-1 rounded-full bg-mint/90 px-1.5 py-1 text-black shadow-lg">
+            <span className="flex items-center gap-1 rounded-full bg-[#30d158]/90 px-1.5 py-1 text-black shadow-lg">
               {owned.slice(0, 2).map((slug) => {
                 const platform = OWNERSHIP_PLATFORMS.find((p) => p.slug === slug);
                 return platform?.icon ? (
@@ -88,7 +88,7 @@ export function PosterTile({
           ) : (
             <span />
           )}
-          <ScorePill score={entry.metacritic} />
+          <ScorePill score={entry.metacritic} onImage />
         </div>
       </div>
 

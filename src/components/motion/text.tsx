@@ -9,7 +9,10 @@
  * string is kept in an `sr-only` sibling for assistive tech.
  */
 
-import { animate, motion, useInView, useReducedMotion } from "motion/react";
+import { animate, motion, useInView } from "motion/react";
+// Hydration-safe media query (see Reveal) — `TextReveal` renders different
+// markup when motion is reduced, so it must not read the setting while hydrating.
+import { usePrefersReducedMotion as useReducedMotion } from "@/hooks";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils/cn";
 import { compactNumber } from "@/lib/utils/format";

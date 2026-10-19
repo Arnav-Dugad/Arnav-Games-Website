@@ -32,7 +32,7 @@ export function Footer() {
       {/* Oversized wordmark bleeding off the bottom edge. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -bottom-4 select-none whitespace-nowrap text-center font-display text-[14vw] font-black uppercase leading-none tracking-tighter text-white/[0.025] lg:-bottom-8"
+        className="pointer-events-none absolute inset-x-0 -bottom-4 select-none whitespace-nowrap text-center font-display text-[14vw] font-black uppercase leading-none tracking-tighter text-fg/[0.025] lg:-bottom-8"
       >
         Arnav Games
       </div>

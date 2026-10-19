@@ -194,7 +194,7 @@ function BestReviewed({ game, className }: { game: GameSummary; className?: stri
         </div>
         <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-bg/30 via-bg/50 to-bg/70" />
 
-        <div className="relative aspect-[3/4] w-[92px] shrink-0 self-center overflow-hidden rounded-2xl shadow-[0_24px_50px_-20px_rgba(0,0,0,0.9)] ring-1 ring-fg/15 transition-transform duration-500 ease-[var(--ease-apple)] sm:w-[124px] lg:w-[150px] fine:group-hover:scale-[1.03]">
+        <div className="relative aspect-[3/4] w-[92px] shrink-0 self-center overflow-hidden rounded-2xl shadow-[0_24px_50px_-20px_rgba(0,0,0,0.9)] light:shadow-[0_18px_36px_-20px_rgba(0,0,0,0.4)] ring-1 ring-fg/15 transition-transform duration-500 ease-[var(--ease-apple)] sm:w-[124px] lg:w-[150px] fine:group-hover:scale-[1.03]">
           <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={300} sizes="150px" />
         </div>
 

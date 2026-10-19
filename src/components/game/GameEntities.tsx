@@ -35,7 +35,7 @@ import { ResilientMediaImage } from "./ResilientMediaImage";
 function Mark({ src, alt, size = 40 }: { src: string; alt: string; size?: number }) {
   return (
     <span
-      className="relative shrink-0 overflow-hidden rounded-xl bg-white/[0.92] p-1.5 ring-1 ring-inset ring-white/10"
+      className="relative shrink-0 overflow-hidden rounded-xl bg-white/[0.92] p-1.5 ring-1 ring-inset ring-fg/10"
       style={{ width: size, height: size }}
     >
       <ResilientMediaImage src={src} alt={alt} sizes={`${size}px`} className="object-contain p-1" />
@@ -74,7 +74,7 @@ export function CompanyGrid({ companies }: { companies: CompanyRef[] }) {
   if (companies.length === 0) return null;
 
   return (
-    <ul className="grid gap-2.5 sm:grid-cols-2">
+    <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
       {companies.map((company) => (
         <li key={`${company.id}-${rolesOf(company)}`}>
           <div className="flex items-center gap-3 rounded-2xl border border-line bg-panel/40 p-3 transition-colors hover:border-line-strong">

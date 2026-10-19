@@ -99,6 +99,12 @@
 @custom-variant fine (@media (hover: hover) and (pointer: fine));
 @custom-variant coarse (@media (hover: none) and (pointer: coarse));
 
+/* Light-appearance overrides, for the few values that can't be a token —
+   scrim strengths, shadow depths. `light:bg-black/25` beats `bg-black/55`
+   because variant utilities are emitted after plain ones. Never fires inside
+   a `data-stage="dark"` surface (heroes), which stays dark in both themes. */
+@custom-variant light (&:where(:root[data-theme="light"] *):not(:where([data-stage="dark"], [data-stage="dark"] *)));
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -212,6 +218,12 @@
     background: color-mix(in oklab, var(--color-brand) 45%, transparent);
     color: #fff;
   }
+  /* On white, a lighter wash with the text left dark reads like the system
+     selection instead of a solid purple block. */
+  :root[data-theme="light"] ::selection {
+    background: color-mix(in oklab, var(--color-brand) 24%, transparent);
+    color: inherit;
+  }
 
   :focus-visible {
     outline: 2px solid var(--color-brand-soft);
@@ -224,11 +236,11 @@
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-track { background: var(--color-bg); }
     ::-webkit-scrollbar-thumb {
-      background: #ffffff1f;
+      background: color-mix(in oklab, var(--color-fg) 12%, transparent);
       border-radius: 99px;
       border: 2px solid var(--color-bg);
     }
-    ::-webkit-scrollbar-thumb:hover { background: #ffffff33; }
+    ::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--color-fg) 22%, transparent); }
   }
 
   /* Honour the OS setting globally. Individual components additionally read
@@ -324,8 +336,10 @@
     .material-thin { background: #2c2c2ee6; }
   }
 
-  /* Light appearance: white glass with soft, low shadows, as on iOS. */
-  :root[data-theme="light"] .glass {
+  /* Light appearance: white glass with soft, low shadows, as on iOS. Always-
+     dark stages (`data-stage="dark"`: heroes over key art) keep the dark
+     recipes above in both themes. */
+  :root[data-theme="light"] .glass:not(:where([data-stage="dark"] *)) {
     background: linear-gradient(180deg, #ffffffeb, #ffffffd1);
     border-color: #00000012;
     box-shadow:
@@ -333,17 +347,51 @@
       0 1px 2px 0 #0000000f,
       0 14px 34px -22px #00000040;
   }
-  :root[data-theme="light"] .material {
-    background: color-mix(in oklab, #ffffff 72%, transparent);
+  /* 82%, not iOS's thinner tint: menus and the header float over the dark
+     hero stages too, where a thinner white turned into a grey that muted
+     text couldn't hold contrast against. */
+  :root[data-theme="light"] .material:not(:where([data-stage="dark"] *)) {
+    background: color-mix(in oklab, #ffffff 82%, transparent);
     border-color: #00000014;
     box-shadow:
       inset 0 1px 0 0 #ffffffcc,
       0 18px 44px -20px #00000040;
   }
-  :root[data-theme="light"] .material-thin {
+  /* Menus, popovers and tooltips read text, not ambience: in light they go
+     near-opaque, so dark content behind them (hero art) can't grey them out. */
+  :root[data-theme="light"] .material.material-menu:not(:where([data-stage="dark"] *)) {
+    background: color-mix(in oklab, #ffffff 95%, transparent);
+  }
+  :root[data-theme="light"] .material-thin:not(:where([data-stage="dark"] *)) {
     background: #ffffffa6;
     border-color: #0000001a;
     box-shadow: inset 0 1px 0 0 #ffffff;
+  }
+
+  /*
+    Hue-tinted category tiles (genres, platforms, franchises). A solid colour
+    surface in both themes with white type on it, like Apple Music's category
+    tiles. Dark keeps the deep, low-light gradient; light lifts it to a
+    brighter mid-tone in OKLCH, whose even lightness keeps white type legible
+    on every hue (yellows included) without the tiles reading as dark holes
+    punched in a white page. Set `--tile-hue` / `--tile-hue-2` inline.
+  */
+  .hue-tile {
+    color: #fff;
+    background: linear-gradient(
+      150deg,
+      hsl(var(--tile-hue) 55% 20%),
+      hsl(var(--tile-hue-2) 50% 9%)
+    );
+  }
+  :root[data-theme="light"] .hue-tile {
+    border-color: transparent;
+    background: linear-gradient(
+      150deg,
+      oklch(0.6 0.13 var(--tile-hue)),
+      oklch(0.42 0.12 var(--tile-hue-2))
+    );
+    box-shadow: 0 1px 2px 0 #0000000f, 0 14px 30px -22px #00000059;
   }
 
   /* Apple's pressed state: a quick, slightly springy shrink. */
@@ -590,6 +638,12 @@
       0 0 0 1px #ffffff1f,
       0 30px 80px -20px #000000e6,
       0 12px 30px -12px #000000b3;
+  }
+  :root[data-theme="light"] .menu-lift-shadow {
+    box-shadow:
+      0 0 0 1px #00000014,
+      0 30px 70px -24px #00000059,
+      0 10px 24px -12px #00000033;
   }
 
   /*

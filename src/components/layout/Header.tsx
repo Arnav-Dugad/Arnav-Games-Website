@@ -96,7 +96,7 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
             onClick={onOpenSearch}
             aria-label="Search the complete database"
             className={cn(
-              "group items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.07] text-muted transition-colors duration-300 press",
+              "group items-center gap-2.5 rounded-full border border-fg/10 bg-fg/[0.07] text-muted transition-colors duration-300 press",
               // Below lg the tab bar carries search, so the header doesn't repeat it.
               "hidden h-10 w-10 justify-center lg:flex fine:hover:border-line-strong fine:hover:text-text",
               "xl:h-10 xl:w-56 xl:justify-start xl:px-3.5",

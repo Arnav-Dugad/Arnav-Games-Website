@@ -9,7 +9,7 @@
  */
 
 import { motion, useInView, useReducedMotion } from "motion/react";
-import { useRef } from "react";
+import { useRef, type CSSProperties } from "react";
 import { cn } from "@/lib/utils/cn";
 import { scoreColor } from "@/lib/utils/format";
 
@@ -51,7 +51,7 @@ export function ScoreRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgba(255,255,255,0.09)"
+          stroke="color-mix(in oklab, var(--color-fg) 9%, transparent)"
           strokeWidth={strokeWidth}
         />
         <motion.circle
@@ -86,18 +86,41 @@ export function ScoreRing({
 }
 
 /** Compact score chip for dense card corners, where a ring would be illegible. */
-export function ScorePill({ score, className }: { score: number | null; className?: string }) {
+/** The dark-theme score hues, for pills that sit on cover art in either theme. */
+const ON_IMAGE_TOKENS = {
+  "--color-mint": "#30d158",
+  "--color-gold": "#ffd60a",
+  "--color-flare": "#ff375f",
+  "--color-faint": "#8e8e93",
+} as CSSProperties;
+
+export function ScorePill({
+  score,
+  className,
+  onImage = false,
+}: {
+  score: number | null;
+  className?: string;
+  /**
+   * Over cover art. The light theme's darkened score hues are tuned for white
+   * paper and turn muddy on artwork, so the pill keeps the bright dark-theme
+   * hues and, in the light theme, gains a dark backing to sit on.
+   */
+  onImage?: boolean;
+}) {
   if (score === null) return null;
   const colour = scoreColor(score);
   return (
     <span
       className={cn(
         "inline-flex items-center justify-center rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums leading-none",
+        onImage && "light:backdrop-blur-md light:[--pill-backing:rgb(0_0_0/0.55)]",
         className,
       )}
       style={{
+        ...(onImage ? ON_IMAGE_TOKENS : null),
         color: colour,
-        backgroundColor: `color-mix(in oklab, ${colour} 16%, transparent)`,
+        backgroundColor: `color-mix(in oklab, ${colour} 16%, var(--pill-backing, transparent))`,
         boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${colour} 32%, transparent)`,
       }}
       aria-label={`Metascore ${score}`}

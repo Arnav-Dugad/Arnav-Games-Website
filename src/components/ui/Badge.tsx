@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils/cn";
 type Tone = "neutral" | "brand" | "neon" | "gold" | "mint" | "flare";
 
 const TONES: Record<Tone, string> = {
-  neutral: "bg-white/[0.06] text-muted border-line",
+  neutral: "bg-fg/[0.06] text-muted border-line",
   brand: "bg-brand/15 text-brand-soft border-brand/25",
   neon: "bg-neon/12 text-neon border-neon/25",
   gold: "bg-gold/12 text-gold border-gold/25",
@@ -56,8 +56,8 @@ export function Chip({
     "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium leading-none",
     "press min-h-9 coarse:min-h-11 coarse:px-4 transition-colors duration-200",
     active
-      ? "border-brand/50 bg-brand/25 text-white shadow-[inset_0_1px_0_#ffffff1f]"
-      : "border-white/[0.09] bg-white/[0.06] text-muted fine:hover:bg-white/[0.1] fine:hover:text-text",
+      ? "border-brand/50 bg-brand/25 text-text shadow-[inset_0_1px_0_#ffffff1f]"
+      : "border-fg/[0.09] bg-fg/[0.06] text-muted fine:hover:bg-fg/[0.1] fine:hover:text-text",
     className,
   );
 

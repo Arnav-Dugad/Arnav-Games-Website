@@ -31,7 +31,7 @@ export default function GameLoading() {
 
   return (
     <div aria-busy="true" aria-label="Loading game">
-      <header style={DARK_STAGE_STYLE} className="relative isolate overflow-hidden bg-bg text-text">
+      <header data-stage="dark" style={DARK_STAGE_STYLE} className="relative isolate overflow-hidden bg-bg text-text">
         {image && (
           // eslint-disable-next-line @next/next/no-img-element -- the card's already-loaded poster, blurred into a backdrop; next/image would re-request it.
           <img src={image} alt="" aria-hidden className="absolute inset-0 -z-10 h-full w-full scale-110 object-cover opacity-30 blur-3xl" />

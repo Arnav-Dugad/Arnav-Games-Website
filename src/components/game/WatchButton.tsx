@@ -95,6 +95,13 @@ export function WatchButton({ game, variant = "icon", compact = false, className
           followed
             ? "border-brand/50 bg-brand/30 text-white"
             : "border-white/15 bg-black/45 text-white/85 fine:hover:bg-black/70 fine:hover:text-white",
+          // Only `compact` sits over a poster. The regular icon lives on page
+          // rows (card footers, timelines, search), where a dark glass chip
+          // would be a grey blot on the light theme.
+          !compact &&
+            (followed
+              ? "light:border-brand/35 light:bg-brand/12 light:text-brand-soft"
+              : "light:border-fg/10 light:bg-fg/[0.05] light:text-muted light:fine:hover:bg-fg/[0.09] light:fine:hover:text-text"),
           busy && "opacity-60",
           className,
         )}

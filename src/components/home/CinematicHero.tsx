@@ -420,6 +420,7 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
         "h-[calc(100svh_-_5.75rem_-_env(safe-area-inset-bottom))] min-h-[440px]",
         "sm:h-[88svh] sm:min-h-[600px] lg:h-[94vh] max-h-[1080px]",
       )}
+      data-stage="dark"
       style={HERO_TOKENS}
     >
       <h1 className="sr-only">Featured games</h1>

@@ -336,6 +336,8 @@ export interface GameDetail extends GameSummary {
   redditUrl: string | null;
   metacriticUrl: string | null;
   alternativeNames: string[];
+  /** How many critic reviews `metacritic` aggregates (IGDB only). */
+  criticCount?: number | null;
   timeToBeat?: TimeToBeat | null;
   palette?: CoverPalette | null;
   externalIds?: ExternalIds | null;

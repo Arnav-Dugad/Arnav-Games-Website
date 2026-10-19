@@ -255,7 +255,7 @@ function FlipDigit({ digit, calm, tone }: { digit: string; calm: boolean; tone: 
   );
 
   return (
-    <div className={cn(CARD, "rounded-[10px] shadow-[0_12px_28px_-14px_rgba(0,0,0,0.75),inset_0_0_0_1px_color-mix(in_oklab,var(--color-fg)_10%,transparent)]")}>
+    <div className={cn(CARD, "rounded-[10px] shadow-[0_12px_28px_-14px_rgba(0,0,0,0.75),inset_0_0_0_1px_color-mix(in_oklab,var(--color-fg)_10%,transparent)] light:shadow-[0_8px_18px_-12px_rgba(0,0,0,0.3),inset_0_0_0_1px_color-mix(in_oklab,var(--color-fg)_10%,transparent)]")}>
       <Half face={face} half="top" digit={pair.current} />
       <Half face={face} half="bottom" digit={flipping ? pair.previous : pair.current} />
       {flipping && (
@@ -283,9 +283,9 @@ function FlipDigit({ digit, calm, tone }: { digit: string; calm: boolean; tone: 
         </>
       )}
       {/* The hinge: a hairline seam plus the two pivot notches. */}
-      <span aria-hidden className="absolute inset-x-0 top-1/2 z-10 h-px -translate-y-1/2 bg-black/45" />
-      <span aria-hidden className="absolute -left-px top-1/2 z-10 h-2 w-[3px] -translate-y-1/2 rounded-r-sm bg-black/40" />
-      <span aria-hidden className="absolute -right-px top-1/2 z-10 h-2 w-[3px] -translate-y-1/2 rounded-l-sm bg-black/40" />
+      <span aria-hidden className="absolute inset-x-0 top-1/2 z-10 h-px -translate-y-1/2 bg-black/45 light:bg-black/15" />
+      <span aria-hidden className="absolute -left-px top-1/2 z-10 h-2 w-[3px] -translate-y-1/2 rounded-r-sm bg-black/40 light:bg-black/10" />
+      <span aria-hidden className="absolute -right-px top-1/2 z-10 h-2 w-[3px] -translate-y-1/2 rounded-l-sm bg-black/40 light:bg-black/10" />
     </div>
   );
 }
@@ -306,7 +306,7 @@ function Half({ face, half, digit, shade = false }: { face: string; half: "top" 
       >
         {digit}
       </span>
-      {shade && <span aria-hidden className="absolute inset-0 bg-gradient-to-b from-transparent to-black/25" />}
+      {shade && <span aria-hidden className="absolute inset-0 bg-gradient-to-b from-transparent to-black/25 light:to-black/10" />}
     </div>
   );
 }

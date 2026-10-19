@@ -442,7 +442,7 @@ export function BacklogRoulette({
         {/* Reel */}
         <div className="flex justify-center md:justify-start">
           <div
-            className="relative overflow-hidden rounded-[26px] border border-fg/10 bg-bg/60 shadow-[inset_0_2px_12px_#000000a6]"
+            className="relative overflow-hidden rounded-[26px] border border-fg/10 bg-bg/60 shadow-[inset_0_2px_12px_#000000a6] light:shadow-[inset_0_2px_10px_#0000001f]"
             style={{ width: COVER_W + 40, height: WINDOW_H }}
             aria-hidden
           >
@@ -453,7 +453,7 @@ export function BacklogRoulette({
               {displayStrip.map((entry, index) => (
                 <div
                   key={`${entry.gameId}-${index}`}
-                  className="relative overflow-hidden rounded-2xl bg-panel shadow-[0_10px_24px_-10px_#000000cc]"
+                  className="relative overflow-hidden rounded-2xl bg-panel shadow-[0_10px_24px_-10px_#000000cc] light:shadow-[0_10px_24px_-12px_#00000059]"
                   style={{ width: COVER_W, height: COVER_H, marginBottom: GAP }}
                 >
                   <GameCover
@@ -480,7 +480,7 @@ export function BacklogRoulette({
             />
             {idle && pool.length > 0 && (
               <div className="pointer-events-none absolute inset-0 grid place-items-center bg-bg/45">
-                <span className="material-thin grid h-12 w-12 place-items-center rounded-full text-xl font-bold text-white">?</span>
+                <span className="material-thin grid h-12 w-12 place-items-center rounded-full text-xl font-bold text-text">?</span>
               </div>
             )}
           </div>

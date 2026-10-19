@@ -1470,6 +1470,8 @@ function mapDetail(game: IgdbGame): GameDetail {
       .map(mapSummary),
     totalRating:
       typeof game.total_rating === "number" ? Math.round(game.total_rating) : null,
+    criticCount:
+      typeof game.aggregated_rating_count === "number" ? game.aggregated_rating_count : null,
     hypes: game.hypes ?? 0,
     websites,
     stores,

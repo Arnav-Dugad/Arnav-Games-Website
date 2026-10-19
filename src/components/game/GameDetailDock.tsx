@@ -78,7 +78,7 @@ export function GameDetailDock({
   };
 
   return (
-    <div className="sticky top-16 z-[100] border-y border-line bg-bg/82 py-2 shadow-[0_18px_50px_-30px_rgba(0,0,0,0.6)] backdrop-blur-2xl backdrop-saturate-150 lg:top-[72px]">
+    <div className="sticky top-16 z-[100] border-y border-line bg-bg/82 py-2 shadow-[0_18px_50px_-30px_rgba(0,0,0,0.6)] light:shadow-[0_14px_36px_-28px_rgba(0,0,0,0.25)] backdrop-blur-2xl backdrop-saturate-150 lg:top-[72px]">
       <div className="mx-auto flex w-full max-w-[1400px] items-center gap-2 px-4 lg:px-6 xl:px-10">
         <nav ref={navRef} aria-label="Game page sections" className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <ul className="flex w-max items-center gap-1">

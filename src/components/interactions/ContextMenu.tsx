@@ -379,7 +379,7 @@ function MenuLayer({ state, onClose }: { state: MenuState; onClose: () => void }
     <div className="fixed inset-0 z-[260]" data-context-menu-layer>
       <motion.div
         aria-hidden
-        className={cn("absolute inset-0", lifted ? "bg-black/45 backdrop-blur-md" : "bg-transparent")}
+        className={cn("absolute inset-0", lifted ? "bg-black/45 backdrop-blur-md light:bg-black/20" : "bg-transparent")}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -631,7 +631,7 @@ function GameMenu({
       role="menu"
       aria-label={`Actions for ${game.name}`}
       onKeyDown={onKeyDown}
-      className="material w-[min(16.5rem,calc(100vw-1.5rem))] overflow-hidden rounded-[20px] p-1.5 fine:w-60 fine:rounded-[14px] fine:p-1"
+      className="material material-menu w-[min(16.5rem,calc(100vw-1.5rem))] overflow-hidden rounded-[20px] p-1.5 fine:w-60 fine:rounded-[14px] fine:p-1"
     >
       <AnimatePresence mode="popLayout" initial={false}>
         {panel === "main" ? (

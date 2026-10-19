@@ -232,7 +232,7 @@ export function ProfileView() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={40}
-            className="min-h-12 w-full rounded-xl border border-line bg-white/[0.03] px-4 text-base outline-none transition-colors focus:border-brand"
+            className="min-h-12 w-full rounded-xl border border-line bg-fg/[0.03] px-4 text-base outline-none transition-colors focus:border-brand"
           />
 
           <label htmlFor="profile-bio" className="mt-4 mb-1.5 block text-[13px] font-medium text-muted">
@@ -244,7 +244,7 @@ export function ProfileView() {
             onChange={(e) => setBio(e.target.value.slice(0, 280))}
             rows={3}
             placeholder="Tell people what you play."
-            className="w-full resize-y rounded-xl border border-line bg-white/[0.03] p-3.5 text-sm outline-none transition-colors placeholder:text-faint focus:border-brand"
+            className="w-full resize-y rounded-xl border border-line bg-fg/[0.03] p-3.5 text-sm outline-none transition-colors placeholder:text-faint focus:border-brand"
           />
           <p className="mt-1 text-right text-[11px] text-faint tabular-nums">{bio.length}/280</p>
 
@@ -256,7 +256,7 @@ export function ProfileView() {
             value={gamerTag}
             onChange={(event) => setGamerTag(event.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 32))}
             placeholder="Your handle across games"
-            className="min-h-12 w-full rounded-xl border border-line bg-white/[0.03] px-4 text-base outline-none transition-colors focus:border-brand"
+            className="min-h-12 w-full rounded-xl border border-line bg-fg/[0.03] px-4 text-base outline-none transition-colors focus:border-brand"
           />
 
           <ProfileChoiceGroup
@@ -279,7 +279,7 @@ export function ProfileView() {
             <legend className="text-[13px] font-medium text-muted">Play style</legend>
             <div className="mt-2 flex flex-wrap gap-2">
               {(["casual", "balanced", "dedicated", "competitive"] as const).map((style) => (
-                <button key={style} type="button" onClick={() => setPlayStyle(playStyle === style ? null : style)} aria-pressed={playStyle === style} className={cn("min-h-10 rounded-full border px-4 text-xs font-semibold capitalize transition-colors", playStyle === style ? "border-brand/45 bg-brand/15 text-white" : "border-line bg-white/[0.025] text-muted hover:text-text")}>{style}</button>
+                <button key={style} type="button" onClick={() => setPlayStyle(playStyle === style ? null : style)} aria-pressed={playStyle === style} className={cn("min-h-10 rounded-full border px-4 text-xs font-semibold capitalize transition-colors", playStyle === style ? "border-brand/45 bg-brand/15 text-text" : "border-line bg-fg/[0.025] text-muted hover:text-text")}>{style}</button>
               ))}
             </div>
           </fieldset>
@@ -372,10 +372,10 @@ function ProfileChoiceGroup({ title, detail, options, selected, onToggle }: { ti
     <fieldset className="mt-6">
       <legend className="text-[13px] font-medium text-muted">{title}</legend>
       <p className="mt-1 text-[11px] text-faint">{detail}</p>
-      <div className="mt-3 flex max-h-56 flex-wrap gap-2 overflow-y-auto rounded-2xl border border-line bg-black/15 p-3">
+      <div className="mt-3 flex max-h-56 flex-wrap gap-2 overflow-y-auto rounded-2xl border border-line bg-fg/[0.03] p-3">
         {options.map((option) => {
           const active = selected.includes(option.slug);
-          return <button key={option.slug} type="button" onClick={() => onToggle(option.slug)} aria-pressed={active} className={cn("inline-flex min-h-10 max-w-full items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors", active ? "border-mint/40 bg-mint/12 text-white" : "border-line bg-white/[0.025] text-muted hover:text-text")}><span className="shrink-0">{option.icon ? <BrandIcon name={option.icon} size={13} title={null} tinted={active} /> : <Gamepad2 size={13} />}</span><span className="truncate">{option.name}</span>{active && <Check size={12} className="shrink-0 text-mint" />}</button>;
+          return <button key={option.slug} type="button" onClick={() => onToggle(option.slug)} aria-pressed={active} className={cn("inline-flex min-h-10 max-w-full items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors", active ? "border-mint/40 bg-mint/12 text-text" : "border-line bg-fg/[0.025] text-muted hover:text-text")}><span className="shrink-0">{option.icon ? <BrandIcon name={option.icon} size={13} title={null} tinted={active} /> : <Gamepad2 size={13} />}</span><span className="truncate">{option.name}</span>{active && <Check size={12} className="shrink-0 text-mint" />}</button>;
         })}
       </div>
     </fieldset>
@@ -383,7 +383,7 @@ function ProfileChoiceGroup({ title, detail, options, selected, onToggle }: { ti
 }
 
 function ProfileChip({ icon, label }: { icon: string | null; label: string }) {
-  return <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-white/[0.035] px-2.5 py-1 text-[10px] text-muted">{icon ? <BrandIcon name={icon} size={11} title={null} /> : <Sparkles size={11} />}<span className="truncate">{label}</span></span>;
+  return <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-fg/[0.035] px-2.5 py-1 text-[10px] text-muted">{icon ? <BrandIcon name={icon} size={11} title={null} /> : <Sparkles size={11} />}<span className="truncate">{label}</span></span>;
 }
 
 function Stat({

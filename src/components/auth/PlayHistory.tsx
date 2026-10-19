@@ -124,7 +124,7 @@ export function PlayHistory() {
           <div className="mb-3 flex items-center gap-2.5">
             <PlatformGlyph platform={group.key} />
             <h3 className="font-display text-lg font-bold">{group.label}</h3>
-            <span className="rounded-full bg-white/6 px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
+            <span className="rounded-full bg-fg/6 px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
               {group.entries.length}
             </span>
           </div>
@@ -179,7 +179,7 @@ function Stat({
   label: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-line bg-white/[0.04] px-4 py-2 text-sm">
+    <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2 text-sm">
       {icon}
       <span className="font-semibold tabular-nums">{value}</span>
       <span className="text-muted">{label}</span>
@@ -190,7 +190,7 @@ function Stat({
 function PlatformGlyph({ platform }: { platform: string }) {
   const usable = platform !== "pc" && platform !== "unassigned" && brandIcon(platform);
   return (
-    <span className={cn("grid h-8 w-8 place-items-center rounded-lg border border-line bg-white/[0.04]")}>
+    <span className={cn("grid h-8 w-8 place-items-center rounded-lg border border-line bg-fg/[0.04]")}>
       {usable ? (
         <BrandIcon name={platform as PlatformKey} size={15} tinted title={null} />
       ) : (

@@ -68,9 +68,9 @@ export default async function SteamPage() {
                             className={cn(
                               "grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-black tabular-nums",
                               i === 0 && "bg-gold/20 text-gold",
-                              i === 1 && "bg-white/12 text-text",
+                              i === 1 && "bg-fg/12 text-text",
                               i === 2 && "bg-flare/15 text-flare",
-                              i > 2 && "bg-white/[0.06] text-muted",
+                              i > 2 && "bg-fg/[0.06] text-muted",
                             )}
                           >
                             {i + 1}

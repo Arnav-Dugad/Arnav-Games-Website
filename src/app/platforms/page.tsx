@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import type { CSSProperties } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Container } from "@/components/ui/SectionHeading";
 import { DataSourceNotice } from "@/components/ui/DataSourceNotice";
@@ -41,10 +42,8 @@ export default async function PlatformsPage() {
               <StaggerItem key={platform.id}>
                 <Link
                   href={`/browse?platforms=${platform.slug}`}
-                  className="group relative flex h-32 flex-col justify-between overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:border-line-strong fine:hover:shadow-[0_20px_50px_-24px_rgba(34,211,238,0.5)] lg:h-36"
-                  style={{
-                    background: `linear-gradient(150deg, hsl(${hue} 45% 18%), hsl(${(hue + 40) % 360} 42% 8%))`,
-                  }}
+                  className="hue-tile group relative flex h-32 flex-col justify-between overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:border-line-strong fine:hover:shadow-[0_20px_50px_-24px_rgba(34,211,238,0.5)] lg:h-36"
+                  style={{ "--tile-hue": hue, "--tile-hue-2": (hue + 40) % 360 } as CSSProperties}
                 >
                   <span
                     aria-hidden
@@ -59,7 +58,7 @@ export default async function PlatformsPage() {
                     </span>
                     <ArrowUpRight
                       size={16}
-                      className="text-white/40 transition-all duration-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white/80"
+                      className="text-white/55 transition-all duration-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white/80"
                     />
                   </div>
                   <span className="relative font-display text-lg font-bold leading-tight lg:text-xl">

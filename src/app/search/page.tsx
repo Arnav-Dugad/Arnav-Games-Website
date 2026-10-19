@@ -93,21 +93,21 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
           </Reveal>
 
           <Reveal delay={0.12} className="mt-8">
-            <form action="/search" className="group flex max-w-4xl items-center gap-3 rounded-2xl border border-line-strong bg-bg/75 p-2 shadow-[0_28px_90px_-45px_rgba(124,92,255,0.8)] backdrop-blur-xl transition-colors focus-within:border-brand/60 sm:rounded-3xl sm:p-3">
+            <form action="/search" className="group flex max-w-4xl items-center gap-3 rounded-2xl border border-line-strong bg-bg/75 p-2 shadow-[0_28px_90px_-45px_rgba(124,92,255,0.8)] backdrop-blur-xl light:bg-panel/90 light:shadow-[0_24px_70px_-40px_rgba(106,77,255,0.55)] transition-colors focus-within:border-brand/60 sm:rounded-3xl sm:p-3">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand/12 text-brand-soft sm:h-12 sm:w-12 sm:rounded-2xl"><Search size={19} /></span>
               <label htmlFor="discovery-search" className="sr-only">Search the complete database</label>
               <input id="discovery-search" name="q" type="search" defaultValue={query} placeholder="Try Cyberpunk, Nintendo, Kratos…" autoComplete="off" className="min-w-0 flex-1 bg-transparent py-3 text-base font-medium outline-none placeholder:text-faint sm:text-lg" />
-              <button type="submit" className="hidden min-h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-bold text-bg transition-transform hover:-translate-y-0.5 sm:inline-flex">Search <ArrowRight size={15} /></button>
+              <button type="submit" className="hidden min-h-12 items-center gap-2 rounded-2xl bg-text px-5 text-sm font-bold text-bg transition-transform hover:-translate-y-0.5 sm:inline-flex">Search <ArrowRight size={15} /></button>
             </form>
           </Reveal>
 
           {query.length >= 2 && (
             <Reveal delay={0.18} className="mt-5 flex flex-wrap items-center gap-2 text-xs text-muted">
-              <span className="rounded-full border border-line bg-white/[0.035] px-3 py-1.5"><strong className="text-text tabular-nums">{hits.length}</strong> direct matches</span>
-              <span className="rounded-full border border-line bg-white/[0.035] px-3 py-1.5"><strong className="text-text tabular-nums">{populatedKinds.length}</strong> entity types</span>
+              <span className="rounded-full border border-line bg-fg/[0.035] px-3 py-1.5"><strong className="text-text tabular-nums">{hits.length}</strong> direct matches</span>
+              <span className="rounded-full border border-line bg-fg/[0.035] px-3 py-1.5"><strong className="text-text tabular-nums">{populatedKinds.length}</strong> entity types</span>
               {/* `SOURCE_LABELS` is the shared human wording. Interpolating the
                   raw union leaked internal values like "unavailable" to readers. */}
-              <span className="rounded-full border border-line bg-white/[0.035] px-3 py-1.5">Source: {SOURCE_LABELS[source]}</span>
+              <span className="rounded-full border border-line bg-fg/[0.035] px-3 py-1.5">Source: {SOURCE_LABELS[source]}</span>
             </Reveal>
           )}
         </Container>
@@ -130,7 +130,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               <div className="sticky top-28 rounded-3xl border border-line bg-panel/35 p-3">
                 <p className="px-3 pb-3 pt-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-faint">Result map</p>
                 {populatedKinds.map((kind) => (
-                  <a key={kind} href={`#${kind}`} className="group flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-muted transition-colors hover:bg-white/[0.05] hover:text-text">
+                  <a key={kind} href={`#${kind}`} className="group flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-muted transition-colors hover:bg-fg/[0.05] hover:text-text">
                     <span className="flex items-center gap-2.5"><SearchKindIcon kind={kind} size={14} /> {SEARCH_KIND_LABELS[kind]}</span>
                     <span className="text-xs tabular-nums text-faint">{groups.get(kind)?.length}</span>
                   </a>
@@ -157,7 +157,7 @@ function ResultSection({ kind, hits }: { kind: SearchKind; hits: SearchHit[] }) 
           <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-soft"><SearchKindIcon kind={kind} size={14} /> Entity type</p>
           <h2 className="mt-1.5 font-display text-2xl font-black sm:text-3xl">{SEARCH_KIND_LABELS[kind]}</h2>
         </div>
-        <span className="rounded-full border border-line bg-white/[0.03] px-3 py-1.5 text-xs text-faint">{hits.length} {hits.length === 1 ? "match" : "matches"}</span>
+        <span className="rounded-full border border-line bg-fg/[0.03] px-3 py-1.5 text-xs text-faint">{hits.length} {hits.length === 1 ? "match" : "matches"}</span>
       </Reveal>
 
       <Stagger className={cn("grid gap-3", kind === "game" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-3")} gap={0.035} onMount>
@@ -183,12 +183,12 @@ function DiscoveryEmpty() {
   const prompts = ["Cyberpunk", "Final Fantasy", "Nintendo", "Kratos", "Role-playing", "PlayStation 5"];
   return (
     <div className="mx-auto max-w-5xl">
-      <Reveal className="rounded-[2rem] border border-line bg-[radial-gradient(circle_at_20%_0%,rgba(124,92,255,0.15),transparent_45%),rgba(255,255,255,0.02)] p-6 sm:p-9">
+      <Reveal className="rounded-[2rem] border border-line bg-[radial-gradient(circle_at_20%_0%,rgba(124,92,255,0.15),transparent_45%),color-mix(in_oklab,var(--color-fg)_2%,transparent)] p-6 sm:p-9">
         <span className="grid h-12 w-12 place-items-center rounded-2xl border border-brand/20 bg-brand/10 text-brand-soft"><Command size={21} /></span>
         <h2 className="mt-5 font-display text-2xl font-black sm:text-3xl">One query. The whole universe.</h2>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">Search a title, a fictional universe, the people who made it, a character you remember, or the hardware you play on.</p>
         <div className="mt-7 flex flex-wrap gap-2">
-          {prompts.map((prompt) => <Link key={prompt} href={`/search?q=${encodeURIComponent(prompt)}`} className="rounded-full border border-line bg-white/[0.035] px-4 py-2 text-sm text-muted transition-colors hover:border-brand/35 hover:text-text">{prompt}</Link>)}
+          {prompts.map((prompt) => <Link key={prompt} href={`/search?q=${encodeURIComponent(prompt)}`} className="rounded-full border border-line bg-fg/[0.035] px-4 py-2 text-sm text-muted transition-colors hover:border-brand/35 hover:text-text">{prompt}</Link>)}
         </div>
       </Reveal>
     </div>

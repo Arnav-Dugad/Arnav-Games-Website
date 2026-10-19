@@ -31,8 +31,8 @@ export function NotificationBell() {
         className={cn(
           "press relative grid h-10 w-10 place-items-center rounded-full border transition-all duration-300",
           open
-            ? "border-brand/55 bg-brand/15 text-white ring-2 ring-brand/20"
-            : "border-white/10 bg-white/[0.07] text-muted fine:hover:border-line-strong fine:hover:text-text",
+            ? "border-brand/55 bg-brand/15 text-text ring-2 ring-brand/20"
+            : "border-fg/10 bg-fg/[0.07] text-muted fine:hover:border-line-strong fine:hover:text-text",
         )}
       >
         {unreadCount > 0 ? <BellRing size={16} /> : <Bell size={16} />}
@@ -52,7 +52,7 @@ export function NotificationBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -5, scale: 0.98 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="material absolute right-0 top-[calc(100%+14px)] z-50 w-[min(25rem,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-3xl shadow-[0_28px_90px_-30px_rgba(0,0,0,0.9)]"
+            className="material material-menu absolute right-0 top-[calc(100%+14px)] z-50 w-[min(25rem,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-3xl shadow-[0_28px_90px_-30px_rgba(0,0,0,0.9)]"
           >
             <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3.5">
               <div>
@@ -100,7 +100,7 @@ export function NotificationBell() {
             )}
 
             <footer className="border-t border-line p-2.5">
-              <Link href="/notifications" onClick={() => setOpen(false)} className="flex min-h-10 items-center justify-center rounded-xl text-xs font-semibold text-muted transition-colors hover:bg-white/[0.05] hover:text-text">
+              <Link href="/notifications" onClick={() => setOpen(false)} className="flex min-h-10 items-center justify-center rounded-xl text-xs font-semibold text-muted transition-colors hover:bg-fg/[0.05] hover:text-text">
                 Open notification center
               </Link>
             </footer>

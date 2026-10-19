@@ -210,6 +210,7 @@ function UniverseCard({ entry, kind, href, backdrop, index }: { entry: Ref; kind
       href={href}
       // Art-led card: stays a dark surface in the light theme too, so its
       // white type keeps contrast over the key art.
+      data-stage="dark"
       style={DARK_STAGE_STYLE}
       className="group relative isolate flex min-h-64 overflow-hidden rounded-[1.75rem] border border-brand/20 bg-panel p-6 shadow-[0_28px_80px_-45px_rgba(124,92,255,0.85)] transition-[transform,border-color,box-shadow] duration-500 fine:hover:-translate-y-1 fine:hover:border-brand/45 fine:hover:shadow-[0_34px_90px_-38px_rgba(124,92,255,0.85)] sm:min-h-72 sm:p-8"
     >
@@ -263,11 +264,15 @@ function RelationPoster({ game, label, requirement, tone }: { game: GameSummary;
   return (
     <article className="group h-full">
       <Link href={`/game/${game.slug}`} className="block">
-        <span className="relative block aspect-[3/4] overflow-hidden rounded-2xl border border-line bg-panel shadow-[0_22px_55px_-30px_rgba(0,0,0,0.95)] transition-[transform,border-color,box-shadow] duration-500 fine:group-hover:-translate-y-1.5 fine:group-hover:border-brand/40 fine:group-hover:shadow-[0_28px_70px_-30px_rgba(124,92,255,0.6)]">
+        <span className="relative block aspect-[3/4] overflow-hidden rounded-2xl border border-line bg-panel shadow-[0_22px_55px_-30px_rgba(0,0,0,0.95)] light:shadow-[0_18px_40px_-26px_rgba(0,0,0,0.4)] transition-[transform,border-color,box-shadow] duration-500 fine:group-hover:-translate-y-1.5 fine:group-hover:border-brand/40 fine:group-hover:shadow-[0_28px_70px_-30px_rgba(124,92,255,0.6)]">
           <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={520} sizes="(max-width: 640px) 44vw, 208px" className="transition-transform duration-700 fine:group-hover:scale-105" />
           <span className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/5 to-black/20" />
-          <Badge tone="neutral" className={cn("absolute left-2.5 top-2.5 border backdrop-blur-md", toneClasses(tone))}>{label}</Badge>
-          {game.metacritic !== null && <ScorePill score={game.metacritic} className="absolute right-2.5 top-2.5" />}
+          {/* The chips sit on cover art, so they take the dark-theme tokens in
+              either theme (the light accents are tuned for white paper). */}
+          <span data-stage="dark" style={DARK_STAGE_STYLE} className="contents">
+            <Badge tone="neutral" className={cn("absolute left-2.5 top-2.5 border backdrop-blur-md", toneClasses(tone))}>{label}</Badge>
+            {game.metacritic !== null && <ScorePill score={game.metacritic} className="absolute right-2.5 top-2.5" />}
+          </span>
           <span className="absolute inset-x-0 bottom-0 p-3.5">
             <span className="line-clamp-2 font-display text-sm font-bold leading-snug text-white">{game.name}</span>
             <span className="mt-1.5 block text-[11px] text-white/60">{releaseLabel(game)}</span>

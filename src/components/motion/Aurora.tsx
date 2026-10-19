@@ -74,7 +74,7 @@ export function GridLines({ className }: { className?: string }) {
       className={cn("pointer-events-none absolute inset-0 mask-fade-b", className)}
       style={{
         backgroundImage:
-          "linear-gradient(to right, rgba(255,255,255,0.045) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.045) 1px, transparent 1px)",
+          "linear-gradient(to right, color-mix(in oklab, var(--color-fg) 4.5%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in oklab, var(--color-fg) 4.5%, transparent) 1px, transparent 1px)",
         backgroundSize: "56px 56px",
       }}
     />

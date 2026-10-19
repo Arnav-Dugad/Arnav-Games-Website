@@ -334,7 +334,7 @@ function Tooltip({
     <div
       role="status"
       aria-live="polite"
-      className="material pointer-events-none absolute top-0 z-10 rounded-2xl px-3.5 py-2.5 text-[12px]"
+      className="material material-menu pointer-events-none absolute top-0 z-10 rounded-2xl px-3.5 py-2.5 text-[12px]"
       style={{ left, width: tooltipWidth }}
     >
       <p className="text-faint">{time}</p>

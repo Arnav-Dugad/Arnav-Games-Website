@@ -130,7 +130,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
           <AlertCircle size={15} className="mt-0.5 shrink-0 text-gold" />
           <p>
             <span className="font-semibold text-gold">Firebase isn&rsquo;t configured.</span> Add
-            your Firebase web-app keys to <code className="rounded bg-white/8 px-1 font-mono text-[11px]">.env.local</code>{" "}
+            your Firebase web-app keys to <code className="rounded bg-fg/8 px-1 font-mono text-[11px]">.env.local</code>{" "}
             to enable accounts. Everything else on the site works without it.
           </p>
         </div>
@@ -223,8 +223,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
         onClick={handleGoogle}
         disabled={busy || !enabled}
         className={cn(
-          "flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-line-strong bg-white/[0.04] text-sm font-semibold transition-colors",
-          "hover:bg-white/[0.08] disabled:pointer-events-none disabled:opacity-50",
+          "flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-line-strong bg-fg/[0.04] text-sm font-semibold transition-colors",
+          "hover:bg-fg/[0.08] disabled:pointer-events-none disabled:opacity-50",
         )}
       >
         <GoogleMark />
@@ -298,8 +298,8 @@ function Field({
           placeholder={placeholder}
           className={cn(
             // 16px minimum stops iOS Safari zooming the viewport on focus.
-            "min-h-12 w-full rounded-xl border border-line bg-white/[0.03] pl-10 text-base outline-none transition-colors",
-            "placeholder:text-faint focus:border-brand focus:bg-white/[0.05]",
+            "min-h-12 w-full rounded-xl border border-line bg-fg/[0.03] pl-10 text-base outline-none transition-colors",
+            "placeholder:text-faint focus:border-brand focus:bg-fg/[0.05]",
             trailing ? "pr-12" : "pr-4",
           )}
         />

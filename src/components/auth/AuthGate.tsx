@@ -85,7 +85,7 @@ function Prompt({
 }) {
   return (
     <Container className="flex min-h-[70svh] flex-col items-center justify-center py-24 text-center">
-      <span className="grid h-16 w-16 place-items-center rounded-2xl border border-line bg-white/[0.04]">
+      <span className="grid h-16 w-16 place-items-center rounded-2xl border border-line bg-fg/[0.04]">
         {icon}
       </span>
       <h1 className="mt-6 font-display text-2xl font-bold sm:text-3xl">{title}</h1>

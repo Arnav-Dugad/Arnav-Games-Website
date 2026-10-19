@@ -55,7 +55,7 @@ export function GameHero({
   const dateLabel = local.date ? formatLongDate(local.date) : game.releaseWindow ?? "Release date to be announced";
 
   return (
-    <header style={DARK_STAGE_STYLE} className="noise relative isolate overflow-hidden bg-bg text-text">
+    <header data-stage="dark" style={DARK_STAGE_STYLE} className="noise relative isolate overflow-hidden bg-bg text-text">
       <div className="absolute inset-0 -z-10">
         <Parallax distance={40} scale className="h-full w-full">
           <GameCover
@@ -224,10 +224,12 @@ export function GameHero({
         </div>
 
         {/* Actions span the full width rather than sharing the narrow title
-            column, which on a phone left no room for two buttons side by side. */}
+            column, which on a phone left no room for two buttons side by side.
+            Below 360px the pair also tightens, or "Save game" / "Follow game"
+            broke onto two lines. */}
         <Reveal delay={0.24} className="mt-7 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
-          <SaveButton game={game} className="w-full justify-center sm:w-auto" />
-          <WatchButton game={game} variant="full" className="w-full px-4 sm:w-auto sm:px-6" />
+          <SaveButton game={game} className="w-full justify-center sm:w-auto max-[359px]:px-3" />
+          <WatchButton game={game} variant="full" className="w-full px-4 sm:w-auto sm:px-6 max-[359px]:px-3 max-[359px]:text-[14px]" />
           <StatusPicker game={game} className="col-span-2 sm:col-span-1" />
           <OwnershipPicker game={game} className="[&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto" />
           <SubscriptionAccessPicker game={game} className="[&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto" />

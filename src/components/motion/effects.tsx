@@ -11,13 +11,14 @@ import {
   motion,
   useMotionTemplate,
   useMotionValue,
-  useReducedMotion,
   useScroll,
   useSpring,
   useTransform,
 } from "motion/react";
 import { useRef, type ReactNode } from "react";
-import { useRichMotion } from "@/hooks";
+// Hydration-safe (false while hydrating) — Marquee and Parallax render
+// different markup when motion is reduced.
+import { usePrefersReducedMotion as useReducedMotion, useRichMotion } from "@/hooks";
 import { cn } from "@/lib/utils/cn";
 
 /* ---------------------------------------------------------------------------
@@ -153,7 +154,11 @@ export function Marquee({
 
   if (reduced) {
     return (
-      <div className={cn("flex gap-4 overflow-x-auto no-scrollbar", className)}>{children}</div>
+      // Items keep their natural width: a scrolling row must never squeeze
+      // its pills into wrapped, multi-line lozenges.
+      <div className={cn("rail-gutter flex gap-4 overflow-x-auto no-scrollbar *:shrink-0 *:whitespace-nowrap", className)}>
+        {children}
+      </div>
     );
   }
 
@@ -206,7 +211,9 @@ export function Parallax({ children, className, distance = 80, scale = false }: 
 
   if (reduced) {
     return (
-      <div ref={ref} className={className}>
+      // Positioned like the animated branch, so `fill` images inside still
+      // have a containing block.
+      <div ref={ref} className={cn("relative", className)}>
         {children}
       </div>
     );

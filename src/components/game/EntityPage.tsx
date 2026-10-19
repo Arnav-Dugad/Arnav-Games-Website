@@ -110,7 +110,7 @@ export function EntityPage({
                 <Reveal
                   direction="right"
                   className={cn(
-                    "relative shrink-0 overflow-hidden rounded-[1.75rem] shadow-[0_35px_90px_-34px_rgba(0,0,0,0.95)] ring-1 ring-fg/15",
+                    "relative shrink-0 overflow-hidden rounded-[1.75rem] shadow-[0_35px_90px_-34px_rgba(0,0,0,0.95)] light:shadow-[0_28px_60px_-30px_rgba(0,0,0,0.4)] ring-1 ring-fg/15",
                     kind === "company"
                       ? // Logos are drawn for light paper; a near-white plate keeps dark marks legible.
                         "grid h-28 w-28 place-items-center bg-white/[0.96] p-4 sm:h-40 sm:w-40"
@@ -246,7 +246,7 @@ function FranchisePosterStack({ games }: { games: GameSummary[] }) {
           <Link
             href={`/game/${game.slug}`}
             aria-label={game.name}
-            className="relative block h-full w-full overflow-hidden rounded-2xl border border-fg/20 bg-panel shadow-[0_35px_70px_-25px_rgba(0,0,0,0.95)] transition-transform duration-500 ease-[var(--ease-apple)] hover:-translate-y-2 hover:scale-[1.02]"
+            className="relative block h-full w-full overflow-hidden rounded-2xl border border-fg/20 bg-panel shadow-[0_35px_70px_-25px_rgba(0,0,0,0.95)] light:shadow-[0_28px_56px_-28px_rgba(0,0,0,0.42)] transition-transform duration-500 ease-[var(--ease-apple)] hover:-translate-y-2 hover:scale-[1.02]"
           >
             <GameCover
               name={game.name}

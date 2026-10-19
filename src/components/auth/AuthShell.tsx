@@ -55,7 +55,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
             const Icon = perk.icon;
             return (
               <Reveal as="li" key={perk.title} delay={0.1 + i * 0.08} className="flex gap-4">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line bg-white/[0.04]">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line bg-fg/[0.04]">
                   <Icon size={18} className="text-brand-soft" />
                 </span>
                 <div>

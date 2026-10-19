@@ -84,12 +84,12 @@ export function OwnedLibrary() {
   return (
     <div className="mt-6 space-y-8">
       <div className="flex flex-wrap gap-3">
-        <span className="inline-flex items-center gap-2 rounded-full border border-line bg-white/[0.04] px-4 py-2 text-sm">
+        <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2 text-sm">
           <Library size={15} className="text-mint" />
           <span className="font-semibold tabular-nums">{total}</span>
           <span className="text-muted">{total === 1 ? "game owned" : "games owned"}</span>
         </span>
-        <span className="inline-flex items-center gap-2 rounded-full border border-line bg-white/[0.04] px-4 py-2 text-sm">
+        <span className="inline-flex items-center gap-2 rounded-full border border-line bg-fg/[0.04] px-4 py-2 text-sm">
           <span className="font-semibold tabular-nums">{groups.length}</span>
           <span className="text-muted">{groups.length === 1 ? "store" : "stores"}</span>
         </span>
@@ -98,7 +98,7 @@ export function OwnedLibrary() {
       {groups.map((group, index) => (
         <Reveal key={group.slug} delay={Math.min(index, 4) * 0.05} blur={false}>
           <div className="mb-3 flex items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-white/[0.04]">
+            <span className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-fg/[0.04]">
               {group.icon ? (
                 <BrandIcon name={group.icon} size={15} tinted title={null} />
               ) : (
@@ -106,7 +106,7 @@ export function OwnedLibrary() {
               )}
             </span>
             <h3 className="font-display text-lg font-bold">{group.name}</h3>
-            <span className="rounded-full bg-white/6 px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
+            <span className="rounded-full bg-fg/6 px-2 py-0.5 text-[11px] font-medium text-muted tabular-nums">
               {group.entries.length}
             </span>
           </div>

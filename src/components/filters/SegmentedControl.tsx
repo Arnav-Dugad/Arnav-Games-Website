@@ -92,7 +92,7 @@ export function SegmentedControl<T extends string>({
         <div
           ref={trackRef}
           className={cn(
-            "no-scrollbar relative flex overflow-x-auto rounded-full border border-fg/[0.08] bg-fg/[0.06] p-1 shadow-[inset_0_1px_2px_#00000040]",
+            "no-scrollbar relative flex overflow-x-auto rounded-full border border-fg/[0.08] bg-fg/[0.06] p-1 shadow-[inset_0_1px_2px_#00000040] light:shadow-[inset_0_1px_2px_#0000000f]",
             // Phones: no enclosing track. A track that scrolls inside its own
             // rounded ends crops labels mid-word; separate pills running off
             // the screen edge read as "there's more" instead.
@@ -109,7 +109,7 @@ export function SegmentedControl<T extends string>({
                     layoutId="segment-thumb"
                     transition={spring}
                     aria-hidden
-                    className="absolute inset-0 rounded-full border border-fg/[0.1] bg-fg/[0.16] shadow-[0_3px_10px_-2px_#00000080,inset_0_1px_0_#ffffff1f] max-sm:shadow-[0_1px_4px_-1px_#00000059,inset_0_1px_0_#ffffff1f]"
+                    className="absolute inset-0 rounded-full border border-fg/[0.1] bg-fg/[0.16] shadow-[0_3px_10px_-2px_#00000080,inset_0_1px_0_#ffffff1f] max-sm:shadow-[0_1px_4px_-1px_#00000059,inset_0_1px_0_#ffffff1f] light:border-fg/[0.06] light:bg-panel light:shadow-[0_2px_8px_-2px_#00000029]"
                   />
                 )}
                 <span className="relative flex items-center justify-center gap-1.5">

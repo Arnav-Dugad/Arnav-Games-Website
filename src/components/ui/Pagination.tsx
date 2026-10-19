@@ -115,8 +115,8 @@ function PageLink({
     // `relative` anchors the pending overlay to the link itself.
     "press relative inline-flex min-h-11 items-center gap-1 overflow-hidden rounded-full border text-sm font-medium transition-colors duration-200",
     active
-      ? "border-brand/50 bg-brand/25 text-white shadow-[inset_0_1px_0_#ffffff1f]"
-      : "border-white/[0.09] bg-white/[0.06] text-muted fine:hover:bg-white/[0.1] fine:hover:text-text",
+      ? "border-brand/50 bg-brand/25 text-text shadow-[inset_0_1px_0_#ffffff1f]"
+      : "border-fg/[0.09] bg-fg/[0.06] text-muted fine:hover:bg-fg/[0.1] fine:hover:text-text",
     disabled && "pointer-events-none opacity-35",
     className,
   );
@@ -152,7 +152,7 @@ function PendingOverlay() {
       aria-hidden
       className="absolute inset-0 grid place-items-center rounded-full bg-brand/25 backdrop-blur-[1px]"
     >
-      <Loader2 size={14} className="animate-spin text-white" />
+      <Loader2 size={14} className="animate-spin text-text" />
     </span>
   );
 }

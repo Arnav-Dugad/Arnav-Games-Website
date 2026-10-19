@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { GamePassLeaving } from "@/components/library/GamePassLeaving";
 import { BacklogRoulette } from "@/components/library/BacklogRoulette";
 import { LibraryView } from "@/components/library/LibraryView";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -20,6 +22,10 @@ export default function LibraryPage() {
         description="Everything you've marked as owned, across every storefront. Can't decide what to play? Let the backlog roulette choose."
       />
       <Container className="py-8 lg:py-12">
+        {/* Only appears when one of the reader's games is leaving Game Pass. */}
+        <Suspense fallback={null}>
+          <GamePassLeaving />
+        </Suspense>
         {/* Renders nothing while signed out or empty; LibraryView owns those states. */}
         <BacklogRoulette />
         <LibraryView />

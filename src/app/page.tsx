@@ -9,7 +9,7 @@ import { DataSourceNotice } from "@/components/ui/DataSourceNotice";
 import { Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { JoinCta } from "@/components/home/JoinCta";
 import { AnticipatedShelf, GamePassShelves } from "@/components/home/HomeShelves";
-import { Suspense } from "react";
+import { Suspense, type CSSProperties } from "react";
 import { PersonalCommandCenter } from "@/components/home/PersonalCommandCenter";
 import { CountUp } from "@/components/motion/text";
 import { Marquee, Spotlight } from "@/components/motion/effects";
@@ -224,10 +224,8 @@ function GenreShowcase({ genres }: { genres: { id: number; slug: string; name: s
               <StaggerItem key={genre.id}>
                 <Link
                   href={`/browse?genres=${genre.slug}`}
-                  className="group relative flex h-28 items-end overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:border-line-strong lg:h-32"
-                  style={{
-                    background: `linear-gradient(140deg, hsl(${hue} 55% 20%), hsl(${(hue + 45) % 360} 50% 9%))`,
-                  }}
+                  className="hue-tile group relative flex h-28 items-end overflow-hidden rounded-2xl border border-line p-4 transition-all duration-500 fine:hover:border-line-strong lg:h-32"
+                  style={{ "--tile-hue": hue, "--tile-hue-2": (hue + 45) % 360 } as CSSProperties}
                 >
                   <span
                     aria-hidden
@@ -241,7 +239,7 @@ function GenreShowcase({ genres }: { genres: { id: number; slug: string; name: s
                   </span>
                   <ArrowRight
                     size={15}
-                    className="relative ml-auto shrink-0 text-white/50 transition-transform duration-500 group-hover:translate-x-1"
+                    className="relative ml-auto shrink-0 text-white/60 transition-transform duration-500 group-hover:translate-x-1"
                   />
                 </Link>
               </StaggerItem>
@@ -258,7 +256,7 @@ function GenreShowcase({ genres }: { genres: { id: number; slug: string; name: s
               <Link
                 key={genre.id}
                 href={`/browse?genres=${genre.slug}`}
-                className="rounded-full border border-line bg-white/[0.03] px-5 py-2.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-text"
+                className="rounded-full border border-line bg-fg/[0.03] px-5 py-2.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-text"
               >
                 {genre.name}
               </Link>

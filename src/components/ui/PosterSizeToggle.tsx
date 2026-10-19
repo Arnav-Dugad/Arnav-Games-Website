@@ -78,7 +78,7 @@ export function PosterSizeToggle({
         aria-label="Poster size"
         className={cn(
           // Same track as the segmented controls, so the toolbar reads as one set.
-          "flex items-center gap-0.5 rounded-full border border-fg/[0.08] bg-fg/[0.06] p-0.5 shadow-[inset_0_1px_2px_#00000040]",
+          "flex items-center gap-0.5 rounded-full border border-fg/[0.08] bg-fg/[0.06] p-0.5 shadow-[inset_0_1px_2px_#00000040] light:shadow-[inset_0_1px_2px_#0000000f]",
           className,
         )}
       >
@@ -103,7 +103,7 @@ export function PosterSizeToggle({
                   layoutId="poster-size-thumb"
                   aria-hidden
                   transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 42, mass: 0.8 }}
-                  className="absolute inset-0 rounded-full border border-fg/[0.1] bg-fg/[0.16] shadow-[0_3px_10px_-2px_#00000080]"
+                  className="absolute inset-0 rounded-full border border-fg/[0.1] bg-fg/[0.16] shadow-[0_3px_10px_-2px_#00000080] light:border-fg/[0.06] light:bg-panel light:shadow-[0_2px_8px_-2px_#00000029]"
                 />
               )}
               <Icon size={15} className="relative" />

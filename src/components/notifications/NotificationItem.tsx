@@ -36,7 +36,7 @@ export function NotificationItem({
       className={cn(
         "group relative flex gap-3 rounded-2xl border p-3 transition-[background-color,border-color,transform] duration-300",
         read
-          ? "border-transparent bg-transparent hover:border-line hover:bg-white/[0.035]"
+          ? "border-transparent bg-transparent hover:border-line hover:bg-fg/[0.035]"
           : "border-brand/20 bg-brand/[0.065] hover:border-brand/35 hover:bg-brand/[0.09]",
         !compact && "sm:p-4 fine:hover:translate-x-0.5",
       )}

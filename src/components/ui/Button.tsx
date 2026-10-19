@@ -26,9 +26,9 @@ const VARIANTS: Record<ButtonVariant, string> = {
   primary:
     "bg-brand text-white shadow-[inset_0_1px_0_#ffffff40,0_10px_30px_-10px_rgba(138,114,255,0.75)] fine:hover:brightness-110",
   secondary:
-    "material-thin text-text fine:hover:bg-white/[0.14]",
-  ghost: "text-muted hover:text-text hover:bg-white/[0.07]",
-  outline: "border border-white/20 text-text hover:bg-white/[0.07]",
+    "material-thin text-text fine:hover:bg-fg/[0.14]",
+  ghost: "text-muted hover:text-text hover:bg-fg/[0.07]",
+  outline: "border border-fg/20 text-text hover:bg-fg/[0.07]",
   danger: "bg-flare/15 text-flare border border-flare/30 hover:bg-flare/25",
 };
 
