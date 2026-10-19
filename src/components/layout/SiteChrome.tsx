@@ -18,6 +18,7 @@ import { Header } from "./Header";
 import { MobileTabBar } from "./MobileTabBar";
 import { SearchOverlay } from "./SearchOverlay";
 import { ScrollProgress } from "@/components/motion/ScrollProgress";
+import { ScrollArrows } from "@/components/interactions/ScrollArrows";
 import { ContextMenuHost } from "@/components/interactions/ContextMenu";
 import { LiquidGlassFilter } from "@/components/interactions/LiquidGlassFilter";
 import { PullToRefresh } from "@/components/interactions/PullToRefresh";
@@ -67,6 +68,7 @@ export function SiteChrome() {
       <ContextMenuHost />
       <PullToRefresh />
       <LiquidGlassFilter />
+      <ScrollArrows />
     </>
   );
 }

@@ -171,6 +171,7 @@ export function MediaGallery({
       <div
         ref={railRef}
         onScroll={syncEdges}
+        data-no-arrows
         className="snap-rail gap-3 pb-2 sm:gap-4"
       >
         {items.map((item, i) => {

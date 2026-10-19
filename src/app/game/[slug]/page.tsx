@@ -244,7 +244,7 @@ export default async function GamePage({ params, searchParams }: { params: Param
         <div className="relative">
           {/* The cover's colour carries on past the hero as a faint ambient wash. */}
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(ellipse_at_50%_0%,var(--game-glow),transparent_70%)] opacity-40" />
-          <Container className="space-y-16 pb-16 pt-7 sm:space-y-20 sm:pt-9 lg:space-y-24">
+          <Container className="space-y-14 pb-16 pt-7 sm:space-y-16 sm:pt-9 lg:space-y-20">
             {/* Overview: what it is, is it good, how long, what it costs — then the story and the fact sheet. */}
             <section id="overview" aria-labelledby="overview-title" className="scroll-mt-36">
               <h2 id="overview-title" className="sr-only">Overview</h2>
@@ -265,8 +265,14 @@ export default async function GamePage({ params, searchParams }: { params: Param
                 </div>
               )}
 
-              <div className="mt-10 grid gap-x-14 gap-y-8 sm:mt-12 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="min-w-0 space-y-6">
+              {/*
+                The fact sheet is a sticky right rail beside About *and* Watch.
+                When it sat beside About alone, a collapsed "Credits" left the
+                left column far shorter than the rail, opening a large empty
+                gap above Watch. Phones keep the order About → facts → Watch.
+              */}
+              <div className="mt-10 grid gap-x-14 gap-y-10 sm:mt-12 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-y-16">
+                <div className="min-w-0 space-y-6 lg:col-start-1 lg:row-start-1">
                   {game.description && <GameEditorialOverview game={game} />}
                   {hasDetails && (
                     <Disclosure icon={<Layers size={17} />} title="Credits, platforms and tags" subtitle={detailCounts || undefined}>
@@ -274,33 +280,36 @@ export default async function GamePage({ params, searchParams }: { params: Param
                     </Disclosure>
                   )}
                 </div>
-                <GameSidebar game={game} />
+                <div className="lg:sticky lg:top-36 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
+                  <GameSidebar game={game} />
+                </div>
+                <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+                  {hasMedia ? (
+                    <DetailSection id="watch" title="Watch">
+                      <div className="space-y-10">
+                        {game.trailers.length > 0 && (
+                          <div id="trailers">
+                            <h3 className="mb-4 text-[17px] font-semibold text-text">Trailers</h3>
+                            <MediaGallery items={game.trailers.map((trailer) => ({ kind: "trailer" as const, trailer }))} gameName={game.name} />
+                          </div>
+                        )}
+                        {media.length > 0 && (
+                          <div id="screenshots">
+                            <h3 className="mb-4 text-[17px] font-semibold text-text">
+                              {game.artworks.length > 0 ? "Screenshots and key art" : "Screenshots"}
+                            </h3>
+                            <MediaGallery items={media.map((src) => ({ kind: "image" as const, src }))} gameName={game.name} variant="cinematic" />
+                          </div>
+                        )}
+                        <LiveOnTwitch />
+                      </div>
+                    </DetailSection>
+                  ) : (
+                    <LiveOnTwitch standalone />
+                  )}
+                </div>
               </div>
             </section>
-
-            {hasMedia ? (
-              <DetailSection id="watch" title="Watch">
-                <div className="space-y-10">
-                  {game.trailers.length > 0 && (
-                    <div id="trailers">
-                      <h3 className="mb-4 text-[17px] font-semibold text-text">Trailers</h3>
-                      <MediaGallery items={game.trailers.map((trailer) => ({ kind: "trailer" as const, trailer }))} gameName={game.name} />
-                    </div>
-                  )}
-                  {media.length > 0 && (
-                    <div id="screenshots">
-                      <h3 className="mb-4 text-[17px] font-semibold text-text">
-                        {game.artworks.length > 0 ? "Screenshots and key art" : "Screenshots"}
-                      </h3>
-                      <MediaGallery items={media.map((src) => ({ kind: "image" as const, src }))} gameName={game.name} variant="cinematic" />
-                    </div>
-                  )}
-                  <LiveOnTwitch />
-                </div>
-              </DetailSection>
-            ) : (
-              <LiveOnTwitch standalone />
-            )}
 
             <PriceSection
               ids={marketIds}

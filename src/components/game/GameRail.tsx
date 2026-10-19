@@ -75,6 +75,7 @@ export function GameRail({ games, className, shape = "poster", priorityCount = 0
       <div
         ref={railRef}
         onScroll={syncEdges}
+        data-no-arrows
         className="snap-rail rail-gutter -my-4 gap-3.5 py-4 sm:gap-4 lg:gap-5"
       >
         {games.map((game, i) => (
