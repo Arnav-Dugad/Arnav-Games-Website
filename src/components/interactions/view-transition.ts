@@ -33,6 +33,14 @@ export function coverTransitionName(slug: string): string {
   return `cover-${slug.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 }
 
+/**
+ * The game's logo, for the search-result → game-page logo morph. Same
+ * uniqueness rule as covers: only the activated result carries it.
+ */
+export function logoTransitionName(slug: string): string {
+  return `logo-${slug.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+}
+
 /** `view-transition-class` applied to the morph pair; styled in globals.css. */
 export const COVER_MORPH_CLASS = "cover-morph";
 

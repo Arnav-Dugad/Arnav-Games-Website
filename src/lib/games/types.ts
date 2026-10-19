@@ -530,7 +530,106 @@ export interface GamePcInfo {
   deck: DeckStatus | null;
   proton: { tier: ProtonTier; reports: number; confidence: string | null } | null;
   achievements: AchievementStats | null;
+  /** Parsed Steam PC requirements, when Steam publishes them. */
+  requirements?: PcRequirements | null;
 }
+
+/* ---------------------------------------------------------------------------
+ * Round 4 contracts: hardware, patches, review/Twitch/score history,
+ * batch prices and Game Pass matching. Routes:
+ *   /api/game/[id]/patches   → PatchNote[]
+ *   /api/game/[id]/reviews   → ReviewVelocity
+ *   /api/game/[id]/twitch    → TwitchHistory
+ *   /api/game/[id]/scores    → ScoreTimeline
+ *   POST /api/prices         → BatchPrices      body { ids: number[], cc }
+ *   POST /api/gamepass/match → GamePassMatches  body { ids: number[] }
+ * ------------------------------------------------------------------------ */
+
+/** One tier of Steam's PC requirements, normalised for comparison. */
+export interface PcRequirementTier {
+  cpu: string | null;
+  gpu: string | null;
+  ramGb: number | null;
+  vramGb: number | null;
+  storageGb: number | null;
+  os: string | null;
+  /** The original text, for display when parsing is partial. */
+  raw: string;
+}
+
+export interface PcRequirements {
+  minimum: PcRequirementTier | null;
+  recommended: PcRequirementTier | null;
+}
+
+/** The reader's own PC, entered once and kept on the device. */
+export interface UserPcSpecs {
+  cpu: string;
+  gpu: string;
+  ramGb: number;
+}
+
+export type HardwareVerdictKind = "great" | "ok" | "below" | "unknown";
+
+export interface HardwareVerdict {
+  kind: HardwareVerdictKind;
+  /** Per-component comparison, e.g. { part: "GPU", yours: "RTX 3060", needed: "GTX 1060", ok: true }. */
+  parts: Array<{ part: "CPU" | "GPU" | "RAM"; yours: string; needed: string | null; ok: boolean | null }>;
+  /** One plain sentence. */
+  summary: string;
+}
+
+/** A Steam patch/update post condensed into "what changed". */
+export interface PatchNote {
+  title: string;
+  date: string; // ISO
+  url: string;
+  /** Grouped bullet points ("Fixes", "Balance", "New"…), extracted, not invented. */
+  sections: Array<{ heading: string; items: string[] }>;
+  /** Up to 5 headline bullets for the collapsed card. */
+  highlights: string[];
+  /** Total bullet count in the original, so "+23 more" can be shown. */
+  totalItems: number;
+}
+
+export interface ReviewVelocity {
+  appId: number;
+  /** Cumulative Steam review totals over time, oldest first. `t` is unix seconds. */
+  points: Array<{ t: number; total: number; positive: number }>;
+  /** Reviews and % positive in the first 72h after launch, when we tracked that window. */
+  first72h: { reviews: number; positivePct: number } | null;
+  /** Average new reviews per day over the last 7 tracked days. */
+  perDay: number | null;
+  since: string | null;
+}
+
+export interface TwitchHistory {
+  twitchId: string;
+  /** Viewers across the top streams, sampled over time. `t` is unix seconds. */
+  points: Array<{ t: number; viewers: number; streams: number }>;
+  peak24h: number | null;
+  peakTracked: number | null;
+  since: string | null;
+}
+
+export interface ScoreTimeline {
+  /** Daily IGDB critic aggregate observations, oldest first. */
+  points: Array<{ date: string; score: number; count: number }>;
+  since: string | null;
+}
+
+/** Keyed by IGDB id; null when no store price is known in that country. */
+export type BatchPrices = Record<string, LocalPrice | null>;
+
+export interface GamePassMatch {
+  console: boolean;
+  pc: boolean;
+  leavingSoon: boolean;
+  recentlyAdded: boolean;
+}
+
+/** Keyed by IGDB id; only games found in any Game Pass list are present. */
+export type GamePassMatches = Record<string, GamePassMatch>
 
 /** How reliably a studio ships on its announced dates (from our D1 history). */
 export interface StudioReliability {

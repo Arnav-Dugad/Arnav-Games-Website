@@ -31,8 +31,14 @@ function jobsDue(scheduledTime) {
   const slot = Math.floor(minute / 10); // 0–5
   // ~40 games per run, six runs an hour → hourly player coverage.
   const jobs = ["players"];
+  // Twitch viewers twice an hour, Steam review totals once an hour (for
+  // games around launch), each in its own slot so no run does two big jobs.
+  if (slot === 1 || slot === 4) jobs.push("twitch");
+  if (slot === 3) jobs.push("reviews");
   // Daily local-price snapshots in the 04:20 UTC slot.
   if (hour === 4 && slot === 2) jobs.push("prices");
+  // Daily critic-score observations in the 05:00 UTC slot.
+  if (hour === 5 && slot === 0) jobs.push("scores");
   // Weekly owner digest, Mondays in the 08:00 UTC slot.
   if (at.getUTCDay() === 1 && hour === 8 && slot === 0) jobs.push("digest");
   return jobs;
