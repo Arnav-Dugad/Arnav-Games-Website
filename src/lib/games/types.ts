@@ -446,3 +446,96 @@ export interface Sourced<T> {
   data: T;
   source: DataSource;
 }
+
+/* ---------------------------------------------------------------------------
+ * Market & PC data (prices, players, Steam Deck, achievements).
+ * Served by /api/game/[id]/market, /players and /pc — see the route files.
+ * Money is always integer minor units (cents, paise…) in `currency`.
+ * ------------------------------------------------------------------------ */
+
+/** A store's current price for one game in one country, in that country's currency. */
+export interface LocalPrice {
+  store: "steam" | "microsoft";
+  /** ISO 3166-1 alpha-2. */
+  country: string;
+  /** ISO 4217. */
+  currency: string;
+  price: number;
+  initial: number | null;
+  /** Percent off, 0–100. */
+  discount: number;
+  /** Pre-formatted for the locale, e.g. "₹3,599". */
+  formatted: string;
+  url: string;
+}
+
+export interface PricePoint {
+  /** YYYY-MM-DD. */
+  date: string;
+  store: LocalPrice["store"];
+  price: number;
+  initial: number | null;
+}
+
+export type PriceVerdictKind = "buy" | "wait" | "fair" | "unknown";
+
+export interface GameMarket {
+  country: string;
+  currency: string | null;
+  prices: LocalPrice[];
+  /** Our own daily observations in this country, oldest first. */
+  history: PricePoint[];
+  lowest: { price: number; date: string; store: LocalPrice["store"] } | null;
+  verdict: { kind: PriceVerdictKind; reason: string };
+  /** Steam price in other regions, converted into `currency` for comparison. */
+  regional: RegionalPrice[];
+  /** ISO date our tracking for this game/country began, if any. */
+  trackingSince: string | null;
+}
+
+export interface RegionalPrice {
+  country: string;
+  currency: string;
+  /** Minor units, local currency. */
+  price: number;
+  formatted: string;
+  /** Converted into the viewer's currency (minor units), or null without FX. */
+  converted: number | null;
+  discount: number;
+}
+
+export interface PlayerHistory {
+  appId: number;
+  /** Hourly samples, oldest first. `t` is unix seconds. */
+  points: Array<{ t: number; players: number }>;
+  peak24h: number | null;
+  peakTracked: number | null;
+  since: string | null;
+}
+
+export type DeckStatus = "verified" | "playable" | "unsupported" | "unknown";
+export type ProtonTier = "platinum" | "gold" | "silver" | "bronze" | "borked" | "pending" | "native";
+
+export interface AchievementStats {
+  total: number;
+  highlighted: Array<{ name: string; icon: string }>;
+  /** How many achievements fall in each global-unlock-rate band. */
+  rarity: { ultraRare: number; rare: number; uncommon: number; common: number };
+  /** Percent of players. */
+  rarest: number | null;
+  mostCommon: number | null;
+}
+
+export interface GamePcInfo {
+  deck: DeckStatus | null;
+  proton: { tier: ProtonTier; reports: number; confidence: string | null } | null;
+  achievements: AchievementStats | null;
+}
+
+/** How reliably a studio ships on its announced dates (from our D1 history). */
+export interface StudioReliability {
+  tracked: number;
+  delayed: number;
+  avgDaysLate: number | null;
+  since: string | null;
+}

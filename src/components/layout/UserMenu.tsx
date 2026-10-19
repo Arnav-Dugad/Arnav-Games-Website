@@ -4,7 +4,8 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { BarChart3, Bell, Bookmark, Library, LogOut, Settings, User as UserIcon } from "lucide-react";
+import { BarChart3, Bell, Bookmark, Library, LogOut, Settings, ShieldCheck, User as UserIcon } from "lucide-react";
+import { useIsAdmin } from "@/lib/analytics/useIsAdmin";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useClickOutside, useEscapeKey } from "@/hooks";
 import { useToast } from "@/components/ui/Toast";
@@ -19,6 +20,7 @@ function avatarHue(seed: string) {
 
 export function UserMenu() {
   const { user, loading, signOut } = useAuth();
+  const isAdmin = useIsAdmin();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -115,6 +117,11 @@ export function UserMenu() {
             <MenuLink href="/settings" icon={<Settings size={15} />} onClick={() => setOpen(false)}>
               Settings
             </MenuLink>
+            {isAdmin && (
+              <MenuLink href="/admin" icon={<ShieldCheck size={15} />} onClick={() => setOpen(false)}>
+                Admin dashboard
+              </MenuLink>
+            )}
             <button
               type="button"
               role="menuitem"

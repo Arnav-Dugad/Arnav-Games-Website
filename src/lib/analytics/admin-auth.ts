@@ -7,9 +7,11 @@
  * Google's securetoken keys, issuer and audience bound to our project, not
  * expired, issued in the past, with a subject.
  *
- * Authorisation is then an email allow-list (`ADMIN_EMAILS`), and only for a
- * *verified* email: anyone can create an email/password account claiming
- * the owner's address, but they can't verify it.
+ * Authorisation is either the `admin` custom claim on the account (set by
+ * the owner via the Firebase Admin API, see `verifyAdmin`), or an email
+ * allow-list (`ADMIN_EMAILS`) — the latter only for a *verified* email:
+ * anyone can create an email/password account claiming the owner's address,
+ * but they can't verify it.
  */
 
 import { createRemoteJWKSet, jwtVerify } from "jose";
@@ -107,6 +109,12 @@ export async function verifyAdmin(request: Request): Promise<AdminCheck> {
   }
 
   const email = typeof payload.email === "string" ? payload.email.toLowerCase() : "";
+
+  // The `admin` custom claim is granted per account (uid) by the project owner
+  // through the Firebase Admin API and is signed into the token by Google, so
+  // a client can't add it to itself. It is authoritative on its own.
+  if (payload.admin === true) return { ok: true, email: email || payload.sub };
+
   if (payload.email_verified !== true) return { ok: false, status: 403, reason: "unverified" };
   if (!email || !(await adminEmails()).has(email)) return { ok: false, status: 403, reason: "not-admin" };
 

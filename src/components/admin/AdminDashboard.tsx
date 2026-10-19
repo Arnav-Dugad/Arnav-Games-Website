@@ -96,7 +96,8 @@ export function AdminDashboard() {
     void (async () => {
       try {
         const headers: Record<string, string> = {};
-        if (user && !devBypass) headers.Authorization = `Bearer ${await user.getIdToken()}`;
+        // Forced refresh: a newly granted `admin` claim only appears in a fresh token.
+        if (user && !devBypass) headers.Authorization = `Bearer ${await user.getIdToken(true)}`;
         const query = new URLSearchParams({ range });
         if (devBypass) query.set("devBypass", "1");
         const response = await fetch(`/api/admin/stats?${query}`, {

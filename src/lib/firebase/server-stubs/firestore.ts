@@ -1,0 +1,16 @@
+import { browserOnly } from "./shared";
+
+export const collection = () => browserOnly("collection");
+export const deleteDoc = () => browserOnly("deleteDoc");
+export const doc = () => browserOnly("doc");
+export const getDoc = () => browserOnly("getDoc");
+export const getDocs = () => browserOnly("getDocs");
+export const getFirestore = () => browserOnly("getFirestore");
+export const limit = () => browserOnly("limit");
+export const onSnapshot = () => browserOnly("onSnapshot");
+export const query = () => browserOnly("query");
+export const serverTimestamp = () => browserOnly("serverTimestamp");
+export const setDoc = () => browserOnly("setDoc");
+export const updateDoc = () => browserOnly("updateDoc");
+export const where = () => browserOnly("where");
+export const writeBatch = () => browserOnly("writeBatch");

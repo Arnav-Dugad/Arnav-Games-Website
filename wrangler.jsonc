@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "arnav-games",
-  "main": ".open-next/worker.js",
+  "main": "worker.mjs",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -31,6 +31,19 @@
       "migrations_dir": "migrations"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      // Live "online now" counter for /admin (src/server/presence-room.ts).
+      { "name": "PRESENCE", "class_name": "PresenceRoom" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1-presence", "new_sqlite_classes": ["PresenceRoom"] }
+  ],
+  "triggers": {
+    // Each schedule maps to an /api/cron/<job> route in worker.mjs.
+    "crons": ["5 * * * *", "20 4 * * *", "0 8 * * 1"]
+  },
   "observability": {
     "enabled": true
   }

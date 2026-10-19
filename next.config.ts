@@ -10,6 +10,13 @@ const nextConfig: NextConfig = {
       // the server (see lib/firebase/config.ts), so the browser build, which
       // talks over fetch, is the right one everywhere.
       "@firebase/firestore": "./node_modules/@firebase/firestore/dist/index.esm.js",
+      // The web SDK can't run on the server, so the server build gets
+      // throwing stubs instead of ~560 KB of dead weight in the Worker
+      // (see src/lib/firebase/server-stubs). Browsers get the real SDK.
+      // When adding a new firebase import, add it to the matching stub.
+      "firebase/app": { browser: "./node_modules/firebase/app/dist/esm/index.esm.js", default: "./src/lib/firebase/server-stubs/app.ts" },
+      "firebase/auth": { browser: "./node_modules/firebase/auth/dist/esm/index.esm.js", default: "./src/lib/firebase/server-stubs/auth.ts" },
+      "firebase/firestore": { browser: "./node_modules/firebase/firestore/dist/esm/index.esm.js", default: "./src/lib/firebase/server-stubs/firestore.ts" },
     },
   },
   redirects() {
