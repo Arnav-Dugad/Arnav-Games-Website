@@ -12,6 +12,8 @@ import { marketFor, resolveMarketIds } from "@/lib/games/market";
  * `[id]` is the IGDB id; `steam` / `ms` are optional id hints, as on
  * `/live`. `cc` is an ISO 3166-1 alpha-2 country (default US).
  *
+ * `name` (optional, the game's title) adds GOG's price, found by title.
+ *
  * `regional` is opt-in: it costs up to 13 Steam storefront lookups per game
  * (cached 24 h), so the default response leaves it as `[]` and a UI asks for
  * `?regional=1` only when the comparison is actually opened. With it, rows
@@ -38,7 +40,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (typeof ids === "string") return badRequest(ids);
 
   try {
-    const market = await marketFor(ids, cc, { regional: search.get("regional") === "1" });
+    const name = search.get("name")?.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 120).trim() || null;
+    const market = await marketFor(ids, cc, { regional: search.get("regional") === "1", name });
     return NextResponse.json(market, {
       headers: { "Cache-Control": "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400" },
     });

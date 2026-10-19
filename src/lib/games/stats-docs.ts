@@ -89,7 +89,7 @@ export function scoreRows(data: unknown): Array<{ observed_on: string; score: nu
 }
 
 export interface PriceRow {
-  store: "steam" | "microsoft";
+  store: "steam" | "microsoft" | "gog";
   currency: string;
   price: number;
   initial: number | null;
@@ -104,7 +104,7 @@ export function priceRows(data: unknown, country: string): PriceRow[] {
   for (const [day, stores] of Object.entries(days)) {
     if (!DAY_KEY.test(day) || !isRecord(stores)) continue;
     for (const [store, value] of Object.entries(stores)) {
-      if (store !== "steam" && store !== "microsoft") continue;
+      if (store !== "steam" && store !== "microsoft" && store !== "gog") continue;
       if (!Array.isArray(value) || typeof value[0] !== "string" || !finite(value[1])) continue;
       rows.push({
         store,

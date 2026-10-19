@@ -457,7 +457,12 @@ export interface Sourced<T> {
 
 /** A store's current price for one game in one country, in that country's currency. */
 export interface LocalPrice {
-  store: "steam" | "microsoft";
+  /**
+   * "gog" (round 5) is GOG's own price for that country, in the currency GOG
+   * charges there — which is USD in many countries (India, Japan, Korea…),
+   * exactly as GOG bills it. Never converted by us.
+   */
+  store: "steam" | "microsoft" | "gog";
   /** ISO 3166-1 alpha-2. */
   country: string;
   /** ISO 4217. */
@@ -469,6 +474,12 @@ export interface LocalPrice {
   /** Pre-formatted for the locale, e.g. "₹3,599". */
   formatted: string;
   url: string;
+  /**
+   * The store's own product name, set only when it differs from the game's
+   * (GOG often sells an edition: "The Witcher 3: Wild Hunt — Remastered").
+   * Show it so a bundle price is never mistaken for the base game's.
+   */
+  productTitle?: string;
 }
 
 export interface PricePoint {
@@ -493,6 +504,25 @@ export interface GameMarket {
   regional: RegionalPrice[];
   /** ISO date our tracking for this game/country began, if any. */
   trackingSince: string | null;
+  /**
+   * CheapShark's all-time low across the stores it tracks, in US dollars: a
+   * labelled historic marker ("Lowest ever (US, all stores)"), never a local
+   * price, and never mixed into `history`, `lowest` or the verdict. Filled on
+   * `/insights` from the live deals lookup (no extra request); absent on
+   * `/market`.
+   */
+  lowestEver?: LowestEverPrice | null;
+}
+
+/** See `GameMarket.lowestEver`. */
+export interface LowestEverPrice {
+  /** US cents. */
+  price: number;
+  currency: "USD";
+  /** YYYY-MM-DD. */
+  date: string;
+  label: "Lowest ever (US, all stores)";
+  source: "cheapshark";
 }
 
 export interface RegionalPrice {
@@ -663,6 +693,304 @@ export interface GameInsights {
   /** Null without a Steam app, or when Steam couldn't be reached (see `unavailable`). */
   patches: PatchNote[] | null;
   /** Parts that were applicable but failed — "couldn't ask", not "nothing to show". */
-  unavailable: Array<"market" | "pc" | "patches">;
+  unavailable: Array<"market" | "pc" | "patches" | "cloud" | "antiCheat">;
+  /** GeForce NOW membership (round 5). `geforceNow` is null when NVIDIA's list couldn't be read. */
+  cloud: { geforceNow: GeForceNowMembership | null };
+  /**
+   * Linux / Steam Deck anti-cheat status. Null when AreWeAntiCheatYet doesn't
+   * track the game — which means "no known kernel/anti-cheat issue recorded",
+   * not "has no anti-cheat".
+   */
+  antiCheat: AntiCheatStatus | null;
+}
+
+/* ---------------------------------------------------------------------------
+ * Round 5: cloud play, community data, accessibility, people, free games and
+ * recommendations v2. Where they come from:
+ *   /api/game/[id]/insights       → GameInsights (+ cloud, antiCheat, GOG price, lowestEver)
+ *   /api/game/[id]/extras         → GameExtras (SteamSpy, PCGamingWiki, speedrun.com, mods, people)
+ *   POST /api/cloud/match         → CloudMatchResponse   body { ids: number[] }
+ *   POST /api/recommendations/v2  → RecommendationsV2   body RecsProfile
+ *   server functions: getGeForceNowHighlights(), getEpicFreeGames(cc), getPerson(qid)
+ * ------------------------------------------------------------------------ */
+
+/** A game's place in NVIDIA's public GeForce NOW catalogue. */
+export interface GeForceNowMembership {
+  /** Listed and currently playable (NVIDIA status "AVAILABLE"). */
+  available: boolean;
+  /** Store of the matched entry ("Steam", "Epic", "Ubisoft Connect", …), null when not listed. */
+  store: string | null;
+  /** Every store NVIDIA lists the game under (you need to own it on one). */
+  stores: string[];
+  /** NVIDIA's "fully optimized" flag. */
+  optimized: boolean;
+  status: "available" | "maintenance" | "patching" | "not-listed";
+  /** How the match was made; title matches are exact after normalisation. */
+  matchedBy: "steam" | "title" | null;
+}
+
+/** Cloud/subscription availability for one game; see `CloudMatches`. */
+export interface CloudMatch {
+  gamePass: GamePassMatch | null;
+  geforceNow: GeForceNowMembership | null;
+}
+
+/** Keyed by IGDB id; only games on Game Pass or GeForce NOW are present. */
+export type CloudMatches = Record<string, CloudMatch>;
+
+/** `POST /api/cloud/match` response. `unavailable` names a catalogue that couldn't be read. */
+export interface CloudMatchResponse {
+  matches: CloudMatches;
+  unavailable: Array<"gamePass" | "geforceNow">;
+}
+
+export type AntiCheatState = "supported" | "running" | "planned" | "broken" | "denied";
+
+/** From AreWeAntiCheatYet: does the game's anti-cheat work on Linux / Steam Deck? */
+export interface AntiCheatStatus {
+  status: AntiCheatState;
+  /** e.g. ["Easy Anti-Cheat"]. */
+  anticheats: string[];
+  /** Has a native Linux build. */
+  native: boolean;
+  /** ISO timestamp of the entry's last change, when given. */
+  updated: string | null;
+  /** The AreWeAntiCheatYet page for the game. */
+  url: string;
+}
+
+/** SteamSpy's estimates for one Steam app (cached 24 h). */
+export interface SteamSpyData {
+  appId: number;
+  /** User-applied Steam tags, most-voted first (≤ 20). */
+  tags: Array<{ name: string; votes: number }>;
+  /** SteamSpy's owner bracket, e.g. { low: 20000000, high: 50000000 }. An estimate. */
+  owners: { low: number; high: number } | null;
+  /** Peak concurrent players yesterday. */
+  ccu: number | null;
+  /**
+   * Hours. SteamSpy stopped publishing playtime for most apps (it reports 0),
+   * so these are usually null — never shown as zero.
+   */
+  playtime: { average: number | null; median: number | null; average2Weeks: number | null; median2Weeks: number | null };
+  /** Steam review counts as SteamSpy last saw them. */
+  positive: number;
+  negative: number;
+}
+
+/** PCGamingWiki's support values, normalised. "n/a" = not applicable to the game. */
+export type PcgwSupport = "true" | "false" | "limited" | "hackable" | "always on" | "n/a";
+
+export type PcgwFeatureKey =
+  | "ultrawide"
+  | "4k"
+  | "hdr"
+  | "fov"
+  | "borderless"
+  | "fps60"
+  | "fps120"
+  | "upscaling"
+  | "frameGen"
+  | "rayTracing"
+  | "vsync"
+  | "colorBlind"
+  | "keyRemap"
+  | "controller"
+  | "fullController"
+  | "controllerRemap"
+  | "playstationControllers"
+  | "touchscreen"
+  | "subtitles"
+  | "closedCaptions"
+  | "separateVolume"
+  | "surround"
+  | "monoAudio";
+
+/** Features and accessibility from a PCGamingWiki article (`{{Video}}`, `{{Input}}`, `{{Audio}}`). */
+export interface PcgwFeatures {
+  /** Article title and URL (credit/link-out). */
+  page: string;
+  url: string;
+  /** Only features the article states are present; "unknown" and blanks are left out. */
+  values: Partial<Record<PcgwFeatureKey, PcgwSupport>>;
+  /** Upscaler names from `upscaling tech`, e.g. ["DLSS", "FSR 2"]. */
+  upscaling: string[];
+}
+
+/** World records from speedrun.com (full-game categories). */
+export interface SpeedrunRecords {
+  game: { id: string; name: string; url: string };
+  records: Array<{
+    category: string;
+    /** Leaderboard URL for the category. */
+    url: string;
+    /** Seconds (primary timing). */
+    seconds: number;
+    /** e.g. "24:48.843" or "1:02:03". */
+    time: string;
+    date: string | null;
+    runners: Array<{ name: string; url: string | null }>;
+    runUrl: string;
+    video: string | null;
+    /** speedrun.com's "miscellaneous" flag: side categories after the main ones. */
+    misc: boolean;
+  }>;
+}
+
+export interface ThunderstoreMod {
+  name: string;
+  owner: string;
+  description: string;
+  downloads: number;
+  /** Thunderstore "likes". */
+  rating: number;
+  icon: string | null;
+  url: string;
+  updated: string | null;
+  categories: string[];
+  /** Pinned by the community: usually the mod loader/manager everything else needs (BepInEx, r2modman). */
+  pinned: boolean;
+}
+
+/** Mods: Thunderstore's most-downloaded packages, plus link-outs (no scraping). */
+export interface GameMods {
+  thunderstore: { community: string; name: string; url: string; total: number; top: ThunderstoreMod[] } | null;
+  links: {
+    /** Nexus Mods search (link-out; Nexus has no open API). */
+    nexus: string;
+    /** Only when Steam lists the "Steam Workshop" feature for the app. */
+    steamWorkshop: string | null;
+  };
+}
+
+export type PersonRole = "director" | "designer" | "composer" | "producer" | "writer";
+
+/** A credited person on a game, from Wikidata. `qid` addresses `/person/[qid]`. */
+export interface GamePerson {
+  qid: string;
+  name: string;
+  roles: PersonRole[];
+  /** Wikimedia Commons thumbnail (≈ 256 px wide), when Wikidata has a portrait. */
+  image: string | null;
+}
+
+/** `getPerson(qid)` — a person page. */
+export interface Person {
+  qid: string;
+  name: string;
+  /** Wikidata's one-line English description, e.g. "Japanese video game director". */
+  description: string | null;
+  image: string | null;
+  wikipedia: string | null;
+  /** Every role across their games, most frequent first. */
+  roles: PersonRole[];
+  /** Their games on IGDB, newest first, each with the roles held on it. */
+  games: Array<{ game: GameSummary; roles: PersonRole[] }>;
+}
+
+/** The lazily-requested second part of a game page (`/api/game/[id]/extras`). */
+export interface GameExtras {
+  ids: { igdbId: number | null; steam: number | null; slug: string | null };
+  steamSpy: SteamSpyData | null;
+  pcgw: PcgwFeatures | null;
+  speedrun: SpeedrunRecords | null;
+  mods: GameMods;
+  people: GamePerson[];
+  /** Parts that were applicable but failed — "couldn't ask", not "nothing to show". */
+  unavailable: Array<"steamSpy" | "pcgw" | "speedrun" | "mods" | "people">;
+}
+
+/** One free-to-keep promotion on the Epic Games Store. */
+export interface EpicFreeGame {
+  id: string;
+  title: string;
+  url: string;
+  /** Portrait key art (OfferImageTall), else the wide one. */
+  image: string | null;
+  imageWide: string | null;
+  /** ISO timestamps of the free window. */
+  start: string;
+  end: string;
+  /** Normal local price, pre-formatted ("₹469.00"), when Epic gives one. */
+  originalPrice: string | null;
+  /** The IGDB game, when the title matches exactly. */
+  game: GameSummary | null;
+}
+
+export interface EpicFreeGames {
+  country: string;
+  /** Free right now. */
+  current: EpicFreeGame[];
+  /** Announced next. */
+  upcoming: EpicFreeGame[];
+}
+
+/* ---------------------------------------------------------------------------
+ * Recommendations v2 (POST /api/recommendations/v2)
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The anonymous taste profile the browser sends — game ids and weights only,
+ * built by `buildTasteProfile` in `src/lib/recs/profile.ts`.
+ */
+export interface RecsProfile {
+  v: 2;
+  /** Weighted seeds: w > 0 liked (≤ 3), w < 0 disliked (≥ -3). ≤ 16 positive + 8 negative. */
+  seeds: Array<{ id: number; w: number }>;
+  /** Everything already in the library (owned/played/playing/want/followed). ≤ 600. */
+  exclude: number[];
+  /** "Not interested" / thumbs-down ids. ≤ 200. */
+  dismissed: number[];
+  /** Recommended before and ignored. ≤ 200. */
+  ignored: number[];
+  /** Owned platforms: family keys ("pc", "playstation"…) or IGDB system slugs ("ps5", "switch"). ≤ 12. */
+  platforms: string[];
+  /** Subscription slugs that change availability: "game-pass", "geforce-now". */
+  services: string[];
+  /** Typical hours to finish the games they complete; null when unknown. */
+  lengthHours: number | null;
+}
+
+export type RecReasonKind =
+  | "seed"
+  | "shares"
+  | "series"
+  | "developer"
+  | "platform"
+  | "gamePass"
+  | "geforceNow"
+  | "quality"
+  | "gem"
+  | "length"
+  | "upcoming"
+  | "new"
+  | "steamTag";
+
+export interface RecReason {
+  kind: RecReasonKind;
+  /** Display sentence: "Because you loved Elden Ring", "Shares: dark fantasy, open world". */
+  text: string;
+}
+
+export interface RecommendedGame {
+  game: GameSummary;
+  /** 0–1 relevance after all boosts and penalties. */
+  score: number;
+  /** Most important first; at most 4. */
+  reasons: RecReason[];
+}
+
+export interface RecommendationsV2 {
+  /** False when the profile was too thin and these are quality picks, not taste picks. */
+  personalised: boolean;
+  forYou: RecommendedGame[];
+  becauseYouLiked: Array<{ seed: { id: number; name: string; slug: string }; games: RecommendedGame[] }>;
+  hiddenGems: RecommendedGame[];
+  /** Released in the last ~4 months. */
+  newForYou: RecommendedGame[];
+  comingSoonForYou: RecommendedGame[];
+  /** Playable on an owned platform (or via Game Pass / GeForce NOW when subscribed). */
+  onYourDevices: RecommendedGame[];
+  generatedAt: string;
 }
 

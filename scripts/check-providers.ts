@@ -68,6 +68,58 @@ import {
 } from "../src/lib/games/stats-docs";
 import type { PricePoint } from "../src/lib/games/types";
 import type { ReleaseEvent } from "../src/lib/games/types";
+import {
+  antiCheatFor,
+  compactAntiCheat,
+  compactCommunities,
+  compactGfn,
+  formatRunTime,
+  gfnLookup,
+  gfnMembership,
+  GFN_NOT_LISTED,
+  matchCommunity,
+  normaliseTitle,
+  parseEpicPromotions,
+  parseGogPrices,
+  parseOwners,
+  parsePcgwWikitext,
+  parseSpeedrunRecords,
+  parseSteamSpy,
+  parseThunderstoreListing,
+  pcgwSteamAppids,
+  pcgwSupport,
+  pickGogProduct,
+  pickSpeedrunGame,
+  sameGameTitle,
+  steamAppFromUrl,
+  topTaggedApps,
+} from "../src/lib/games/external-rules";
+import {
+  bayesianAverage,
+  buildCorpus,
+  cosine,
+  denseDot,
+  denseTaste,
+  denseUnit,
+  diversityOf,
+  documentFrequency,
+  normalise,
+  sortedDot,
+  featureId,
+  featureKey,
+  featureType,
+  idf,
+  lengthFit,
+  mmr,
+  popularity,
+  qualityPrior,
+  recencyDecay,
+  scoreCandidate,
+  sharedFeatures,
+  tasteVector,
+  tfidfVector,
+} from "../src/lib/recs/rank";
+import { buildTasteProfile as buildRecsProfile, hasEnoughTaste, normaliseOwnedPlatform, parseRecsProfile, ratingMultiplier } from "../src/lib/recs/profile";
 
 let failures = 0;
 
@@ -1079,8 +1131,11 @@ check(
 );
 check(
   "price rows read one country's days and stores",
-  priceRows({ IN: { "2026-10-19": { steam: ["INR", 99900, 99900, 0], gog: ["INR", 1, 1, 0] } }, US: { "2026-10-19": { steam: ["USD", 5999, null, null] } } }, "IN"),
-  [{ store: "steam", currency: "INR", price: 99900, initial: 99900, discount: 0, observed_on: "2026-10-19" }],
+  priceRows({ IN: { "2026-10-19": { steam: ["INR", 99900, 99900, 0], humble: ["INR", 1, 1, 0], gog: ["USD", 2499, 4999, 50] } }, US: { "2026-10-19": { steam: ["USD", 5999, null, null] } } }, "IN"),
+  [
+    { store: "gog", currency: "USD", price: 2499, initial: 4999, discount: 50, observed_on: "2026-10-19" },
+    { store: "steam", currency: "INR", price: 99900, initial: 99900, discount: 0, observed_on: "2026-10-19" },
+  ],
 );
 check(
   "release observations sort by first sighting",
@@ -1128,6 +1183,324 @@ async function pngChecks() {
     px: [255, 0, 0, 255, 0, 0, 0, 0],
   });
   check("rejects non-PNG bytes", await decodePng(new Uint8Array([1, 2, 3])), null);
+}
+
+/* ---------------------------------------------------------------------------
+ * Round 5: external sources (GeForce NOW, anti-cheat, SteamSpy, PCGamingWiki,
+ * speedrun.com, Thunderstore, Epic, GOG) and recommendations v2.
+ * ------------------------------------------------------------------------ */
+
+console.log("\nTitle matching");
+check("normalises marks, punctuation and &", normaliseTitle("The Witcher® 3: Wild Hunt"), "the witcher 3 wild hunt");
+check("drops apostrophes, spells out &", normaliseTitle("Assassin’s Creed & Friends"), "assassins creed and friends");
+check("an edition suffix still matches", sameGameTitle("The Witcher 3: Wild Hunt — Remastered", "The Witcher 3: Wild Hunt"), "edition");
+check("a sequel is a different game", sameGameTitle("Doom II", "Doom"), null);
+check("case doesn't matter", sameGameTitle("DOOM", "Doom"), "exact");
+check("Steam appid from a store URL", steamAppFromUrl("https://store.steampowered.com/app/1358020"), 1358020);
+check("no appid from junk", steamAppFromUrl("https://example.com"), null);
+
+console.log("\nGeForce NOW");
+{
+  const rows = compactGfn([
+    { title: "Apex Legends", steamUrl: "https://store.steampowered.com/app/1172470", store: "Steam", isFullyOptimized: true, status: "AVAILABLE" },
+    { title: "Apex Legends", steamUrl: "", store: "Origin", isFullyOptimized: false, status: "AVAILABLE" },
+    { title: "Fortnite", steamUrl: "", store: "Epic", isFullyOptimized: false, status: "MAINTENANCE" },
+    { title: "Weird", status: "SOMETHING" },
+  ]);
+  check("compacts only known statuses", rows.length, 3);
+  const lookup = gfnLookup(rows);
+  check("Steam match gathers same-titled store entries", gfnMembership(lookup, { steam: 1172470, name: null }), {
+    available: true,
+    store: "Steam",
+    stores: ["Steam", "Origin"],
+    optimized: true,
+    status: "available",
+    matchedBy: "steam",
+  });
+  check("title match reports maintenance honestly", gfnMembership(lookup, { steam: null, name: "FORTNITE" }), {
+    available: false,
+    store: "Epic",
+    stores: ["Epic"],
+    optimized: false,
+    status: "maintenance",
+    matchedBy: "title",
+  });
+  check("a same-titled row tied to another Steam app is ignored", gfnMembership(lookup, { steam: 999, name: "Apex Legends" }).stores, ["Origin"]);
+  check("unknown game is not listed", gfnMembership(lookup, { steam: 1, name: "Nope" }), GFN_NOT_LISTED);
+}
+
+console.log("\nAnti-cheat");
+{
+  const rows = compactAntiCheat([
+    { name: "Apex Legends", slug: "apex-legends", status: "Denied", anticheats: ["Easy Anti-Cheat"], native: false, storeIds: { steam: "1172470" }, dateChanged: "2024-10-31T18:29:00.000Z" },
+    { name: "Halo", slug: "halo", status: "Supported", anticheats: [], native: false, storeIds: {} },
+    { name: "Broken", slug: "b", status: "Unknown" },
+  ]);
+  check("keeps known statuses", rows.length, 2);
+  check("matches by Steam appid", antiCheatFor(rows, { steam: 1172470, name: null }), {
+    status: "denied",
+    anticheats: ["Easy Anti-Cheat"],
+    native: false,
+    updated: "2024-10-31T18:29:00.000Z",
+    url: "https://areweanticheatyet.com/game/apex-legends",
+  });
+  check("matches by title without a Steam id", antiCheatFor(rows, { steam: null, name: "HALO" })?.status, "supported");
+  check("a contradicting Steam id blocks a title match", antiCheatFor(rows, { steam: 5, name: "Apex Legends" }), null);
+}
+
+console.log("\nSteamSpy");
+check("owner brackets", parseOwners("20,000,000 .. 50,000,000"), { low: 20000000, high: 50000000 });
+check("bad owner string", parseOwners(""), null);
+check(
+  "app details: tags by votes, zero playtime is null",
+  parseSteamSpy({ appid: 10, name: "X", owners: "0 .. 20,000", ccu: 5, average_forever: 0, median_forever: 90, tags: { A: 3, B: 10 }, positive: 5, negative: 1 }, 10),
+  {
+    appId: 10,
+    tags: [{ name: "B", votes: 10 }, { name: "A", votes: 3 }],
+    owners: { low: 0, high: 20000 },
+    ccu: 5,
+    playtime: { average: null, median: 1.5, average2Weeks: null, median2Weeks: null },
+    positive: 5,
+    negative: 1,
+  },
+);
+check("an app SteamSpy doesn't know", parseSteamSpy({ appid: 11, name: null }, 11), null);
+check(
+  "tag lists rank by confident approval, tiny apps dropped",
+  topTaggedApps({ 1: { appid: 1, positive: 40, negative: 0 }, 2: { appid: 2, positive: 95000, negative: 5000 }, 3: { appid: 3, positive: 900, negative: 100 } }, 5),
+  [2, 3],
+);
+
+console.log("\nPCGamingWiki");
+{
+  const wikitext = [
+    "{{Infobox game",
+    "|steam appid  = 504230",
+    "}}",
+    "{{Video",
+    "|ultrawidescreen = hackable",
+    "|hdr = false<ref>{{Refcheck|user=x}}</ref>",
+    "|upscaling = true",
+    "|upscaling tech = DLSS, FSR 2",
+    "|color blind = unknown",
+    "}}",
+    "{{Input",
+    "|key remap = true",
+    "|controller support = true",
+    "}}",
+    "{{Audio",
+    "|subtitles = true",
+    "|closed captions = always on",
+    "}}",
+  ].join("\n");
+  check("support values strip refs", pcgwSupport("true<ref>x</ref>"), "true");
+  check("unknown is not a value", pcgwSupport("unknown"), null);
+  check("parses Video/Input/Audio templates", parsePcgwWikitext(wikitext, "Celeste"), {
+    page: "Celeste",
+    url: "https://www.pcgamingwiki.com/wiki/Celeste",
+    values: { ultrawide: "hackable", hdr: "false", upscaling: "true", keyRemap: "true", controller: "true", subtitles: "true", closedCaptions: "always on" },
+    upscaling: ["DLSS", "FSR 2"],
+  });
+  check("reads the infobox Steam appids", pcgwSteamAppids(wikitext), [504230]);
+}
+
+console.log("\nspeedrun.com");
+check("run time, minutes", formatRunTime(1488.843), "24:48.843");
+check("run time, hours", formatRunTime(3723), "1:02:03");
+check(
+  "picks the exactly-named game",
+  pickSpeedrunGame(
+    { data: [{ id: "abc", names: { international: "Celeste 64" }, weblink: "u1" }, { id: "o1y9j9v6", names: { international: "Celeste", twitch: "Celeste" }, weblink: "https://www.speedrun.com/celeste" }] },
+    "Celeste",
+  ),
+  { id: "o1y9j9v6", name: "Celeste", url: "https://www.speedrun.com/celeste" },
+);
+check(
+  "records: main categories first, guests named, videos kept",
+  parseSpeedrunRecords({
+    data: [
+      {
+        weblink: "w1",
+        category: { data: { name: "Glitchless", miscellaneous: true, weblink: "c1" } },
+        players: { data: [{ rel: "guest", name: "Bob" }] },
+        runs: [{ place: 1, run: { weblink: "r1", date: "2024-01-02", times: { primary_t: 100.5 }, players: [{ rel: "guest", name: "Bob" }], videos: { links: [{ uri: "https://youtu.be/x" }] } } }],
+      },
+      {
+        weblink: "w2",
+        category: { data: { name: "Any%", miscellaneous: false, weblink: "c2" } },
+        players: { data: [{ id: "u1", names: { international: "Ann" }, weblink: "https://www.speedrun.com/users/Ann" }] },
+        runs: [{ place: 1, run: { weblink: "r2", date: null, times: { primary_t: 1488.843 }, players: [{ rel: "user", id: "u1" }], videos: null } }],
+      },
+    ],
+  }),
+  [
+    { category: "Any%", url: "c2", seconds: 1488.843, time: "24:48.843", date: null, runners: [{ name: "Ann", url: "https://www.speedrun.com/users/Ann" }], runUrl: "r2", video: null, misc: false },
+    { category: "Glitchless", url: "c1", seconds: 100.5, time: "1:40.500", date: "2024-01-02", runners: [{ name: "Bob", url: null }], runUrl: "r1", video: "https://youtu.be/x", misc: true },
+  ],
+);
+
+console.log("\nThunderstore");
+{
+  const rows = compactCommunities({ results: [{ identifier: "valheim", name: "Valheim" }, { identifier: "Bad Id", name: "x" }] });
+  check("compacts valid communities", rows, [["valheim", "valheim", "Valheim"]]);
+  check("matches a community by exact title", matchCommunity(rows, "VALHEIM")?.[0], "valheim");
+  check(
+    "listing keeps live packages and the pinned flag",
+    parseThunderstoreListing(
+      {
+        count: 7860,
+        results: [
+          { name: "BepInExPack_Valheim", namespace: "denikson", download_count: 10, rating_count: 2, is_pinned: true, categories: [{ name: "Tools" }], icon_url: "https://x/i.png", last_updated: "2026-01-01", description: "d" },
+          { name: "Nsfw", namespace: "n", is_nsfw: true },
+        ],
+      },
+      "valheim",
+    ),
+    {
+      total: 7860,
+      top: [
+        { name: "BepInExPack Valheim", owner: "denikson", description: "d", downloads: 10, rating: 2, icon: "https://x/i.png", url: "https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/", updated: "2026-01-01", categories: ["Tools"], pinned: true },
+      ],
+    },
+  );
+}
+
+console.log("\nEpic free games");
+{
+  const promo = (start: string, end: string, pct: number) => [{ promotionalOffers: [{ startDate: start, endDate: end, discountSetting: { discountPercentage: pct } }] }];
+  const feed = {
+    data: {
+      Catalog: {
+        searchStore: {
+          elements: [
+            {
+              title: "Bad Cheese",
+              id: "a1",
+              offerMappings: [{ pageSlug: "bad-cheese-4256d9", pageType: "productHome" }],
+              keyImages: [{ type: "OfferImageTall", url: "https://cdn1.epicgames.com/t.png" }, { type: "OfferImageWide", url: "https://cdn1.epicgames.com/w.png" }],
+              price: { totalPrice: { fmtPrice: { originalPrice: "₹469.00" } } },
+              promotions: { promotionalOffers: promo("2026-10-15T15:00:00.000Z", "2026-10-22T15:00:00.000Z", 0), upcomingPromotionalOffers: [] },
+            },
+            { title: "On Sale", id: "b1", promotions: { promotionalOffers: promo("2026-10-15T15:00:00.000Z", "2026-10-22T15:00:00.000Z", 40) } },
+            { title: "Sker Ritual", id: "c1", productSlug: "sker-ritual/home", keyImages: [], promotions: { promotionalOffers: [], upcomingPromotionalOffers: promo("2026-10-22T15:00:00.000Z", "2026-10-29T15:00:00.000Z", 0) } },
+            { title: "No Promo", id: "d1", promotions: null },
+          ],
+        },
+      },
+    },
+  };
+  const parsed = parseEpicPromotions(feed, Date.parse("2026-10-19T12:00:00Z"));
+  check("only 100%-off promotions, current vs upcoming", parsed.map((p) => [p.title, p.when, p.url]), [
+    ["Bad Cheese", "current", "https://store.epicgames.com/en-US/p/bad-cheese-4256d9"],
+    ["Sker Ritual", "upcoming", "https://store.epicgames.com/en-US/p/sker-ritual"],
+  ]);
+  check("art and normal price", [parsed[0].image, parsed[0].imageWide, parsed[0].originalPrice, parsed[1].image], [
+    "https://cdn1.epicgames.com/t.png",
+    "https://cdn1.epicgames.com/w.png",
+    "₹469.00",
+    null,
+  ]);
+  check("an expired window is not current", parseEpicPromotions(feed, Date.parse("2026-11-01T00:00:00Z")).length, 0);
+}
+
+console.log("\nGOG");
+check(
+  "edition match, DLC never",
+  pickGogProduct(
+    {
+      products: [
+        { id: "1", title: "The Witcher 3: Wild Hunt — Songs of the Past", storeLink: "https://www.gog.com/en/game/x", productType: "pack" },
+        { id: "1640424747", title: "The Witcher 3: Wild Hunt — Remastered", storeLink: "https://www.gog.com/en/game/the_witcher_3", productType: "pack" },
+        { id: "2", title: "The Witcher 3: Wild Hunt", storeLink: "https://www.gog.com/en/game/dlc", productType: "dlc" },
+      ],
+    },
+    "The Witcher 3: Wild Hunt",
+  ),
+  { id: "1640424747", title: "The Witcher 3: Wild Hunt — Remastered", url: "https://www.gog.com/en/game/the_witcher_3" },
+);
+check(
+  "the country's default currency is the first price",
+  parseGogPrices({ _embedded: { prices: [{ currency: { code: "GBP" }, basePrice: "3999 GBP", finalPrice: "1999 GBP" }, { currency: { code: "USD" }, basePrice: "1 USD", finalPrice: "1 USD" }] } }),
+  { currency: "GBP", price: 1999, initial: 3999, discount: 50 },
+);
+check("no price when GOG doesn't sell it", parseGogPrices({ message: "Product not found" }), null);
+
+console.log("\nRecommendation maths");
+{
+  const k = (type: Parameters<typeof featureKey>[0], id: number) => featureKey(type, id);
+  check("cosine of parallel vectors", cosine(new Map([[1, 2]]), new Map([[1, 5]])), 1);
+  check("cosine of orthogonal vectors", cosine(new Map([[1, 1]]), new Map([[2, 1]])), 0);
+  check("cosine with an empty vector", cosine(new Map(), new Map([[2, 1]])), 0);
+  check("Bayesian average shrinks a thin score", Math.round(bayesianAverage(98, 3, 70, 6) * 100) / 100, 79.33);
+  check("Bayesian average without votes is the prior", bayesianAverage(null, 0, 70, 6), 70);
+  check("unrated quality sits at the prior", qualityPrior({ critic: null, criticCount: 0, user: null, userCount: 0 }), 0.375);
+  check("popularity saturates at ~5k ratings", [popularity(0, 0), popularity(5000, 0)], [0, 1]);
+  check("recency half-life", [recencyDecay(240, 240), recencyDecay(0, 240)], [0.5, 1]);
+  check("length fit: same length, double length, unknown", [lengthFit(30, 30), Math.round((lengthFit(60, 30) ?? 0) * 100) / 100, lengthFit(null, 30)], [1, 0.44, null]);
+  check("idf: rare vs universal", [Math.round(idf(0, 9) * 1000) / 1000, idf(9, 9)], [3.303, 1]);
+  check("feature keys round-trip", [featureType(k("keyword", 42)), featureId(k("keyword", 42))], ["keyword", 42]);
+  const vector = tfidfVector([k("theme", 1), k("genre", 5)], new Map([[k("theme", 1), 1], [k("genre", 5), 9]]), 9);
+  check("tf-idf favours the rare theme over the common genre", [vector.get(k("theme", 1)), vector.get(k("genre", 5))].map((v) => Math.round((v ?? 0) * 1000) / 1000), [0.975, 0.224]);
+  check("taste vector subtracts disliked seeds", [...tasteVector([{ vector: new Map([[1, 1]]), weight: 2 }, { vector: new Map([[2, 1]]), weight: -1 }])], [[1, 2], [2, -1]]);
+  check("shared features skip negatives", sharedFeatures(new Map([[1, 0.5], [2, -0.5], [3, 0.2]]), new Map([[1, 0.5], [2, 0.5], [3, 0.9]]), 2), [1, 3]);
+  // The dense (typed-array) path the engine uses must agree with the Map reference.
+  const lists = [
+    [k("genre", 1), k("theme", 2), k("keyword", 7)],
+    [k("genre", 1), k("keyword", 9)],
+    [k("theme", 2), k("keyword", 7), k("keyword", 9)],
+  ];
+  const corpus = buildCorpus(lists);
+  const df = documentFrequency(lists);
+  const ref = lists.map((keys) => tfidfVector(keys, df, lists.length));
+  const refUser = normalise(tasteVector([{ vector: ref[0], weight: 2 }, { vector: ref[1], weight: -1 }]));
+  const denseUser = denseTaste([{ doc: corpus.docs[0], weight: 2 }, { doc: corpus.docs[1], weight: -1 }], corpus.vocab.length);
+  const round = (n: number) => Math.round(n * 1e6) / 1e6;
+  check("dense taste cosine equals the Map reference", round(denseDot(corpus.docs[2], denseUser)), round(cosine(refUser, ref[2])));
+  check("dense unit vector is a self-cosine of 1", round(denseDot(corpus.docs[0], denseUnit(corpus.docs[0], corpus.vocab.length))), 1);
+  check("sorted-merge dot of a gist with itself is 1", round(sortedDot(diversityOf(corpus.docs[2], 2), diversityOf(corpus.docs[2], 2))), 1);
+  check("gist keeps the strongest features", diversityOf(corpus.docs[0], 2).idx.length, 2);
+  const items = [{ id: 1, score: 0.9 }, { id: 2, score: 0.85 }, { id: 3, score: 0.5 }];
+  const sim = (a: { id: number }, b: { id: number }) => (a.id + b.id === 3 ? 1 : 0);
+  check("MMR skips a near-duplicate", mmr(items, 2, 0.5, sim).map((i) => i.id), [1, 3]);
+  check("MMR with λ = 1 is plain ranking", mmr(items, 2, 1, sim).map((i) => i.id), [1, 2]);
+  const base = { taste: 0.8, quality: 0.5, popularity: 0.5, platform: null, length: null, seedSimilar: 0, sameSeries: false, sameDeveloper: false, steamTag: false, ignored: false };
+  check("score: weighted blend", scoreCandidate(base), 0.61);
+  check("score: ignored before is penalised", scoreCandidate({ ...base, ignored: true }), 0.49);
+  check("score: disliked-looking sinks to zero", scoreCandidate({ ...base, taste: -0.5 }), 0);
+}
+
+console.log("\nTaste profile v2");
+{
+  const now = Date.UTC(2026, 9, 19);
+  const day = 86_400_000;
+  const profile = buildRecsProfile(
+    [
+      { gameId: 1, status: "played", addedAt: now, finishedAt: now, playtime: 20 },
+      { gameId: 2, status: "want", addedAt: now - 240 * day },
+      { gameId: 3, status: "played", addedAt: now, finishedAt: now, playtime: 40, ownedOn: ["steam"], platform: "switch" },
+      { gameId: -5, status: "played", addedAt: now },
+      { gameId: 4, status: "none", addedAt: now },
+    ],
+    [{ gameId: 3, rating: 2 }, { gameId: 9, rating: 10 }],
+    [{ gameId: 7, kind: "down", at: 1 }, { gameId: 8, kind: "ignored", at: 2 }, { gameId: 10, kind: "up", at: 3 }],
+    { ownedPlatforms: ["ps5", "steam"], subscriptions: ["geforce-now", "netflix-games"], now },
+  );
+  check("profile from library, reviews and feedback", profile, {
+    v: 2,
+    seeds: [{ id: 1, w: 3 }, { id: 9, w: 2.25 }, { id: 10, w: 1.5 }, { id: 2, w: 0.6 }, { id: 3, w: -2.47 }, { id: 7, w: -1.5 }],
+    exclude: [1, 3, 2],
+    dismissed: [7],
+    ignored: [8],
+    platforms: ["pc", "ps5", "switch"],
+    services: ["geforce-now"],
+    lengthHours: 20,
+  });
+  check("enough taste to personalise", hasEnoughTaste(profile), true);
+  check("a valid profile survives server validation", parseRecsProfile(JSON.parse(JSON.stringify(profile))), profile);
+  check("wrong version rejected", parseRecsProfile({ v: 1 }), "v must be 2");
+  check("out-of-range weight rejected", parseRecsProfile({ v: 2, seeds: [{ id: 1, w: 5 }] }), "seed weights must be within -3…3");
+  check("rating multipliers", [ratingMultiplier(10), ratingMultiplier(5), ratingMultiplier(1)], [1.5, 0.2, -1]);
+  check("owned platform slugs", ["steam", "ps5", "playstation", "Xbox Series X", "nonsense"].map(normaliseOwnedPlatform), ["pc", "ps5", "playstation", "xbox", null]);
 }
 
 pngChecks().then(() => {

@@ -211,6 +211,50 @@ per 6 h). A game page view costs up to 4 Firestore reads in the browser.
 
 ---
 
+## Community, cloud and recommendation data
+
+Free, keyless sources, each fetched server-side with an identifying
+User-Agent, reduced to a compact shape and cached in the R2 data cache (no
+outbound request on a hit). Big catalogues are never bundled into the Worker.
+
+| Source | Module | Cached | Used for |
+| --- | --- | --- | --- |
+| NVIDIA GeForce NOW list (~400 KB) | `games/cloud.ts` | 24 h, as a ~60 KB index | `insights.cloud`, `/api/cloud/match`, `getGeForceNowHighlights()` |
+| AreWeAntiCheatYet (~470 KB) | `games/anticheat.ts` | 24 h, compact index | `insights.antiCheat` |
+| GOG catalogue + prices | `games/gog.ts` | 7 d search / 30 min price | third local-price store in `market.prices` |
+| CheapShark all-time low | `games/live.ts` (existing call) | 30 min | `market.lowestEver`, labelled "Lowest ever (US, all stores)" |
+| SteamSpy | `games/steamspy.ts` | 24 h app / 7 d tag | `extras.steamSpy`, recommendation tag neighbours |
+| PCGamingWiki (MediaWiki API) | `games/pcgw.ts` | 7 d | `extras.pcgw` (features, accessibility) |
+| speedrun.com | `games/speedrun.ts` | 24 h | `extras.speedrun` |
+| Thunderstore (+ Nexus / Workshop link-outs) | `games/mods.ts` | 7 d / 24 h | `extras.mods` |
+| Wikidata people (P57/P287/P86/P162/P58 via P5794) | `games/people.ts` | 7 d | `extras.people`, `getPerson(qid)` |
+| Epic free games | `games/epic.ts` | 3 h (re-checked against the clock) | `getEpicFreeGames(cc)` |
+
+Matching is by Steam appid first, then an exact normalised title
+(`games/external-rules.ts`, which holds every parser and is covered by
+`check:data`); a miss shows nothing rather than a wrong badge.
+
+| Endpoint | Returns | Outbound, cold / warm |
+| --- | --- | --- |
+| `GET /api/game/[id]/insights` | `GameInsights` (+ `cloud`, `antiCheat`, GOG price, `market.lowestEver`) | ≤ ~34 / 3–6 |
+| `GET /api/game/[id]/extras?steam=&name=&slug=` | `GameExtras` — request lazily, after insights | ≤ ~15 / 0–2 |
+| `POST /api/cloud/match { ids }` | `CloudMatchResponse` (Game Pass + GeForce NOW per id) | ≤ ~27 / 0–2 |
+| `POST /api/recommendations/v2` | `RecommendationsV2` for a `RecsProfile` | ≤ ~19 / 0 |
+
+**Recommendations v2** (`src/lib/recs/`). The browser builds an anonymous
+`RecsProfile` with `buildTasteProfile(entries, reviews, feedback, options)`
+(game ids and weights only). The server gathers candidates in one IGDB
+multi-query (similar games of liked titles, same series/studio, keyword,
+theme × genre and perspective × mode matches, hidden gems, new and upcoming
+releases, SteamSpy tag neighbours for PC players), scores them with a
+weighted model — TF-IDF taste cosine, Bayesian quality prior, popularity
+*and* novelty, platform/Game Pass/GeForce NOW availability, length fit,
+penalties for dismissed or ignored picks — diversifies each list with MMR and
+explains every pick (`reasons`). Pure maths lives in `recs/rank.ts`; the
+answer is cached 6 h per profile.
+
+---
+
 ## Pages
 
 | Route | What it does |

@@ -123,6 +123,8 @@ interface FullDetails {
   /** `{ minimum, recommended }` HTML, or `[]` when the store page lists none. */
   pc_requirements?: unknown;
   release_date?: { coming_soon?: boolean; date?: string };
+  /** Store feature flags; id 30 is "Steam Workshop". */
+  categories?: Array<{ id?: number; description?: string }>;
   achievements?: {
     total?: number;
     highlighted?: Array<{ name?: string; path?: string; hidden?: number }>;

@@ -33,6 +33,7 @@ import {
   type SteamPrice,
 } from "./steam-store";
 import { MICROSOFT_PRICE_BATCH, microsoftLocalPrice, microsoftPrices } from "./ms-store";
+import { gogLocalPrice } from "./gog";
 import { expiredDays, priceDocPath, priceRows, type PriceRow } from "./stats-docs";
 import { countryViewWrite } from "./tracked";
 import type { GameMarket, LocalPrice, PricePoint, RegionalPrice } from "./types";
@@ -275,14 +276,19 @@ async function regionalFor(
 export async function marketFor(
   ids: MarketIds,
   country: string,
-  options: { regional: boolean },
+  /**
+   * `name` (the game's title) enables the GOG price, which is found by title
+   * search — see `gog.ts`. Without it the market is Steam + Microsoft only.
+   */
+  options: { regional: boolean; name?: string | null },
 ): Promise<GameMarket> {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [steam, microsoft, historyRows] = await Promise.all([
+  const [steam, microsoft, historyRows, gog] = await Promise.all([
     ids.steam ? steamPrice(ids.steam, country, CURRENT_TTL) : null,
     ids.microsoft ? microsoftPrices([ids.microsoft], country, CURRENT_TTL) : null,
     ids.key !== null ? readHistory(ids.key, country) : null,
+    options.name ? gogLocalPrice(options.name, country) : null,
   ]);
   const msPrice = ids.microsoft ? microsoft?.get(ids.microsoft) ?? null : null;
   // Only an unpriced Steam game needs the free check (a shared cache hit).
@@ -291,6 +297,7 @@ export async function marketFor(
   const prices: LocalPrice[] = [];
   if (steam && ids.steam) prices.push(steamLocalPrice(ids.steam, country, steam));
   if (msPrice && ids.microsoft) prices.push(microsoftLocalPrice(ids.microsoft, country, msPrice));
+  if (gog) prices.push(gog);
 
   const paid = prices.filter((p) => p.price > 0);
   const currency = paid[0]?.currency ?? prices[0]?.currency ?? null;

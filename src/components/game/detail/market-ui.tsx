@@ -18,10 +18,11 @@ import { useInsightPart } from "./live";
 export const STORE_LABEL: Record<LocalPrice["store"], string> = {
   steam: "Steam",
   microsoft: "Microsoft Store",
+  gog: "GOG",
 };
 
 export function StoreMark({ store, size = 15 }: { store: LocalPrice["store"]; size?: number }) {
-  return <BrandIcon name={store === "steam" ? "steam" : "xbox"} size={size} title={null} tinted={store === "microsoft"} />;
+  return <BrandIcon name={store === "microsoft" ? "xbox" : store} size={size} title={null} tinted={store === "microsoft"} />;
 }
 
 export const VERDICT: Record<PriceVerdictKind, { label: string; short: string; icon: ReactNode; className: string }> = {
