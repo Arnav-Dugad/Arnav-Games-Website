@@ -54,6 +54,7 @@ import { classifyUrl, storeFromUrl } from "../stores";
 import { buildDirectoryWhere, type DirectoryOrder } from "../directory";
 import type { SearchHit } from "../search";
 import { fuzzyTitleScore as sharedTitleScore, searchQueryVariants, searchSortKey } from "../fuzzy-search";
+import { pickBackdropTrailer } from "../trailers";
 import { releaseState } from "../release-state";
 
 const API = "https://api.igdb.com/v4";
@@ -1316,7 +1317,8 @@ function mapSummary(game: IgdbGame): GameSummary {
     // than a bug: `mapDetail` builds on this, so the derivation has to live
     // here, and a summary genuinely does not know the rating.
     esrb: ratings.find((r) => r.organization.toUpperCase().includes("ESRB"))?.rating ?? null,
-    heroTrailer: toTrailers(game).at(0) ?? null,
+    // A real trailer, not merely the first video (see trailers.ts).
+    heroTrailer: pickBackdropTrailer(toTrailers(game)),
     popScore: typeof game.popScore === "number" ? game.popScore : null,
     playtime: 0,
     // `hypes` counts pre-release anticipation, `total_rating_count` post-release
@@ -2736,6 +2738,115 @@ export async function igdbSpotlight(limit = 6): Promise<GameSummary[] | null> {
     return recent.slice(0, limit);
   } catch (err) {
     warn("spotlight", err);
+    return null;
+  }
+}
+
+/** Why a slide is in the hero, shown as its eyebrow. */
+export type HeroKicker = "New release" | "Most anticipated" | "Trending now" | "Critics’ pick";
+
+/**
+ * Games for the homepage hero: a programmed mix rather than one ranking.
+ *
+ * IGDB's "Playing" feed alone made the hero a permanent row of evergreen
+ * giants — Roblox, GTA V, Fortnite, Minecraft — the same six slides every day
+ * of the year, none of them news. A front page should answer "what's
+ * happening in games right now", so four pools are interleaved:
+ *
+ *   New release       out in the last 60 days, ranked by pre-release follows
+ *   Most anticipated  out in the next 120 days, ranked by follows
+ *   Trending now      the "Playing" feed, limited to games from the last
+ *                     three years so it surfaces momentum, not the evergreens
+ *   Critics' pick     the best-reviewed release of the past eight months
+ *
+ * Every slide needs a screenshot to stand on (the stage is full-bleed art);
+ * within a pool, games with a trailer come first because the hero plays them.
+ * The three date-bounded pools are one Multi-Query request and the trending
+ * list one more, all cached with the list TTL; wordmarks are fetched once, for
+ * the final picks only.
+ */
+export async function igdbHeroMix(limit = 7): Promise<Array<GameSummary & { kicker: HeroKicker }> | null> {
+  if (!igdbConfigured()) return null;
+  try {
+    const query = queryFor(TTL.list);
+    const fields = await summaryFields();
+    const now = todayEndSeconds();
+    const block = (name: string, parts: Omit<QueryParts, "fields">) =>
+      `query games "${name}" {\n${apicalypse({ ...parts, fields })}\n};`;
+
+    const [pools, popularIds] = await Promise.all([
+      query<IgdbMultiQueryResult[]>("multiquery", [
+        block("new", {
+          where: `${MAIN_GAMES} & first_release_date >= ${daysFromNow(-60)} & first_release_date < ${now} & hypes >= 15 & screenshots != null`,
+          sort: "hypes desc",
+          limit: 10,
+        }),
+        block("soon", {
+          where: `${MAIN_GAMES} & first_release_date >= ${now} & first_release_date < ${daysFromNow(120)} & hypes >= 25 & screenshots != null`,
+          sort: "hypes desc",
+          limit: 10,
+        }),
+        block("acclaimed", {
+          where: `${MAIN_GAMES} & first_release_date >= ${daysFromNow(-240)} & first_release_date < ${now} & aggregated_rating >= 84 & aggregated_rating_count >= 4 & screenshots != null`,
+          sort: "aggregated_rating desc",
+          limit: 6,
+        }),
+      ].join("\n\n")).catch((err) => {
+        warn("hero.pools", err);
+        return [] as IgdbMultiQueryResult[];
+      }),
+      fetchPopularGameIds(limit * 8, POPULARITY.playing).catch((err) => {
+        warn("hero.popularity", err);
+        return [] as number[];
+      }),
+    ]);
+
+    const pool = (name: string) =>
+      usable((pools.find((entry) => entry.name === name)?.result ?? []) as IgdbGame[]).map(mapSummary);
+
+    let trending: GameSummary[] = [];
+    if (popularIds.length > 0) {
+      const rows = await query<IgdbGame[]>(
+        "games",
+        apicalypse({
+          fields,
+          where: `${MAIN_GAMES} & id = (${popularIds.join(",")}) & first_release_date >= ${daysFromNow(-3 * 365)} & screenshots != null`,
+          limit: popularIds.length,
+        }),
+      ).catch((err) => {
+        warn("hero.trending", err);
+        return [] as IgdbGame[];
+      });
+      const rank = new Map(popularIds.map((id, index) => [id, index]));
+      trending = usable(rows).map(mapSummary).sort((a, b) => (rank.get(a.id) ?? 9999) - (rank.get(b.id) ?? 9999));
+    }
+
+    // Stable: a trailer only reorders within a pool, never across pools.
+    const trailerFirst = (games: GameSummary[]) =>
+      games.filter((game) => game.screenshots.length > 0).sort((a, b) => Number(!a.heroTrailer) - Number(!b.heroTrailer));
+    const lanes: Array<{ kicker: HeroKicker; games: GameSummary[] }> = [
+      { kicker: "New release", games: trailerFirst(pool("new")) },
+      { kicker: "Most anticipated", games: trailerFirst(pool("soon")) },
+      { kicker: "Trending now", games: trailerFirst(trending) },
+      { kicker: "Critics’ pick", games: trailerFirst(pool("acclaimed")) },
+    ];
+
+    const picked: Array<GameSummary & { kicker: HeroKicker }> = [];
+    const seen = new Set<number>();
+    for (let round = 0; picked.length < limit && lanes.some((lane) => lane.games.length > round); round++) {
+      for (const lane of lanes) {
+        const game = lane.games[round];
+        if (!game || seen.has(game.id) || picked.length >= limit) continue;
+        // One critics' pick is a highlight; several crowd out the news.
+        if (lane.kicker === "Critics’ pick" && round > 0) continue;
+        seen.add(game.id);
+        picked.push({ ...game, kicker: lane.kicker });
+      }
+    }
+    if (picked.length === 0) return null;
+    return attachLogos(picked, "720p");
+  } catch (err) {
+    warn("hero", err);
     return null;
   }
 }

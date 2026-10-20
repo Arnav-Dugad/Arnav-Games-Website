@@ -3,7 +3,6 @@ import { ArrowLeft, CalendarDays, ExternalLink, MapPin } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { GameLogo } from "@/components/game/GameLogo";
 import { Countdown } from "@/components/game/Countdown";
-import { BackdropTrailer } from "@/components/game/BackdropTrailer";
 import { OwnershipPicker } from "@/components/game/OwnershipPicker";
 import { SubscriptionAccessPicker } from "@/components/game/SubscriptionAccessPicker";
 import { StatusPicker } from "@/components/game/StatusPicker";
@@ -17,11 +16,14 @@ import { Container } from "@/components/ui/SectionHeading";
 import { Reveal } from "@/components/motion/Reveal";
 import { TextReveal } from "@/components/motion/text";
 import { Parallax } from "@/components/motion/effects";
+import { cn } from "@/lib/utils/cn";
 import { formatLongDate, relativeRelease } from "@/lib/utils/format";
 import type { GameDetail } from "@/lib/games/types";
+import { pickBackdropTrailer } from "@/lib/games/trailers";
 import { CompareButton } from "./CompareButton";
 import { DelayBadge } from "./ReleaseDates";
 import { HeroParticlesGate, LogoTransitionTarget } from "./HeroAmbient";
+import { HeroTrailer } from "./HeroTrailer";
 import { DARK_STAGE_STYLE } from "./theme";
 import type { LocalRelease } from "./release";
 
@@ -43,7 +45,16 @@ import type { LocalRelease } from "./release";
  *
  * Always a dark surface (see `DARK_STAGE_STYLE`): logos are mostly white
  * marks drawn for dark art, and the light theme takes over below the fold.
+ *
+ * Once the trailer is proven to play, `HeroTrailer` marks the stage
+ * `data-trailer="cinema"` after a quiet moment: everything tagged `CHROME`
+ * fades away and the scrims thin out, so the footage gets the frame. Title
+ * and the primary actions stay; any interaction brings the rest back.
  */
+
+/** Secondary hero chrome: steps aside while the trailer has the stage. */
+const CHROME =
+  "transition-opacity duration-700 ease-[var(--ease-apple)] group-data-[trailer=cinema]/hero:pointer-events-none group-data-[trailer=cinema]/hero:opacity-0";
 export function GameHero({
   game,
   local,
@@ -70,7 +81,7 @@ export function GameHero({
       id={GAME_HERO_ID}
       data-stage="dark"
       style={DARK_STAGE_STYLE}
-      className="noise relative isolate overflow-hidden bg-bg text-text"
+      className="group/hero noise relative isolate overflow-hidden bg-bg text-text"
     >
       <div className="absolute inset-0 -z-10">
         <Parallax distance={40} scale className="h-full w-full">
@@ -95,25 +106,30 @@ export function GameHero({
           )}
         </Parallax>
 
-        {/* The trailer dissolves in over the key art, muted and chrome-free.
+        {/* The trailer dissolves in over the key art, muted until asked, with
+            its mute button and the cinematic choreography (see HeroTrailer).
             Sits under the scrims so the title never loses contrast. */}
-        <BackdropTrailer trailer={game.trailers[0] ?? game.heroTrailer} />
+        <HeroTrailer trailer={pickBackdropTrailer(game.trailers) ?? game.heroTrailer} />
 
-        {/* Light theme: the art stays brighter at the top and right, while the
-            copy corner keeps the same protection for white type. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/75 to-bg/30 [:root[data-theme=light]_&]:via-bg/60 [:root[data-theme=light]_&]:to-bg/5" />
-        <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/45 to-transparent [:root[data-theme=light]_&]:from-bg/80 [:root[data-theme=light]_&]:via-bg/25" />
+        {/* Scrims protect the copy (bottom and left) and leave the top of the
+            frame clear, so the art — and the trailer — read as a picture
+            rather than a dimmed backdrop. They thin further in cinema mode. */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_top,var(--color-bg)_0%,color-mix(in_oklab,var(--color-bg)_70%,transparent)_30%,transparent_72%)] transition-opacity duration-700 group-data-[trailer=cinema]/hero:opacity-75" />
+        <div className="absolute inset-0 bg-gradient-to-r from-bg/85 via-bg/30 to-transparent transition-opacity duration-700 group-data-[trailer=cinema]/hero:opacity-35 [:root[data-theme=light]_&]:from-bg/75 [:root[data-theme=light]_&]:via-bg/20" />
         {/* The cover's own colour, washed in from the corner: each game's page
             opens in its own light. */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_100%,color-mix(in_oklab,var(--game-tint)_90%,transparent)_0%,transparent_58%)] opacity-90" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_85%_10%,var(--game-glow),transparent_55%)] opacity-40 mix-blend-screen" />
-        {/* Desktop-only drifting motes in the cover's colour; loads nothing elsewhere. */}
-        <HeroParticlesGate />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_100%,color-mix(in_oklab,var(--game-tint)_90%,transparent)_0%,transparent_58%)] opacity-90 transition-opacity duration-700 group-data-[trailer=playing]/hero:opacity-60 group-data-[trailer=cinema]/hero:opacity-30" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_85%_10%,var(--game-glow),transparent_55%)] opacity-40 mix-blend-screen transition-opacity duration-700 group-data-[trailer]/hero:opacity-0" />
+        {/* Desktop-only drifting motes in the cover's colour; loads nothing
+            elsewhere. Hidden while footage plays — motes over video read as dust. */}
+        <div className="transition-opacity duration-700 group-data-[trailer=playing]/hero:opacity-0 group-data-[trailer=cinema]/hero:opacity-0">
+          <HeroParticlesGate />
+        </div>
       </div>
 
       <Container className="flex min-h-[600px] flex-col justify-end pb-8 pt-24 sm:min-h-[680px] lg:min-h-[760px] lg:pb-12 lg:pt-32">
         <Reveal>
-          <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-2 text-xs text-white/65 sm:mb-8">
+          <nav aria-label="Breadcrumb" className={cn("mb-6 flex flex-wrap items-center gap-2 text-xs text-white/65 sm:mb-8", CHROME)}>
             <Link
               href="/browse"
               className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/10 bg-black/25 px-3 coarse:min-h-11 backdrop-blur-md transition-colors hover:border-white/20 hover:text-white"
@@ -134,6 +150,7 @@ export function GameHero({
 
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:gap-9 lg:gap-12">
           <Reveal direction="right" className="relative w-28 shrink-0 sm:w-44 lg:w-56">
+            <div className={CHROME}>
             {/* A soft halo in the cover's own colour. */}
             <span aria-hidden className="absolute -inset-6 rounded-[2.5rem] bg-[var(--game-glow)] opacity-70 blur-2xl" />
             <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/20 bg-panel shadow-[0_35px_90px_-30px_rgba(0,0,0,0.95)]">
@@ -150,12 +167,13 @@ export function GameHero({
               </CoverTransition>
               <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/20 via-transparent to-white/[0.08]" />
             </div>
+            </div>
           </Reveal>
 
           <div className="min-w-0 flex-1">
             {kicker && (
               <Reveal>
-                <p className="mb-3 truncate text-[13px] font-semibold text-white/70 sm:text-sm">{kicker}</p>
+                <p className={cn("mb-3 truncate text-[13px] font-semibold text-white/70 sm:text-sm", CHROME)}>{kicker}</p>
               </Reveal>
             )}
 
@@ -190,7 +208,8 @@ export function GameHero({
               />
             )}
 
-            <Reveal delay={0.12} className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2.5 text-sm text-white/75">
+            <Reveal delay={0.12} className="mt-5">
+              <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2.5 text-sm text-white/75", CHROME)}>
               {game.metacritic !== null && (
                 <a href="#reviews" className="flex items-center gap-2" aria-label={`${criticLabel} ${game.metacritic} — see what players think`}>
                   <ScorePill score={game.metacritic} />
@@ -207,10 +226,11 @@ export function GameHero({
                 </span>
               )}
               <DelayBadge count={delays} />
+              </div>
             </Reveal>
             {local.region && local.countryName && (
               <Reveal delay={0.16} className="mt-2">
-                <p className="flex items-center gap-1.5 text-xs text-white/50">
+                <p className={cn("flex items-center gap-1.5 text-xs text-white/50", CHROME)}>
                   <MapPin size={12} />
                   {local.differs ? `Your date in ${local.countryName} (${local.region})` : `Dated for ${local.countryName} · ${local.region}`}
                 </p>
@@ -219,7 +239,9 @@ export function GameHero({
 
             {showCountdown && local.date && (
               <Reveal delay={0.18}>
-                <Countdown date={local.date} className="mt-5" celebrate />
+                <div className={CHROME}>
+                  <Countdown date={local.date} className="mt-5" celebrate />
+                </div>
               </Reveal>
             )}
           </div>
@@ -247,7 +269,7 @@ export function GameHero({
               </a>
             )}
           </div>
-          <div className="grid grid-cols-[1fr_1fr_auto] gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+          <div className={cn("grid grid-cols-[1fr_1fr_auto] gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-3", CHROME)}>
             <StatusPicker game={game} className="col-span-3 sm:col-span-1" />
             <OwnershipPicker game={game} className="[&>button]:min-h-11 [&>button]:w-full [&>button]:justify-center [&>button]:whitespace-nowrap [&>button]:px-3 [&>button]:text-[14px] max-[359px]:[&>button]:gap-1.5 max-[359px]:[&>button]:px-2 max-[359px]:[&>button]:text-[13px] sm:[&>button]:w-auto sm:[&>button]:px-5" />
             <SubscriptionAccessPicker game={game} className="[&>button]:min-h-11 [&>button]:w-full [&>button]:justify-center [&>button]:whitespace-nowrap [&>button]:px-3 [&>button]:text-[14px] max-[359px]:[&>button]:gap-1.5 max-[359px]:[&>button]:px-2 max-[359px]:[&>button]:text-[13px] sm:[&>button]:w-auto sm:[&>button]:px-5" />

@@ -552,6 +552,17 @@ export function CinematicHero({ games }: { games: SpotlightGame[] }) {
                     </span>
                   </motion.p>
                 )}
+                {!takeover && active.kicker && (
+                  // Why this slide is here: the hero is a programmed mix, and
+                  // saying which lane a game came from is what makes it read
+                  // as news rather than a random wall of key art.
+                  <motion.p variants={itemVariants} className="mb-3 sm:mb-4">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[12.5px] font-semibold tracking-[0.01em] text-white backdrop-blur-md">
+                      <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tint.accent }} />
+                      {active.kicker}
+                    </span>
+                  </motion.p>
+                )}
 
                 <motion.div
                   variants={itemVariants}

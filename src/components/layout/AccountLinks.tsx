@@ -24,7 +24,6 @@ const SIGNED_IN = [
   { label: "Your watchlist", href: "/watchlist" },
   { label: "Personal stats", href: "/stats" },
   { label: "Games you own", href: "/library" },
-  { label: "Picked for you", href: "/for-you" },
   { label: "Play history", href: "/profile#history" },
   { label: "Your reviews", href: "/profile" },
   { label: "Settings", href: "/settings" },

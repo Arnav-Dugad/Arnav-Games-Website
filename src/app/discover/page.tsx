@@ -10,7 +10,6 @@ import {
   Compass,
   Flame,
   Gamepad2,
-  Heart,
   Layers,
   Shapes,
   Sparkles,
@@ -96,13 +95,6 @@ const FEATURED: Tile[] = [
 ];
 
 const COLLECTIONS: Tile[] = [
-  {
-    href: "/for-you",
-    title: "For you",
-    body: "Picks from what you play",
-    icon: <Heart size={20} strokeWidth={1.9} />,
-    hue: [300, 340],
-  },
   {
     href: "/genres",
     title: "Genres",

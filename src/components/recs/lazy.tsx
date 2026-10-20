@@ -7,14 +7,6 @@
  */
 
 import dynamic from "next/dynamic";
-import { RecRailSkeleton } from "./RecSkeleton";
 
-export const ForYouView = dynamic(() => import("./ForYouView"), {
-  ssr: false,
-  loading: () => (
-    <div className="space-y-12 pb-12 sm:space-y-16">
-      <RecRailSkeleton variant="feature" />
-      <RecRailSkeleton />
-    </div>
-  ),
-});
+/** The homepage's recommendation rows; see `HomeRecRows` for the slots. */
+export const HomeRecRows = dynamic(() => import("./HomeRecRows"), { ssr: false });

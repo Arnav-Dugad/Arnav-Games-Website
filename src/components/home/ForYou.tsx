@@ -7,7 +7,8 @@
  * taste panel) with the two things a returning reader actually acts on:
  *  1. their library in motion — what they're playing, what they follow that
  *     lands soon, what's next in the backlog — as one horizontal shelf;
- *  2. recommendations that say why they were picked.
+ *  2. recommendations that say why they were picked — now rows of their own
+ *     through the rest of the page (`HomeRecRows`).
  * The numbers moved to /stats, where they have room to mean something.
  *
  * Renders nothing for signed-out visitors (the page's closing call-to-action
@@ -17,7 +18,6 @@
  */
 
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { GameCover } from "@/components/game/GameCover";
 import { Button } from "@/components/ui/Button";
@@ -32,9 +32,6 @@ import { canonicalEntryHref } from "@/lib/notifications/model";
 import { releaseState } from "@/lib/games/release-state";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/format";
-
-// Picks are personal and device-cached: client-only, and out of the server render.
-const HomeRecs = dynamic(() => import("@/components/recs/HomeRecs"), { ssr: false });
 
 const MAX_CARDS = 10;
 /** How far ahead a followed release still counts as "landing soon". */
@@ -179,8 +176,6 @@ export function ForYou({
           </p>
         </Container>
       )}
-
-      <HomeRecs />
     </section>
   );
 }

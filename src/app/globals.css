@@ -1103,33 +1103,6 @@
     background: linear-gradient(270deg, rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.05) 30%, transparent 60%);
   }
 
-  /* Stories: segment fills and the slow push-in on the art. */
-  .story-fill {
-    transform-origin: left center;
-    transform: scaleX(0);
-  }
-  .story-fill[data-state="done"] {
-    transform: scaleX(1);
-  }
-  .story-fill[data-state="live"] {
-    animation: story-progress var(--story-ms, 6500ms) linear forwards;
-  }
-  .story-art {
-    animation: story-push 9s var(--ease-out-quart) both;
-  }
-  [data-story-paused="true"] .story-fill[data-state="live"],
-  [data-story-paused="true"] .story-art {
-    animation-play-state: paused;
-  }
-
-  /* Story rings: a brand gradient until seen, then a quiet hairline. */
-  .story-ring {
-    background: conic-gradient(from 210deg, var(--color-flare), var(--color-gold), var(--color-brand), var(--color-neon), var(--color-flare));
-  }
-  .story-ring[data-seen="true"] {
-    background: color-mix(in oklab, var(--color-fg) 18%, transparent);
-  }
-
   /*
     The logo tile's colours are registered properties so a section change
     cross-fades the gradient (a 32px repaint, nothing more) instead of
@@ -1238,18 +1211,6 @@
 @keyframes day-crease {
   0% { opacity: 1; }
   100% { opacity: 0; }
-}
-@keyframes story-progress {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-@keyframes story-nudge {
-  0%, 100% { transform: translateY(0); }
-  45% { transform: translateY(-4px); }
-}
-@keyframes story-push {
-  from { transform: scale(1.02); }
-  to { transform: scale(1.12) translate3d(-1.5%, -1%, 0); }
 }
 
 /*

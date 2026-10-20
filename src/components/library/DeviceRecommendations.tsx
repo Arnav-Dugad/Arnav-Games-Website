@@ -5,7 +5,7 @@
  * systems the reader owns games on, one tab per device.
  *
  * The picks come from recommendations v2 (`onYourDevices`, topped up from
- * "For you"), the same cached answer the home page and /for-you use — so
+ * "For you"), the same cached answer the home page uses — so
  * this shelf costs no request of its own. Each tab keeps only games on that
  * device's exact IGDB platforms (a PlayStation 5 tab never suggests a Switch
  * exclusive), and every card says why it was picked.
@@ -152,14 +152,14 @@ export default function DeviceRecommendations({ entries }: { entries: WatchlistE
 
   if (picks.length === 0) {
     return (
-      <SmartRail title={title} header={tabs} seeAllHref="/for-you" itemClassName="w-full">
+      <SmartRail title={title} header={tabs} itemClassName="w-full">
         <p className="py-6 text-[15px] text-muted">No new picks for {device.label} right now.</p>
       </SmartRail>
     );
   }
 
   return (
-    <SmartRail title={title} header={tabs} seeAllHref="/for-you" itemClassName="w-[140px] sm:w-[176px]">
+    <SmartRail title={title} header={tabs} itemClassName="w-[140px] sm:w-[176px]">
       {picks.map((rec) => (
         <RecPosterCard key={rec.game.id} rec={rec} skip={["platform"]} />
       ))}

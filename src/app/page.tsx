@@ -6,10 +6,9 @@ import { GenreTiles, pickGenreTiles } from "@/components/home/GenreTiles";
 import { HomeSection } from "@/components/home/HomeSection";
 import { ChartsShelf, EpicFreeShelf, GamePassShelf, TodayShelf } from "@/components/home/HomeShelves";
 import { JoinCta } from "@/components/home/JoinCta";
+import { HomeRecRows } from "@/components/recs/lazy";
 import { buildWeek, ThisWeek } from "@/components/home/ThisWeek";
 import { TodayStoriesSkeleton } from "@/components/home/TodayStories";
-import { buildReel } from "@/components/home/reel";
-import { StoryReel } from "@/components/home/StoryReel";
 import { TopChartsSkeleton } from "@/components/home/TopCharts";
 import { GameRail } from "@/components/game/GameRail";
 import { CoverFlow } from "@/components/interactions/CoverFlow";
@@ -40,13 +39,16 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 /**
  * The front door, in the order a reader's questions arrive:
  *
- *   hero          — one featured game, full-bleed (the single focal point)
- *   stories       — a tap-through reel: landing soon, trending, just out
- *   for you       — signed in only: your library in motion + picks
+ *   hero          — a programmed mix: new, anticipated, trending, acclaimed
+ *   for you       — signed in only: your library in motion
+ *   ◇ top picks   — recommendations (quality picks when signed out)
  *   today         — four stories, each with a one-line, data-backed reason
+ *   ◇ because…    — "Because you liked X" rows (signed in)
  *   this week     — the next seven days of releases, by day
  *   top charts    — trending / most anticipated / top rated, ranked
+ *   ◇ discover    — hidden gems, new for you
  *   new releases  — what just came out
+ *   ◇ later       — coming soon for you, on your devices, more "because"
  *   epic free     — free to keep this week, in the visitor's country
  *   game pass     — just added / leaving soon
  *   genres        — where to go next
@@ -55,6 +57,9 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  * The old stats strip (database counts) and the separate trending, most
  * anticipated and critically acclaimed shelves were folded into Top charts:
  * three poster rails in a row read as one long wall of covers.
+ *
+ * ◇ rows come from the recommendation engine, streaming-service style: there
+ * is no separate "for you" page any more; `/for-you` redirects here.
  */
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
   // One await point: these queries are independent and must not waterfall.
@@ -80,14 +85,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     ...upcomingGames,
   ]);
 
-  // Built from the lists above: the reel costs no extra provider calls.
-  const reel = buildReel({
-    upcoming: upcomingGames,
-    trending: trending.data,
-    newReleases: newReleases.data,
-    exclude: spotlight.data.slice(0, 1).map((game) => game.id),
-  });
-
   const preview = await devPreview(searchParams, [...trending.data, ...upcomingGames, ...topRated.data]);
   const heroGames = await devTakeover(searchParams, spotlight.data);
   const country = await visitorCountry(searchParams);
@@ -98,8 +95,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           storefront or an unrelated upcoming shelf. */}
       <CinematicHero games={heroGames} />
 
-      <StoryReel stories={reel} />
-
       {source === "unavailable" && (
         <Container className="pt-8">
           <DataSourceNotice source={source} degraded={isDegraded(source)} />
@@ -107,6 +102,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       )}
 
       <ForYou previewEntries={preview} />
+
+      {/* Recommendation rows are woven through the page (see HomeRecRows). */}
+      <HomeRecRows slot="top" />
 
       {/* Streamed: Today and Top charts wait on the hype index, Game Pass on
           Microsoft's catalogue. Each fallback matches its final geometry. */}
@@ -119,6 +117,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           exclude={spotlight.data.map((game) => game.id)}
         />
       </Suspense>
+
+      <HomeRecRows slot="because" />
 
       {weekCount >= MIN_WEEK_GAMES ? (
         <HomeSection id="this-week" title="This week" href="/upcoming">
@@ -140,11 +140,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         <ChartsShelf trending={trending.data} topRated={topRated.data} />
       </Suspense>
 
+      <HomeRecRows slot="discover" />
+
       {newReleases.data.length > 0 && (
         <HomeSection id="new-releases" title="New releases" href="/browse?ordering=-released">
           <ComingSoon games={newReleases.data} label="New releases" />
         </HomeSection>
       )}
+
+      <HomeRecRows slot="later" />
 
       <Suspense fallback={null}>
         <EpicFreeShelf country={country} />

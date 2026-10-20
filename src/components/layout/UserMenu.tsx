@@ -30,7 +30,6 @@ import {
   Library,
   LogOut,
   Settings,
-  Sparkles,
   User as UserIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/firebase/AuthProvider";
@@ -59,7 +58,6 @@ const LIBRARY: Entry[] = [
   { href: "/library", label: "Games you own", icon: <Library size={16} />, tint: "bg-brand text-white" },
   { href: "/watchlist", label: "Watchlist", icon: <Bookmark size={16} />, tint: "bg-flare text-white" },
   { href: "/stats", label: "Personal stats", icon: <BarChart3 size={16} />, tint: "bg-mint text-white" },
-  { href: "/for-you", label: "Picked for you", icon: <Sparkles size={16} />, tint: "bg-[color-mix(in_oklab,var(--color-brand)_60%,var(--color-flare))] text-white" },
 ];
 
 const ACCOUNT: Entry[] = [

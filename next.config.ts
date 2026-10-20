@@ -36,6 +36,8 @@ const nextConfig: NextConfig = {
   },
   redirects() {
     return [
+      // Recommendations now live on the homepage, as rows between the shelves.
+      { source: "/for-you", destination: "/#home-top-picks", permanent: true },
       { source: "/series", destination: "/franchises", permanent: true },
       { source: "/series/:slug", destination: "/franchise/:slug", permanent: true },
     ];

@@ -265,6 +265,8 @@ export interface SpotlightGame extends GameSummary {
   tagline: string | null;
   /** A notable game releasing today (UTC), moved to the front of the hero. */
   takeover?: boolean;
+  /** Why this slide is in the hero ("New release", "Most anticipated", …). */
+  kicker?: string;
   /**
    * A clearly brighter screenshot for the light theme, with its palette
    * (see `art-light.ts`). Null when the slide's own art is as bright as any.

@@ -26,6 +26,7 @@
  */
 
 import {
+  igdbHeroMix,
   igdbProvider,
   igdbReleasingToday,
   igdbSpotlight,
@@ -192,7 +193,10 @@ export async function getUpcoming(
  * it still fills from the chain as usual.
  */
 export async function getSpotlight(limit = 6): Promise<Sourced<SpotlightGame[]>> {
-  const [popular, launches] = await Promise.all([igdbSpotlight(limit), igdbReleasingToday(1)]);
+  // The programmed mix (new, anticipated, trending, acclaimed); the plain
+  // "Playing" ranking only if the mix comes back empty.
+  const [mix, launches] = await Promise.all([igdbHeroMix(limit), igdbReleasingToday(1)]);
+  const popular = mix?.length ? mix : await igdbSpotlight(limit);
   // Release-day takeover: a notable launch today leads the hero, whether or
   // not it has climbed the "playing" ranking yet (on day one it rarely has).
   const launch = launches?.[0] ?? null;

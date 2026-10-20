@@ -66,7 +66,11 @@ export function HeroMeta({
       {genres.length > 0 && (
         <>
           {showRelease && DOT}
-          <span className="min-w-0 truncate">{genres.join(" · ")}</span>
+          {/* One genre on phones: two pushed the line into an awkward wrap. */}
+          <span className="min-w-0 truncate">
+            {genres[0]}
+            {genres[1] && <span className="max-sm:hidden"> · {genres[1]}</span>}
+          </span>
         </>
       )}
       {game.parentPlatforms.length > 0 && (
@@ -81,7 +85,8 @@ export function HeroMeta({
       )}
       {game.metacritic !== null && (
         <>
-          {(showRelease || genres.length > 0 || game.parentPlatforms.length > 0) && DOT}
+          {/* No dot either: the chip is its own group, and a dot before it
+              was left starting a line whenever the row wrapped. */}
           <span
             className="inline-flex items-center gap-1.5 rounded-[6px] border border-white/30 px-1.5 py-px text-[12px] font-semibold tabular-nums text-white"
             title="Critic score"

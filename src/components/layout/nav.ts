@@ -37,7 +37,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
       "/franchise/", "/series/", "/character/", "/person/", "/compare", "/steam",
     ],
   },
-  { href: "/library", label: "Library", icon: "library", match: ["/library", "/watchlist", "/stats", "/profile", "/for-you"] },
+  { href: "/library", label: "Library", icon: "library", match: ["/library", "/watchlist", "/stats", "/profile"] },
 ];
 
 export function isNavActive(item: NavItem, pathname: string | null): boolean {

@@ -28,6 +28,7 @@ import { currencyForRegion, libraryValue, observedLow, parseMoney, priceOn, spen
 import { buildTasteMap, moodRatings } from "../src/lib/personal/taste-map";
 import { analyseHype, fitHype, hypeNote, hypePercentile } from "../src/lib/games/hype-reality";
 import { localReleaseFor, regionForCountry } from "../src/lib/games/regions";
+import { pickBackdropTrailer } from "../src/lib/games/trailers";
 import { buildHypeIndex, hypeScore } from "../src/lib/games/hype";
 import { stripNewsMarkup } from "../src/lib/games/news-text";
 import { paletteFromPixels, logoToneFromPixels } from "../src/lib/games/palette-core";
@@ -2114,6 +2115,18 @@ console.log("\nHype vs reality (round 7)");
   );
   // Two sample games have ~5,012 follows, so 19 of the 22 have fewer than 5,000.
   check("percentile counts games with less hype", hypePercentile(result.model, 5000), 19 / 22);
+}
+
+console.log("\nBackdrop trailer choice");
+{
+  const video = (id: number, name: string) => ({ id, name, kind: "youtube" as const, youtubeId: `v${id}`, preview: null, url: "" });
+  const pick = (names: string[]) => pickBackdropTrailer(names.map((name, i) => video(i, name)))?.name ?? null;
+  check("skips a concert listed first", pick(["The Witcher 3 Orchestra Live", "Launch Trailer"]), "Launch Trailer");
+  check("prefers a launch trailer over a plain one", pick(["Teaser", "Official Launch Trailer"]), "Official Launch Trailer");
+  check("any trailer beats an untitled clip", pick(["Clip", "Story Trailer"]), "Story Trailer");
+  check("keeps IGDB order on a tie", pick(["Trailer", "Trailer 2"]), "Trailer");
+  check("falls back to non-footage only if nothing else", pick(["Developer Interview"]), "Developer Interview");
+  check("no videos, no trailer", pickBackdropTrailer([]), null);
 }
 
 pngChecks().then(() => {
