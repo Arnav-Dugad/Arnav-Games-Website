@@ -218,3 +218,18 @@ export const DARK_STAGE_STYLE = {
   // against the page root's (possibly light-theme) accent.
   "--game-glow": "color-mix(in oklab, var(--game-accent-dark) 34%, transparent)",
 } as CSSProperties;
+
+/**
+ * The page accents, published on :root for chrome outside the page — the
+ * logo tile, the scroll progress and the site backdrop (`--page-accent*` in
+ * globals.css). Rendered server-side as a one-line <style> inside the game
+ * page, so it is in the first paint (no flash) and leaves with the page on
+ * the next navigation. Every value is a hex this module generated, never a
+ * raw string from a provider.
+ */
+export function gameAmbientCss(theme: GameTheme): string {
+  const hex = /^#[0-9a-f]{6}$/i;
+  const accentDark = hex.test(theme.accentDark) ? theme.accentDark : BRAND.dark;
+  const accentLight = hex.test(theme.accentLight) ? theme.accentLight : BRAND.light;
+  return `:root{--page-accent-dark:${accentDark};--page-accent-light:${accentLight}}`;
+}

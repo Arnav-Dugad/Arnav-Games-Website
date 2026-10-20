@@ -25,7 +25,8 @@ export function ScrollProgress() {
       style={{
         scaleX: reduced ? scrollYProgress : scaleX,
         background:
-          "linear-gradient(90deg, var(--color-brand), var(--color-neon) 55%, var(--color-flare))",
+          // Game pages swap in their cover's accent (globals.css, `--progress-*`).
+          "linear-gradient(90deg, var(--progress-from, var(--color-brand)), var(--progress-via, var(--color-neon)) 55%, var(--progress-to, var(--color-flare)))",
       }}
     />
   );

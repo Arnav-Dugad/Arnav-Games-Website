@@ -8,6 +8,8 @@ import { ChartsShelf, EpicFreeShelf, GamePassShelf, TodayShelf } from "@/compone
 import { JoinCta } from "@/components/home/JoinCta";
 import { buildWeek, ThisWeek } from "@/components/home/ThisWeek";
 import { TodayStoriesSkeleton } from "@/components/home/TodayStories";
+import { buildReel } from "@/components/home/reel";
+import { StoryReel } from "@/components/home/StoryReel";
 import { TopChartsSkeleton } from "@/components/home/TopCharts";
 import { GameRail } from "@/components/game/GameRail";
 import { CoverFlow } from "@/components/interactions/CoverFlow";
@@ -39,6 +41,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  * The front door, in the order a reader's questions arrive:
  *
  *   hero          — one featured game, full-bleed (the single focal point)
+ *   stories       — a tap-through reel: landing soon, trending, just out
  *   for you       — signed in only: your library in motion + picks
  *   today         — four stories, each with a one-line, data-backed reason
  *   this week     — the next seven days of releases, by day
@@ -77,6 +80,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     ...upcomingGames,
   ]);
 
+  // Built from the lists above: the reel costs no extra provider calls.
+  const reel = buildReel({
+    upcoming: upcomingGames,
+    trending: trending.data,
+    newReleases: newReleases.data,
+    exclude: spotlight.data.slice(0, 1).map((game) => game.id),
+  });
+
   const preview = await devPreview(searchParams, [...trending.data, ...upcomingGames, ...topRated.data]);
   const heroGames = await devTakeover(searchParams, spotlight.data);
   const country = await visitorCountry(searchParams);
@@ -86,6 +97,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       {/* The hero is deliberately IGDB-only. It never falls back to a
           storefront or an unrelated upcoming shelf. */}
       <CinematicHero games={heroGames} />
+
+      <StoryReel stories={reel} />
 
       {source === "unavailable" && (
         <Container className="pt-8">

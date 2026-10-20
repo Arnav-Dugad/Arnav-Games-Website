@@ -1,23 +1,27 @@
 "use client";
 
 /**
- * Pointer-tracked 3D tilt with a moving specular glare.
+ * Pointer-tracked 3D tilt with a soft specular highlight, for covers.
  *
- * Desktop-only by design: it is bound to `pointermove`, which touch devices
- * either don't fire meaningfully or fire once on tap. On coarse pointers the
- * component renders a plain wrapper with no listeners and no animation, so
- * phones pay nothing for it.
+ * The pointer handler does one thing: once per animation frame it writes the
+ * pointer's position over the card (−0.5…0.5 on each axis) into `--tilt-x`
+ * and `--tilt-y` on the root element. The rotation, the lift and the
+ * highlight's position are all derived from those two variables in CSS
+ * (`.tilt*` in globals.css), and a short transition does the smoothing a
+ * spring used to. No React state, so nothing re-renders while the mouse
+ * moves, and an idle card carries no animation machinery at all.
+ *
+ * Desktop only by construction: the transform exists only under the `fine`
+ * pointer media query, the handlers ignore anything but a mouse, and reduced
+ * motion (OS or the in-app switch) is checked as the pointer arrives. The
+ * markup is identical on the server, on touch and on desktop, so hydration
+ * never swaps the card's subtree (which used to remount every cover).
+ *
+ * Pressing flattens the card, so a click's cover morph (view transition)
+ * starts from a level poster.
  */
 
-import {
-  motion,
-  useMotionTemplate,
-  useMotionValue,
-  useSpring,
-  useTransform,
-} from "motion/react";
-import { useRef, type ReactNode } from "react";
-import { useRichMotion } from "@/hooks";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
 interface TiltCardProps {
@@ -31,75 +35,81 @@ interface TiltCardProps {
   glare?: boolean;
 }
 
-const SPRING = { stiffness: 260, damping: 26, mass: 0.6 } as const;
+/** Read as the pointer arrives rather than subscribed to: idle cards cost nothing. */
+function tiltAllowed(): boolean {
+  if (document.documentElement.dataset.reduceMotion === "true") return false;
+  return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 export function TiltCard({
   children,
   className,
-  intensity = 9,
+  intensity = 7,
   perspective = 900,
   scale = 1.02,
   glare = true,
 }: TiltCardProps) {
-  const enabled = useRichMotion();
   const ref = useRef<HTMLDivElement>(null);
+  const frame = useRef(0);
+  const point = useRef({ x: 0, y: 0 });
 
-  // Raw pointer position, normalised to -0.5…0.5 from the card's centre.
-  const px = useMotionValue(0);
-  const py = useMotionValue(0);
-  const hovered = useMotionValue(0);
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
-  const rotateX = useSpring(useTransform(py, (v) => -v * intensity * 2), SPRING);
-  const rotateY = useSpring(useTransform(px, (v) => v * intensity * 2), SPRING);
-  const lift = useSpring(hovered, SPRING);
-  const cardScale = useTransform(lift, [0, 1], [1, scale]);
-  const glareOpacity = useSpring(hovered, { stiffness: 180, damping: 30 });
-
-  const glareX = useTransform(useSpring(px, SPRING), (v) => `${(v + 0.5) * 100}%`);
-  const glareY = useTransform(useSpring(py, SPRING), (v) => `${(v + 0.5) * 100}%`);
-  const glareBackground = useMotionTemplate`radial-gradient(400px circle at ${glareX} ${glareY}, rgba(255,255,255,0.18), transparent 62%)`;
-
-  // Hooks above always run; only the rendered tree branches.
-  if (!enabled) {
-    return <div className={className}>{children}</div>;
-  }
-
-  const handleMove = (event: React.PointerEvent<HTMLDivElement>) => {
+  const write = () => {
+    frame.current = 0;
     const el = ref.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    px.set((event.clientX - rect.left) / rect.width - 0.5);
-    py.set((event.clientY - rect.top) / rect.height - 0.5);
+    el.style.setProperty("--tilt-x", point.current.x.toFixed(3));
+    el.style.setProperty("--tilt-y", point.current.y.toFixed(3));
   };
 
-  const handleLeave = () => {
-    hovered.set(0);
-    px.set(0);
-    py.set(0);
+  const rest = () => {
+    const el = ref.current;
+    if (!el) return;
+    cancelAnimationFrame(frame.current);
+    frame.current = 0;
+    delete el.dataset.tilt;
+    el.style.setProperty("--tilt-x", "0");
+    el.style.setProperty("--tilt-y", "0");
   };
+
+  const onPointerEnter = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "mouse" || !tiltAllowed()) return;
+    ref.current?.setAttribute("data-tilt", "on");
+  };
+
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el || el.dataset.tilt !== "on") return;
+    // One layout read per event, on the element that already has a layer.
+    const rect = el.getBoundingClientRect();
+    point.current = {
+      x: Math.max(-0.5, Math.min(0.5, (event.clientX - rect.left) / rect.width - 0.5)),
+      y: Math.max(-0.5, Math.min(0.5, (event.clientY - rect.top) / rect.height - 0.5)),
+    };
+    if (!frame.current) frame.current = requestAnimationFrame(write);
+  };
+
+  const style = {
+    "--tilt-max": `${intensity}deg`,
+    "--tilt-scale": scale,
+    "--tilt-perspective": `${perspective}px`,
+  } as CSSProperties;
 
   return (
-    <motion.div
+    <div
       ref={ref}
-      onPointerMove={handleMove}
-      onPointerEnter={() => hovered.set(1)}
-      onPointerLeave={handleLeave}
-      style={{ perspective }}
-      className={cn("relative", className)}
+      onPointerEnter={onPointerEnter}
+      onPointerMove={onPointerMove}
+      onPointerLeave={rest}
+      onPointerDown={rest}
+      style={style}
+      className={cn("tilt relative", className)}
     >
-      <motion.div
-        style={{ rotateX, rotateY, scale: cardScale, transformStyle: "preserve-3d" }}
-        className="relative h-full w-full rounded-[inherit] will-change-transform"
-      >
+      <div className="tilt-body">
         {children}
-        {glare && (
-          <motion.span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 z-20 rounded-[inherit]"
-            style={{ background: glareBackground, opacity: glareOpacity }}
-          />
-        )}
-      </motion.div>
-    </motion.div>
+        {glare && <span aria-hidden className="tilt-glare" />}
+      </div>
+    </div>
   );
 }

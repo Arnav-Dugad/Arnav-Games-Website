@@ -28,7 +28,7 @@ const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "U
 const DAY_MONTH = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 
 /** "Out today", "Out tomorrow", "Out Friday", "Out Friday, October 30". */
-function releaseWhy(game: GameSummary, now: Date): string | null {
+export function releaseWhy(game: GameSummary, now: Date): string | null {
   const days = daysUntil(game.released, now);
   const date = parseISO(game.released);
   if (days === null || !date) return null;

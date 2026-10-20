@@ -1,5 +1,4 @@
 import { Suspense, type ReactNode } from "react";
-import { Aurora } from "@/components/motion/Aurora";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -12,7 +11,6 @@ import { Skeleton } from "@/components/ui/Skeleton";
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div className="relative isolate flex min-h-dvh-safe justify-center px-5 pb-16 pt-28 sm:items-center sm:pb-24 sm:pt-32">
-      <Aurora intensity="subtle" className="-z-10" />
       <Suspense fallback={<AuthFormFallback />}>{children}</Suspense>
     </div>
   );

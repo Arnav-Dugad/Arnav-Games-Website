@@ -58,6 +58,7 @@ import { BrandIcon } from "@/components/brand/BrandIcon";
 import { JournalTimeline } from "@/components/personal/JournalTimeline";
 import { usePersonal, type JournalEntry } from "@/lib/personal/store";
 import { STORAGE_PREFIX } from "@/lib/utils/storage-keys";
+import { SectionMiniMap } from "@/components/interactions/SectionMiniMap";
 
 // The physics shelf is a toy: opt-in, browser-only, never in the first paint.
 const PhysicsShelf = dynamic(() => import("@/components/shelf/PhysicsShelf"), {
@@ -243,11 +244,11 @@ export function ProfileScreen({
 
           <Showcase entries={entries} reviews={reviews} />
 
-          <ProfileSection title="Milestones">
+          <ProfileSection id="profile-milestones" title="Milestones">
             <Milestones entries={entries} reviews={reviews ?? []} />
           </ProfileSection>
 
-          <ProfileSection title="Recent activity">
+          <ProfileSection id="profile-activity" title="Recent activity">
             {now === null || reviews === null ? (
               <Skeleton className="h-64 rounded-2xl" />
             ) : (
@@ -256,14 +257,14 @@ export function ProfileScreen({
           </ProfileSection>
 
           {data.journal && data.journal.length > 0 && now !== null && (
-            <ProfileSection title="Play journal" subtitle="Only you can see this">
+            <ProfileSection id="profile-journal" title="Play journal" subtitle="Only you can see this">
               <JournalTimeline entries={data.journal} now={now} />
             </ProfileSection>
           )}
 
           <ShelfSection entries={entries} />
 
-          <ProfileSection title="Where you play" action={<button type="button" onClick={() => setEditing(true)} className="press min-h-11 text-[15px] font-medium text-brand-soft">Edit</button>}>
+          <ProfileSection id="profile-platforms" title="Where you play" action={<button type="button" onClick={() => setEditing(true)} className="press min-h-11 text-[15px] font-medium text-brand-soft">Edit</button>}>
             <OwnedLibrary entries={entries} declared={draft.ownedPlatforms} />
             {draft.activeSubscriptions.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -281,6 +282,8 @@ export function ProfileScreen({
           </ProfileSection>
 
           <Reviews reviews={reviews} />
+          {/* Wide desktop: a rail of the sections that rendered (late ones join as they arrive). */}
+          <SectionMiniMap sections={PROFILE_SECTIONS} />
           <div className="lg:hidden">
             <NavGroup stats={stats} onSignOut={onSignOut} />
           </div>
@@ -332,6 +335,7 @@ function ShelfSection({ entries }: { entries: WatchlistEntry[] }) {
 
   return (
     <ProfileSection
+      id="profile-shelf"
       title="Your shelf"
       subtitle={stored ? "Grab a cover and throw it. Tap one to open it." : undefined}
       action={
@@ -368,9 +372,20 @@ function ShelfSection({ entries }: { entries: WatchlistEntry[] }) {
   );
 }
 
-function ProfileSection({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
+/** The rail's order; sections that don't render for this reader are skipped. */
+const PROFILE_SECTIONS = [
+  { id: "profile-favourites", label: "Favourites" },
+  { id: "profile-milestones", label: "Milestones" },
+  { id: "profile-activity", label: "Recent activity" },
+  { id: "profile-journal", label: "Play journal" },
+  { id: "profile-shelf", label: "Your shelf" },
+  { id: "profile-platforms", label: "Where you play" },
+  { id: "profile-reviews", label: "Your reviews" },
+];
+
+function ProfileSection({ id, title, subtitle, action, children }: { id?: string; title: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section aria-label={title}>
+    <section id={id} aria-label={title} className="scroll-mt-28">
       <div className="mb-3 flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-display text-[22px] font-bold tracking-[-0.02em]">{title}</h2>
@@ -529,7 +544,7 @@ function Showcase({ entries, reviews }: { entries: WatchlistEntry[]; reviews: Re
   if (items.length === 0) return null;
 
   return (
-    <ProfileSection title={title} subtitle={subtitle}>
+    <ProfileSection id="profile-favourites" title={title} subtitle={subtitle}>
       <ul className="grid grid-cols-3 gap-3 sm:grid-cols-6">
         {items.map((item) => (
           <li key={item.slug}>
@@ -649,14 +664,14 @@ function Reviews({ reviews }: { reviews: Review[] | null }) {
   const [all, setAll] = useState(false);
   if (reviews === null) {
     return (
-      <ProfileSection title="Your reviews">
+      <ProfileSection id="profile-reviews" title="Your reviews">
         <Skeleton className="h-40 rounded-2xl" />
       </ProfileSection>
     );
   }
   if (reviews.length === 0) {
     return (
-      <ProfileSection title="Your reviews">
+      <ProfileSection id="profile-reviews" title="Your reviews">
         <div className="rounded-2xl border border-dashed border-line px-4 py-8 text-center">
           <MessageSquare size={20} aria-hidden className="mx-auto text-faint" />
           <p className="mx-auto mt-2 max-w-xs text-[14px] text-muted">Rate a game you&apos;ve played and your review appears here.</p>
@@ -668,6 +683,7 @@ function Reviews({ reviews }: { reviews: Review[] | null }) {
   const shown = all ? reviews : reviews.slice(0, 3);
   return (
     <ProfileSection
+      id="profile-reviews"
       title="Your reviews"
       action={reviews.length > 3 ? <button type="button" onClick={() => setAll((value) => !value)} className="press min-h-11 text-[15px] font-medium text-brand-soft">{all ? "Show fewer" : `See all ${reviews.length}`}</button> : undefined}
     >

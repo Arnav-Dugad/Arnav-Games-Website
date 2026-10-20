@@ -70,7 +70,13 @@ export function ExpandableText({
   return (
     <div className={className}>
       <motion.div
-        className="relative overflow-hidden"
+        // Collapsed text fades out through a mask rather than a bg-coloured
+        // overlay, so it dissolves into whatever is behind it (the moving
+        // backdrop, a game's art light) instead of ending in a solid band.
+        className={cn(
+          "relative overflow-hidden",
+          showToggle && !expanded && "[mask-image:linear-gradient(180deg,#000_calc(100%-5rem),transparent)]",
+        )}
         initial={false}
         animate={{
           height: !showToggle || expanded ? (fullHeight ?? "auto") : collapsedHeight,
@@ -91,12 +97,6 @@ export function ExpandableText({
           ))}
         </div>
 
-        {showToggle && !expanded && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-bg via-bg/80 to-transparent"
-          />
-        )}
       </motion.div>
 
       {showToggle && (

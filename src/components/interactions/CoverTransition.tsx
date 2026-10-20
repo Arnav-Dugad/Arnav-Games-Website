@@ -17,7 +17,7 @@
  * spilling out of the snapshot mid-flight.
  */
 
-import { ViewTransition, useCallback, useId, useSyncExternalStore, type ReactNode } from "react";
+import { ViewTransition, useCallback, useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 import {
   COVER_MORPH_CLASS,
@@ -75,5 +75,51 @@ export function CoverTransition({
         {children}
       </span>
     </ViewTransition>
+  );
+}
+
+/**
+ * The whole source side in one element, for covers inside a link that is
+ * owned by a server component (or that would otherwise need the claim
+ * threaded through its click handler): it claims the name when the link
+ * around it is followed.
+ *
+ * The claim runs in a native listener on that link, which fires before
+ * React's delegated `onClick` (where `<Link>` starts the navigation), so the
+ * name is committed before the transition snapshots the old page. Modified
+ * clicks (new tab, download) open elsewhere and don't claim.
+ */
+export function MorphCover({
+  slug,
+  image = null,
+  className,
+  children,
+}: {
+  slug: string;
+  image?: string | null;
+  className?: string;
+  children: ReactNode;
+}) {
+  const { active, claim } = useSharedCover(slug, image);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const link = ref.current?.closest("a");
+    if (!link) return;
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      claim();
+    };
+    link.addEventListener("click", onClick);
+    return () => link.removeEventListener("click", onClick);
+  }, [claim]);
+
+  return (
+    <>
+      <span ref={ref} hidden />
+      <CoverTransition slug={slug} active={active} className={className}>
+        {children}
+      </CoverTransition>
+    </>
   );
 }

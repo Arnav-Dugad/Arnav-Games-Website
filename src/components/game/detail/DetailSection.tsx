@@ -32,6 +32,14 @@ export function DetailHeading({
   return (
     <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6", className)}>
       <div className="min-w-0">
+        {/* Without an eyebrow, a short stroke of the cover's accent marks the
+            section start — the same mark as the page rail's current tick. */}
+        {!eyebrow && (
+          <span
+            aria-hidden
+            className="mb-2.5 block h-[3px] w-7 rounded-full bg-[linear-gradient(90deg,var(--game-accent,var(--color-brand)),color-mix(in_oklab,var(--game-accent,var(--color-brand))_0%,transparent))]"
+          />
+        )}
         {eyebrow && (
           // The accent is mixed toward the text colour: raw cover accents can
           // fall just short of 4.5:1 at 13px on the light theme.

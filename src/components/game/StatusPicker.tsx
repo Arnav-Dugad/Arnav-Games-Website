@@ -62,7 +62,7 @@ export function StatusPicker({
     ? OPTIONS.filter((option) => option.value === "none" || option.value === "want")
     : OPTIONS;
 
-  const choose = async (value: WatchStatus) => {
+  const choose = async (value: WatchStatus, control: HTMLElement) => {
     if (!enabled) {
       toast("Sign-in isn't configured for this deployment yet.", "info");
       return;
@@ -84,6 +84,11 @@ export function StatusPicker({
       await ensure(game);
       await setStatus(game.id, value);
       haptic("success");
+      if (value === "played") {
+        // A burst of sparks from the button itself (a glow pulse under
+        // reduced motion); the code loads only now, on the first finish.
+        void import("@/components/motion/burst").then((mod) => mod.burstFrom(control));
+      }
       if (value === "played" && !calm) {
         // Finishing a game gets a moment of its own; with motion off, the plain toast says it.
         setUnlocks((count) => count + 1);
@@ -120,7 +125,7 @@ export function StatusPicker({
           <button
             key={option.value}
             type="button"
-            onClick={() => choose(option.value)}
+            onClick={(event) => choose(option.value, event.currentTarget)}
             aria-pressed={active}
             // Labels are visual-only below `sm` (icons carry the row there), so
             // the name has to live on the button or phones get four unnamed buttons.

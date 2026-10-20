@@ -16,7 +16,7 @@ import { Badge, Chip } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/SectionHeading";
 import { DataSourceNotice, SourceAttribution } from "@/components/ui/DataSourceNotice";
 import { getGame, getRelated, isDegraded } from "@/lib/games/source";
-import { sizedImage } from "@/lib/games/image";
+import { ambientImage, sizedImage } from "@/lib/games/image";
 import { GameCollectionShowcase } from "@/components/game/GameCollectionShowcase";
 import { GameEditorialOverview } from "@/components/game/GameDetailEditorial";
 import { GameDetailDock, type DetailSectionLink } from "@/components/game/GameDetailDock";
@@ -27,7 +27,7 @@ import { Elsewhere } from "@/components/game/detail/Elsewhere";
 import { GameHero } from "@/components/game/detail/GameHero";
 import { LengthSection } from "@/components/game/detail/LengthSection";
 import { GameLiveProvider } from "@/components/game/detail/live";
-import { CommunitySection, KeyPeople, YourPlay } from "@/components/game/detail/lazy";
+import { ArtAmbient, CommunitySection, KeyPeople, YourPlay } from "@/components/game/detail/lazy";
 import { MoreLikeThis } from "@/components/game/detail/MoreLikeThis";
 import { LiveOnTwitch } from "@/components/game/detail/LiveSections";
 import { PcSection } from "@/components/game/detail/PcSection";
@@ -37,7 +37,8 @@ import { ReleaseDates } from "@/components/game/detail/ReleaseDates";
 import { ReviewWatch } from "@/components/game/detail/ReviewWatch";
 import { PlayersCard } from "@/components/game/detail/StatsSection";
 import { describeGame, storyHours } from "@/components/game/detail/summary";
-import { GAME_THEME_CLASS, gameTheme, gameThemeStyle } from "@/components/game/detail/theme";
+import { GAME_THEME_CLASS, gameAmbientCss, gameTheme, gameThemeStyle } from "@/components/game/detail/theme";
+import { SectionMiniMap } from "@/components/interactions/SectionMiniMap";
 import { delayCount, localRelease, visitorRegion } from "@/components/game/detail/release";
 import {
   daysUntil,
@@ -177,6 +178,15 @@ export default async function GamePage({ params, searchParams }: { params: Param
     ...(hasPc ? [{ id: "pc", label: "For PC players" }] : []),
     ...(hasMore ? [{ id: "more", label: moreTitle }] : []),
   ];
+  // The desktop rail also marks the blocks the dock leaves out; any that
+  // don't render (signed out, no community data) are skipped by the rail.
+  const mapSections = [
+    ...sections.slice(0, sections.findIndex((section) => section.id === "reviews")),
+    { id: "your-play", label: "Your play" },
+    ...sections.filter((section) => section.id === "reviews"),
+    { id: "community", label: "Community" },
+    ...sections.slice(sections.findIndex((section) => section.id === "reviews") + 1),
+  ];
 
   const compareSuggestions = related.slice(0, 8).map((item) => ({
     slug: item.slug,
@@ -225,7 +235,11 @@ export default async function GamePage({ params, searchParams }: { params: Param
   const jsonLd = videoGameJsonLd(game);
 
   return (
-    <div style={gameThemeStyle(theme)} className={GAME_THEME_CLASS}>
+    // `data-ambient-game` tints the site backdrop toward this cover while the
+    // page is mounted (see `.ambient-game` in globals.css).
+    <div style={gameThemeStyle(theme)} className={GAME_THEME_CLASS} data-ambient-game="">
+      {/* Publishes the accents on :root for the chrome outside this page (logo, progress, backdrop). */}
+      <style>{gameAmbientCss(theme)}</style>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
@@ -241,10 +255,15 @@ export default async function GamePage({ params, searchParams }: { params: Param
         />
 
         <GameDetailDock game={game} sections={sections} compareSuggestions={compareSuggestions} />
+        <SectionMiniMap sections={mapSections} />
 
         <div className="relative">
           {/* The cover's colour carries on past the hero as a faint ambient wash. */}
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(ellipse_at_50%_0%,var(--game-glow),transparent_70%)] opacity-40" />
+          {/* …and the hero's own art continues under it as slow, blurred light. */}
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-16 -z-20 h-[1100px]">
+            <ArtAmbient src={ambientImage(game.artworks[0] ?? game.screenshots[0] ?? game.image)} />
+          </div>
           <Container className="space-y-14 pb-16 pt-7 sm:space-y-16 sm:pt-9 lg:space-y-20">
             {/* Overview: what it is, is it good, how long, what it costs — then the story and the fact sheet. */}
             <section id="overview" aria-labelledby="overview-title" className="scroll-mt-36">

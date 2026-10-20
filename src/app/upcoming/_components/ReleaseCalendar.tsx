@@ -16,7 +16,10 @@
  * announcements under "Date to be announced". Neither is ever placed on a day.
  *
  * Changing month turns the page like a desk calendar (see PAGE below);
- * reduced motion crossfades instead. The selected day is mirrored into the
+ * reduced motion crossfades instead. Picking a day opens its panel like a
+ * diary page (`.day-fold` in globals.css): hinged on the left for a later
+ * day, on the right for an earlier one, with a crease shadow that lifts as
+ * it lands. The first render never folds — only a reader's choice does. The selected day is mirrored into the
  * URL (`?day=`) with `replaceState`, so Back from a game lands on it again.
  */
 
@@ -26,6 +29,7 @@ import { AnimatePresence, motion, type PanInfo, type Variants } from "motion/rea
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Flame, History, Loader2 } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
+import { MorphCover } from "@/components/interactions/CoverTransition";
 import { GameLogo } from "@/components/game/GameLogo";
 import { PlatformIcons } from "@/components/game/PlatformIcons";
 import { WatchButton } from "@/components/game/WatchButton";
@@ -124,6 +128,8 @@ export function ReleaseCalendar(props: ReleaseCalendarProps) {
   const [picked, setPicked] = useState<string | null>(initialDay);
   const selected = picked && dates.includes(picked) && open(picked) ? picked : firstOpen;
   const [mode, setMode] = usePhoneMode();
+  // Which way the day panel last turned; bumped per choice so re-picking replays it.
+  const [fold, setFold] = useState<DayFold | null>(null);
 
   const href = (target: string, day?: string) => {
     const params = new URLSearchParams(query);
@@ -146,9 +152,14 @@ export function ReleaseCalendar(props: ReleaseCalendarProps) {
     window.history.replaceState(null, "", `${url.pathname}?${url.searchParams}`);
   }, [picked]);
 
+  const turnTo = (day: string) => {
+    if (day !== selected) setFold((last) => ({ n: (last?.n ?? 0) + 1, dir: day > selected ? "forward" : "back" }));
+    setPicked(day);
+  };
+
   const choose = (day: string) => {
     haptic("selection");
-    setPicked(day);
+    turnTo(day);
   };
 
   /** Phones: move the strip a week; leaving the month loads the neighbouring one. */
@@ -158,7 +169,7 @@ export function ReleaseCalendar(props: ReleaseCalendarProps) {
     const day = today && target < today ? today : target;
     haptic("selection");
     if (day.slice(0, 7) !== month) router.push(href(day.slice(0, 7), day), { scroll: false });
-    else setPicked(day);
+    else turnTo(day);
   };
   const canGoBackWeek = !today || weekStartOf(selected) > weekStartOf(today);
 
@@ -234,6 +245,7 @@ export function ReleaseCalendar(props: ReleaseCalendarProps) {
             nextMonthHref={nextMonth}
             filtered={filtered}
             empty={days.size === 0}
+            fold={fold}
           />
         </div>
       </div>
@@ -645,6 +657,12 @@ function DayCell({
 /* The selected day                                                           */
 /* -------------------------------------------------------------------------- */
 
+interface DayFold {
+  /** Increments per turn, keying the page so its fold replays. */
+  n: number;
+  dir: "forward" | "back";
+}
+
 function DayPanel({
   day,
   games,
@@ -656,6 +674,7 @@ function DayPanel({
   nextMonthHref,
   filtered,
   empty,
+  fold,
 }: {
   day: string;
   games: GameSummary[];
@@ -667,6 +686,7 @@ function DayPanel({
   nextMonthHref: string;
   filtered: boolean;
   empty: boolean;
+  fold: DayFold | null;
 }) {
   const relative = relativeDay(day, today);
   const [lead, ...rest] = games;
@@ -676,6 +696,8 @@ function DayPanel({
       aria-labelledby="day-panel-title"
       className="mt-6 lg:sticky lg:top-[calc(var(--chrome-top)+1rem)] lg:mt-0 lg:max-h-[calc(100dvh-var(--chrome-top)-2rem)] lg:overflow-y-auto lg:overscroll-contain lg:rounded-3xl lg:border lg:border-line lg:bg-panel/40 lg:p-4 light:lg:bg-panel"
     >
+      {/* The page itself: re-keyed per turn so the fold plays on each new day. */}
+      <div key={fold ? `${day}:${fold.n}` : day} className={fold ? "day-fold" : undefined} data-dir={fold?.dir}>
       <h3 id="day-panel-title" className="flex items-baseline gap-2 px-0.5 text-[17px] font-semibold">
         <span className="min-w-0 truncate">{DAY_LONG.format(utcDate(day))}</span>
         {relative && <span className="shrink-0 text-[15px] font-medium text-brand-soft">{relative}</span>}
@@ -719,6 +741,7 @@ function DayPanel({
           )}
         </div>
       )}
+      </div>
     </section>
   );
 }
@@ -777,7 +800,9 @@ function ReleaseRow({ game, signal }: { game: GameSummary; signal?: ReleaseSigna
         tabIndex={-1}
         className="relative h-[64px] w-12 shrink-0 overflow-hidden rounded-[9px] ring-1 ring-inset ring-fg/10"
       >
-        <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={120} sizes="48px" />
+        <MorphCover slug={game.slug} image={game.image}>
+          <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={120} sizes="48px" />
+        </MorphCover>
       </Link>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <Link prefetch={false} href={`/game/${game.slug}`} className="truncate text-[15px] font-semibold leading-snug fine:hover:text-brand-soft">
@@ -884,7 +909,9 @@ function TrayCard({ game, hype, label }: { game: GameSummary; hype?: number; lab
     <article data-release-date={game.released ?? ""} className="group">
       <div data-stage="dark" className="relative aspect-[3/4] overflow-hidden rounded-[14px] bg-panel ring-1 ring-inset ring-fg/10">
         <Link prefetch={false} href={`/game/${game.slug}`} aria-label={game.name} className="absolute inset-0">
-          <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={300} sizes="140px" />
+          <MorphCover slug={game.slug} image={game.image}>
+            <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={300} sizes="140px" />
+          </MorphCover>
         </Link>
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-1 p-1.5">
           {label ? (

@@ -15,6 +15,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { Reveal } from "@/components/motion/Reveal";
+import { SectionMiniMap } from "@/components/interactions/SectionMiniMap";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { CatalogueBenchmark, DriftBasis, PersonalAnalytics } from "@/lib/games/stats";
 import { CriticCompare } from "./charts/CriticCompare";
@@ -49,6 +50,7 @@ const GROUPS = [
   { id: "time", label: "Time" },
   { id: "collection", label: "Collection" },
 ] as const;
+const MAP_SECTIONS = GROUPS.map((group) => ({ id: `stats-${group.id}`, label: group.label }));
 
 /**
  * The stats page, as a pure function of already-computed analytics.
@@ -125,6 +127,8 @@ export function StatsDashboard({
       </Reveal>
 
       <JumpBar />
+      {/* Wide desktop: the same groups as a quiet rail at the window's edge. */}
+      <SectionMiniMap sections={MAP_SECTIONS} />
 
       <StatsGroup id="progress" title="Progress">
         <Reveal onMount className="lg:col-span-5">

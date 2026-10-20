@@ -365,8 +365,12 @@ export function WatchlistView({
                       id={`status-${entry.gameId}`}
                       value={entry.status}
                       onChange={async (e) => {
+                        const control = e.currentTarget;
+                        const next = e.target.value as WatchStatus;
                         try {
-                          await setStatus(entry.gameId, e.target.value as WatchStatus);
+                          await setStatus(entry.gameId, next);
+                          // Finishing a game gets its burst here too (loaded on demand).
+                          if (next === "played") void import("@/components/motion/burst").then((mod) => mod.burstFrom(control));
                         } catch {
                           toast("Couldn't update the status.", "error");
                         }

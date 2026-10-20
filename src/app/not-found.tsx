@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { Aurora } from "@/components/motion/Aurora";
 import { Container } from "@/components/ui/SectionHeading";
 
 /**
@@ -19,7 +18,6 @@ const PLACES = [
 export default function NotFound() {
   return (
     <div className="relative isolate flex min-h-dvh-safe items-center overflow-hidden">
-      <Aurora intensity="subtle" className="-z-10" />
       <Container className="py-28 text-center">
         <p className="font-display text-[clamp(4.5rem,20vw,9rem)] font-black leading-none tracking-[-0.06em] text-gradient">
           404

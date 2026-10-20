@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Flame } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
+import { MorphCover } from "@/components/interactions/CoverTransition";
 import { SegmentedControl } from "@/components/filters/SegmentedControl";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { useGameMenuTarget } from "@/components/interactions/game-menu-targets";
@@ -125,14 +126,16 @@ function ChartRowItem({ row, rank, last }: { row: ChartRow; rank: number; last: 
         className="group -mx-2 flex min-h-[84px] items-center gap-3 rounded-2xl px-2 transition-colors duration-200 fine:hover:bg-fg/[0.045] coarse:active:bg-fg/[0.06]"
       >
         <span className="relative h-[68px] w-[51px] shrink-0 overflow-hidden rounded-[10px] border border-fg/[0.08] bg-panel shadow-[0_8px_18px_-12px_#000] light:shadow-[0_6px_14px_-10px_#00000059]">
-          <GameCover
-            name={game.name}
-            slug={game.slug}
-            image={game.image}
-            imageFallback={game.imageFallback}
-            width={120}
-            sizes="51px"
-          />
+          <MorphCover slug={game.slug} image={game.image}>
+            <GameCover
+              name={game.name}
+              slug={game.slug}
+              image={game.image}
+              imageFallback={game.imageFallback}
+              width={120}
+              sizes="51px"
+            />
+          </MorphCover>
         </span>
         {/* The separator starts after the art, iOS-list style. */}
         <span

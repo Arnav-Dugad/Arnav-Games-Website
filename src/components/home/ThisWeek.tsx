@@ -13,6 +13,7 @@
 
 import Link from "next/link";
 import { GameCover } from "@/components/game/GameCover";
+import { MorphCover } from "@/components/interactions/CoverTransition";
 import { cn } from "@/lib/utils/cn";
 import type { GameSummary } from "@/lib/games/types";
 
@@ -92,15 +93,17 @@ function DayColumn({ day, index }: { day: WeekDay; index: number }) {
         <div className="mt-3">
           <Link prefetch={false} href={`/game/${lead.slug}`} className="group block">
             <span className="relative block aspect-[3/4] overflow-hidden rounded-xl border border-fg/[0.08] bg-panel shadow-[0_12px_28px_-18px_#000] light:shadow-[0_10px_24px_-18px_#00000066]">
-              <GameCover
-                name={lead.name}
-                slug={lead.slug}
-                image={lead.image}
-                imageFallback={lead.imageFallback}
-                width={320}
-                sizes="(max-width: 768px) 40vw, 14vw"
-                className="transition-transform duration-700 ease-[var(--ease-out-expo)] fine:group-hover:scale-[1.05]"
-              />
+              <MorphCover slug={lead.slug} image={lead.image}>
+                <GameCover
+                  name={lead.name}
+                  slug={lead.slug}
+                  image={lead.image}
+                  imageFallback={lead.imageFallback}
+                  width={320}
+                  sizes="(max-width: 768px) 40vw, 14vw"
+                  className="transition-transform duration-700 ease-[var(--ease-out-expo)] fine:group-hover:scale-[1.05]"
+                />
+              </MorphCover>
             </span>
             <span className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug transition-colors fine:group-hover:text-brand-soft">
               {lead.name}
@@ -116,14 +119,16 @@ function DayColumn({ day, index }: { day: WeekDay; index: number }) {
                     className="group -mx-1.5 flex min-h-11 items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors fine:hover:bg-fg/[0.05]"
                   >
                     <span className="relative h-10 w-[30px] shrink-0 overflow-hidden rounded-md border border-fg/[0.08] bg-panel">
-                      <GameCover
-                        name={game.name}
-                        slug={game.slug}
-                        image={game.image}
-                        imageFallback={game.imageFallback}
-                        width={96}
-                        sizes="30px"
-                      />
+                      <MorphCover slug={game.slug} image={game.image}>
+                        <GameCover
+                          name={game.name}
+                          slug={game.slug}
+                          image={game.image}
+                          imageFallback={game.imageFallback}
+                          width={96}
+                          sizes="30px"
+                        />
+                      </MorphCover>
                     </span>
                     <span className="line-clamp-2 min-w-0 text-[12px] font-medium leading-snug text-muted transition-colors fine:group-hover:text-text">
                       {game.name}

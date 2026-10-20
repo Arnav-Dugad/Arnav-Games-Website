@@ -175,7 +175,10 @@ export function GameDetailDock({
                   aria-current={active === section.id ? "location" : undefined}
                   className={cn(
                     "relative inline-flex min-h-10 items-center rounded-full px-3.5 text-[13px] font-semibold transition-colors coarse:min-h-11",
-                    active === section.id ? "bg-fg/[0.09] text-text" : "text-muted fine:hover:bg-fg/[0.05] fine:hover:text-text",
+                    // The current section wears the cover's accent, like the rail's tick.
+                    active === section.id
+                      ? "bg-[color-mix(in_oklab,var(--game-accent,var(--color-brand))_17%,transparent)] text-text shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--game-accent,var(--color-brand))_22%,transparent)]"
+                      : "text-muted fine:hover:bg-fg/[0.05] fine:hover:text-text",
                   )}
                 >
                   {section.label}

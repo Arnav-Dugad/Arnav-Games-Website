@@ -55,3 +55,18 @@ export function sizedImage(url: string | null | undefined, width?: number): stri
 
   return url;
 }
+
+/**
+ * The smallest useful copy of an image, for effects that blur it beyond
+ * recognition anyway (the game page's artwork ambience). IGDB's smallest
+ * landscape transform keeps the whole frame's colours (its `thumb` is a
+ * square centre crop); other hosts serve one size, returned as-is.
+ */
+export function ambientImage(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.includes(IGDB_HOST) && IGDB_SIZE_SEGMENT.test(url)) {
+    const currentSize = url.match(/\/t_([a-z0-9_]+)\//i)?.[1] ?? "";
+    return url.replace(IGDB_SIZE_SEGMENT, currentSize.startsWith("cover_") ? "/t_cover_small/" : "/t_screenshot_med/");
+  }
+  return url;
+}

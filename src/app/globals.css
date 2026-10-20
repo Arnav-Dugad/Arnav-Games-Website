@@ -57,7 +57,6 @@
   --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
 
   --animate-shimmer: shimmer 2.2s linear infinite;
-  --animate-aurora: aurora 22s ease-in-out infinite;
   --animate-float: float 7s ease-in-out infinite;
   --animate-pulse-ring: pulse-ring 2.6s var(--ease-out-quart) infinite;
   --animate-scan: scan 3.2s linear infinite;
@@ -175,12 +174,6 @@
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
-}
-
-@keyframes aurora {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.55; }
-  33% { transform: translate3d(6%, -4%, 0) scale(1.12); opacity: 0.8; }
-  66% { transform: translate3d(-5%, 5%, 0) scale(0.95); opacity: 0.6; }
 }
 
 @keyframes float {
@@ -768,21 +761,33 @@
   animation: vt-rise-in 320ms var(--ease-out-expo) 60ms both;
 }
 
-/* Card cover → game page cover. */
+/*
+  Card cover → game page cover.
+
+  The group (the UA's own animation) carries position and size; the image
+  pair inside it adds the "flip": a half-swing around the vertical axis that
+  peaks mid-flight with a slight lift, so the poster reads as a physical card
+  turning over on its way to the page rather than a flat rectangle resizing.
+  Kept to ~16° so the art never goes edge-on, and it lands perfectly flat.
+  Only the pair is transformed — overriding the group's `animation`
+  shorthand would replace the UA's morph keyframes.
+*/
 ::view-transition-group(.cover-morph) {
   z-index: 50;
-  animation-duration: 460ms;
+  animation-duration: 520ms;
   animation-timing-function: var(--ease-apple);
 }
 ::view-transition-image-pair(.cover-morph) {
-  animation: vt-morph-soften 460ms var(--ease-apple) both;
+  animation:
+    vt-morph-soften 520ms var(--ease-apple) both,
+    vt-cover-flip 520ms var(--ease-apple) both;
 }
 ::view-transition-old(.cover-morph),
 ::view-transition-new(.cover-morph) {
   /* Covers keep their aspect while the box morphs, instead of stretching. */
   height: 100%;
   object-fit: cover;
-  animation-duration: 460ms;
+  animation-duration: 520ms;
 }
 
 /* The page cover when no pair could form (destination streamed in late). */
@@ -798,6 +803,13 @@
 }
 @keyframes vt-morph-soften {
   35% { filter: blur(2px); }
+}
+/* Perspective lives in the transform itself: pseudo-elements have no parent
+   we could put `perspective` on without touching the UA's group styles. */
+@keyframes vt-cover-flip {
+  0% { transform: perspective(900px) rotateY(0deg) scale(1); }
+  45% { transform: perspective(900px) rotateY(-16deg) rotateX(4deg) scale(1.045); }
+  100% { transform: perspective(900px) rotateY(0deg) scale(1); }
 }
 @keyframes vt-cover-reveal {
   from { opacity: 0; transform: scale(0.94); filter: blur(6px); }
@@ -819,6 +831,420 @@
 :root[data-reduce-motion="true"]::view-transition-image-pair(*) {
   animation-duration: 0s !important;
   animation-delay: 0s !important;
+}
+
+/* ============================================================================
+   Ambience — the moving backdrop, page accents and the small signature
+   motions (tilt, day fold, stories, logo). Everything here animates only
+   `transform` and `opacity`, so it runs on the compositor; the global
+   reduced-motion rules in the base layer freeze all of it.
+   ========================================================================= */
+
+/*
+  The page accent.
+
+  A game page publishes its cover-derived accents on :root (a one-line
+  <style> from the server, see `GameAmbientStyle`), so chrome that lives
+  outside the page — the logo, the scroll progress, the backdrop — can pick
+  up the game's colour too. Elsewhere these fall back to the brand. The light
+  pair is solved for ≥4.6:1 against white; the dark pair for ≥6:1 against
+  dark panels (theme.ts), so either is safe as text in its own theme.
+*/
+:root {
+  --page-accent: var(--page-accent-dark, var(--color-brand));
+  /* Solved against white in both themes: the one to put white type on. */
+  --page-accent-solid: var(--page-accent-light, var(--color-brand));
+}
+:root[data-theme="light"] {
+  --page-accent: var(--page-accent-light, var(--color-brand));
+}
+
+/*
+  Site-wide moving backdrop.
+
+  Three soft colour fields drifting on long, offset cycles behind every page,
+  the way macOS and apple.com product pages breathe. Each field is a radial
+  gradient that is soft by construction, so nothing needs `filter: blur()`;
+  each moves on its own compositor layer with transform-only keyframes and
+  costs no JavaScript at all (hidden tabs aren't painted, so nothing to pause).
+
+  It sits at z-index -50 in the root stacking context: above the body's
+  canvas colour, beneath every page's content and every in-page backdrop
+  (those use -10/-20). Alphas are kept low enough that text contrast is
+  decided by the surfaces on top, never by the backdrop: the brightest point
+  of the dark palette is still under #1a1530 behind body text.
+*/
+:root {
+  --ambient-1: rgb(112 84 255 / 0.2);
+  --ambient-2: rgb(10 160 220 / 0.13);
+  --ambient-3: rgb(255 45 120 / 0.09);
+  --ambient-grain: 0.04;
+}
+:root[data-theme="light"] {
+  /* Pastels on the light grey canvas: present, never muddy. */
+  --ambient-1: rgb(140 112 255 / 0.2);
+  --ambient-2: rgb(70 190 255 / 0.18);
+  --ambient-3: rgb(255 120 170 / 0.13);
+  --ambient-grain: 0.03;
+}
+
+@layer components {
+  .ambient-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -50;
+    overflow: hidden;
+    pointer-events: none;
+    /* Nothing inside can affect layout or paint outside the viewport box. */
+    contain: strict;
+  }
+
+  .ambient-field {
+    position: absolute;
+    border-radius: 9999px;
+    background: radial-gradient(closest-side, var(--ambient-color), transparent);
+    will-change: transform;
+    transition: opacity 1.2s var(--ease-out-quart);
+  }
+  .ambient-field-1 {
+    --ambient-color: var(--ambient-1);
+    width: 78vmax;
+    height: 78vmax;
+    top: -34vmax;
+    left: -24vmax;
+    animation: ambient-drift-1 46s ease-in-out infinite alternate;
+  }
+  .ambient-field-2 {
+    --ambient-color: var(--ambient-2);
+    width: 68vmax;
+    height: 68vmax;
+    top: 6vh;
+    right: -30vmax;
+    animation: ambient-drift-2 58s ease-in-out infinite alternate;
+  }
+  .ambient-field-3 {
+    --ambient-color: var(--ambient-3);
+    width: 64vmax;
+    height: 64vmax;
+    bottom: -36vmax;
+    left: 18vw;
+    animation: ambient-drift-3 67s ease-in-out infinite alternate;
+  }
+
+  /*
+    The game page's own light: a wash in the cover's accent from the top of
+    the viewport. Invisible until a game page is mounted, then cross-fades in
+    (opacity only) while the brand fields step back.
+  */
+  .ambient-game {
+    position: absolute;
+    inset: -20vh -10vw auto;
+    height: 95vh;
+    opacity: 0;
+    background: radial-gradient(60% 55% at 50% 30%, color-mix(in oklab, var(--page-accent-dark, transparent) 26%, transparent), transparent);
+    transition: opacity 1s var(--ease-out-quart);
+    will-change: opacity;
+  }
+  :root[data-theme="light"] .ambient-game {
+    background: radial-gradient(60% 55% at 50% 30%, color-mix(in oklab, var(--page-accent-light, transparent) 22%, transparent), transparent);
+  }
+  :root:has([data-ambient-game]) .ambient-game {
+    opacity: 1;
+  }
+  :root:has([data-ambient-game]) .ambient-field {
+    opacity: 0.45;
+  }
+
+  /* Static grain over the fields: hides 8-bit banding in the dark gradients. */
+  .ambient-backdrop::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: var(--ambient-grain);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Phones: smaller fields (less layer memory at 3x density), same drift. */
+  @media (max-width: 640px) {
+    .ambient-field-1 { width: 120vw; height: 120vw; top: -40vw; left: -45vw; }
+    .ambient-field-2 { width: 110vw; height: 110vw; top: 30vh; right: -55vw; }
+    .ambient-field-3 { width: 100vw; height: 100vw; bottom: -45vw; left: 10vw; }
+  }
+
+  /*
+    Artwork ambience on game pages (`ArtAmbient`): the game's own art,
+    pre-blurred on a tiny canvas and stretched, its colour pools drifting
+    slowly like Apple Music's "now playing" backdrop. Two copies (the second
+    mirrored) drift against each other so the colours shift rather than
+    slide. Transform-only, on compositor layers; the canvases are drawn once.
+    Oversized by only 15% a side: a drift needs far less bleed than a full
+    rotation would, which keeps the layers small on 3x phone screens.
+  */
+  .art-ambient {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.4s var(--ease-out-quart);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 45%, transparent 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 45%, transparent 100%);
+  }
+  .art-ambient[data-ready="true"] {
+    opacity: 0.5;
+  }
+  :root[data-theme="light"] .art-ambient[data-ready="true"] {
+    opacity: 0.42;
+  }
+  .art-ambient canvas {
+    position: absolute;
+    inset: -15%;
+    width: 130%;
+    height: 130%;
+    will-change: transform;
+    animation: art-drift-a 34s ease-in-out infinite alternate;
+  }
+  .art-ambient canvas + canvas {
+    opacity: 0.55;
+    animation: art-drift-b 47s ease-in-out infinite alternate;
+  }
+  @media (max-width: 640px) {
+    .art-ambient canvas + canvas { display: none; }
+  }
+  .art-ambient[data-paused="true"] canvas {
+    animation-play-state: paused;
+  }
+
+  /*
+    Cursor tilt (`TiltCard`). The pointer handler only writes `--tilt-x/y`
+    (−0.5…0.5) on the root, once per frame; the transform and the specular
+    highlight are derived here, and the transition smooths them. Fine
+    pointers only — touch never sees a transform.
+  */
+  .tilt {
+    perspective: var(--tilt-perspective, 900px);
+  }
+  .tilt-body {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    border-radius: inherit;
+    transition: transform 0.7s var(--ease-apple);
+  }
+  .tilt-glare {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(
+      420px circle at calc((var(--tilt-x, 0) + 0.5) * 100%) calc((var(--tilt-y, 0) + 0.5) * 100%),
+      rgb(255 255 255 / 0.2),
+      rgb(255 255 255 / 0.04) 40%,
+      transparent 62%
+    );
+    transition: opacity 0.5s var(--ease-out-quart);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .tilt[data-tilt="on"] .tilt-body {
+      transform:
+        rotateX(calc(var(--tilt-y, 0) * var(--tilt-max, 7deg) * -2))
+        rotateY(calc(var(--tilt-x, 0) * var(--tilt-max, 7deg) * 2))
+        scale(var(--tilt-scale, 1.02));
+      transition-duration: 0.35s;
+      transition-timing-function: var(--ease-out-quart);
+      will-change: transform;
+    }
+    .tilt[data-tilt="on"] .tilt-glare {
+      opacity: 1;
+    }
+  }
+
+  /*
+    The calendar's selected day opens like a diary page: hinged on the side
+    you came from, swinging flat with a soft crease shadow that lifts as it
+    lands. Later days hinge on the left (a page turned forward), earlier days
+    on the right.
+  */
+  .day-fold {
+    position: relative;
+    transform-origin: left center;
+    animation: day-fold-forward 430ms var(--ease-out-expo) both;
+    backface-visibility: hidden;
+  }
+  .day-fold[data-dir="back"] {
+    transform-origin: right center;
+    animation-name: day-fold-back;
+  }
+  .day-fold::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    z-index: 5;
+    border-radius: 1.25rem;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.12) 30%, transparent 60%);
+    opacity: 0;
+    animation: day-crease 430ms ease-out both;
+  }
+  .day-fold[data-dir="back"]::after {
+    background: linear-gradient(270deg, rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.12) 30%, transparent 60%);
+  }
+  :root[data-theme="light"] .day-fold::after {
+    background: linear-gradient(90deg, rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.05) 30%, transparent 60%);
+  }
+  :root[data-theme="light"] .day-fold[data-dir="back"]::after {
+    background: linear-gradient(270deg, rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.05) 30%, transparent 60%);
+  }
+
+  /* Stories: segment fills and the slow push-in on the art. */
+  .story-fill {
+    transform-origin: left center;
+    transform: scaleX(0);
+  }
+  .story-fill[data-state="done"] {
+    transform: scaleX(1);
+  }
+  .story-fill[data-state="live"] {
+    animation: story-progress var(--story-ms, 6500ms) linear forwards;
+  }
+  .story-art {
+    animation: story-push 9s var(--ease-out-quart) both;
+  }
+  [data-story-paused="true"] .story-fill[data-state="live"],
+  [data-story-paused="true"] .story-art {
+    animation-play-state: paused;
+  }
+
+  /* Story rings: a brand gradient until seen, then a quiet hairline. */
+  .story-ring {
+    background: conic-gradient(from 210deg, var(--color-flare), var(--color-gold), var(--color-brand), var(--color-neon), var(--color-flare));
+  }
+  .story-ring[data-seen="true"] {
+    background: color-mix(in oklab, var(--color-fg) 18%, transparent);
+  }
+
+  /*
+    The logo tile's colours are registered properties so a section change
+    cross-fades the gradient (a 32px repaint, nothing more) instead of
+    snapping. Each section tunes the pair; the badge glyph says where you are.
+  */
+  .logo-tile {
+    --logo-a: var(--color-brand);
+    --logo-b: var(--color-neon);
+    background: linear-gradient(135deg, var(--logo-a), var(--logo-b));
+    transition:
+      --logo-a 0.8s var(--ease-apple),
+      --logo-b 0.8s var(--ease-apple),
+      transform 0.5s var(--ease-out-expo);
+  }
+  .logo-tile[data-section="upcoming"] { --logo-a: var(--color-brand); --logo-b: var(--color-flare); }
+  .logo-tile[data-section="discover"] { --logo-a: var(--color-neon); --logo-b: var(--color-brand); }
+  .logo-tile[data-section="library"] { --logo-a: var(--color-flare); --logo-b: var(--color-brand); }
+  .logo-tile[data-section="stats"] { --logo-a: var(--color-neon); --logo-b: var(--color-mint); }
+  .logo-tile[data-section="search"] { --logo-a: var(--color-brand-soft); --logo-b: var(--color-brand); }
+  .logo-tile[data-section="game"] {
+    --logo-a: var(--page-accent-solid);
+    --logo-b: color-mix(in oklab, var(--page-accent-solid) 60%, #000);
+  }
+  .logo-glyph {
+    opacity: 0;
+    transform: scale(0.4) rotate(-40deg);
+    transition: opacity 0.3s var(--ease-out-quart), transform 0.55s var(--ease-spring);
+  }
+  .logo-glyph[data-on="true"] {
+    opacity: 1;
+    transform: none;
+  }
+  .logo-badge {
+    transform: scale(0);
+    transition: transform 0.5s var(--ease-spring);
+  }
+  .logo-badge[data-on="true"] {
+    transform: scale(1);
+  }
+}
+
+/*
+  Game pages: focus rings, selection and the reading-progress hairline take
+  the cover's accent (each solved for contrast in its theme, see theme.ts).
+  Unlayered, so they win over the base layer's brand defaults.
+*/
+[data-ambient-game] :focus-visible {
+  outline-color: var(--game-accent, var(--color-brand-soft));
+}
+:root:has([data-ambient-game]) {
+  --progress-from: var(--page-accent);
+  --progress-via: color-mix(in oklab, var(--page-accent) 55%, var(--color-neon));
+  --progress-to: var(--page-accent);
+}
+:root:has([data-ambient-game]) ::selection {
+  background: color-mix(in oklab, var(--page-accent) 40%, transparent);
+}
+:root[data-theme="light"]:has([data-ambient-game]) ::selection {
+  background: color-mix(in oklab, var(--page-accent) 22%, transparent);
+}
+
+@property --logo-a {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #8a72ff;
+}
+@property --logo-b {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #64d2ff;
+}
+
+@keyframes ambient-drift-1 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(14vw, 10vh, 0) scale(1.12); }
+  100% { transform: translate3d(26vw, 4vh, 0) scale(0.96); }
+}
+@keyframes ambient-drift-2 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-18vw, 16vh, 0) scale(0.9); }
+  100% { transform: translate3d(-8vw, 34vh, 0) scale(1.08); }
+}
+@keyframes ambient-drift-3 {
+  0% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(16vw, -12vh, 0) scale(1.2); }
+  100% { transform: translate3d(-12vw, -22vh, 0) scale(0.95); }
+}
+@keyframes art-drift-a {
+  from { transform: translate3d(-6%, -4%, 0) scale(1); }
+  to { transform: translate3d(6%, 5%, 0) scale(1.12); }
+}
+@keyframes art-drift-b {
+  from { transform: translate3d(7%, 3%, 0) scale(1.1); }
+  to { transform: translate3d(-5%, -5%, 0) scale(0.98); }
+}
+@keyframes day-fold-forward {
+  from { transform: perspective(1400px) rotateY(-62deg); opacity: 0; }
+  35% { opacity: 1; }
+  to { transform: perspective(1400px) rotateY(0deg); opacity: 1; }
+}
+@keyframes day-fold-back {
+  from { transform: perspective(1400px) rotateY(62deg); opacity: 0; }
+  35% { opacity: 1; }
+  to { transform: perspective(1400px) rotateY(0deg); opacity: 1; }
+}
+@keyframes day-crease {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes story-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes story-nudge {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(-4px); }
+}
+@keyframes story-push {
+  from { transform: scale(1.02); }
+  to { transform: scale(1.12) translate3d(-1.5%, -1%, 0); }
 }
 
 /*

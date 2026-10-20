@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { PageTransition } from "@/components/interactions/PageTransition";
 import { THEME_BOOT_SCRIPT } from "@/lib/preferences/theme-script";
 import { LaunchSplash } from "@/components/pwa/LaunchSplash";
+import { AmbientBackdrop } from "@/components/motion/AmbientBackdrop";
 import { PwaLayer } from "@/components/pwa/PwaLayer";
 import { pwaBootScript } from "@/components/pwa/pwa-boot-script";
 import { splashImages } from "@/components/pwa/splash-screens";
@@ -96,6 +97,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh-safe bg-bg text-text antialiased">
         {/* Hidden unless the boot script marks a standalone cold start. */}
         <LaunchSplash />
+        {/* The slow, site-wide colour drift behind every page (CSS only). */}
+        <AmbientBackdrop />
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[500] focus:rounded-full focus:bg-brand focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-white"

@@ -21,6 +21,7 @@ import { Check } from "lucide-react";
 import { useMemo } from "react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { GameCover } from "./GameCover";
+import { TiltCard } from "@/components/motion/TiltCard";
 import { CoverTransition, useSharedCover } from "@/components/interactions/CoverTransition";
 import { entryAsGameSummary, useGameMenuTarget } from "@/components/interactions/game-menu-targets";
 import { ScorePill } from "@/components/ui/ScoreRing";
@@ -51,13 +52,15 @@ export function PosterTile({
       data-game-menu
       className="group/tile press-menu-target block"
     >
+      {/* Mouse: the poster leans toward the cursor (TiltCard); touch: a press shrink. */}
+      <TiltCard className="rounded-2xl" intensity={6} scale={1.03}>
       <div
         data-menu-preview
         className={cn(
           "relative aspect-[3/4] w-full overflow-hidden rounded-2xl border border-fg/[0.08] bg-panel shadow-[0_14px_34px_-20px_#000] light:shadow-[0_12px_28px_-18px_#00000066]",
           "transition-[border-color,box-shadow,transform] duration-500",
           "coarse:active:scale-[0.97] coarse:active:duration-100",
-          "fine:group-hover/tile:border-line-strong fine:group-hover/tile:-translate-y-1",
+          "fine:group-hover/tile:border-line-strong",
           "fine:group-hover/tile:shadow-[0_20px_50px_-20px_rgba(124,92,255,0.5)]",
         )}
       >
@@ -96,6 +99,7 @@ export function PosterTile({
           <ScorePill score={entry.metacritic} onImage />
         </div>
       </div>
+      </TiltCard>
 
       <p
         className={cn(

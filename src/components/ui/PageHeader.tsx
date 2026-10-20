@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Aurora } from "@/components/motion/Aurora";
 import { TextReveal } from "@/components/motion/text";
 import { Reveal } from "@/components/motion/Reveal";
 import { Container } from "./SectionHeading";
@@ -32,11 +31,9 @@ export function PageHeader({
         className,
       )}
     >
-      <Aurora intensity="subtle" className="-z-10" />
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-t from-bg to-transparent"
-      />
+      {/* No backdrop of its own: the site-wide ambient drift (AmbientBackdrop)
+          shows through, so mastheads no longer stack a second aurora — or a
+          fade-to-black band — over it. */}
 
       <Container>
         {eyebrow && (

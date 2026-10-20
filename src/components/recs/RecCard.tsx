@@ -36,6 +36,7 @@ import {
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { GameCard } from "@/components/game/GameCard";
 import { GameCover } from "@/components/game/GameCover";
+import { MorphCover } from "@/components/interactions/CoverTransition";
 import { useGameMenuTarget, type RecommendationMenu } from "@/components/interactions/game-menu-targets";
 import { ScorePill } from "@/components/ui/ScoreRing";
 import { useToast } from "@/components/ui/Toast";
@@ -256,7 +257,9 @@ export function RecFeatureCard({ rec, priority = false }: { rec: RecommendedGame
         className="relative block w-[96px] shrink-0 self-start overflow-hidden rounded-[14px] shadow-[0_10px_24px_-14px_#000] sm:w-[108px]"
       >
         <span className="relative block aspect-[3/4]">
-          <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={240} sizes="108px" priority={priority} />
+          <MorphCover slug={game.slug} image={game.image}>
+            <GameCover name={game.name} slug={game.slug} image={game.image} imageFallback={game.imageFallback} width={240} sizes="108px" priority={priority} />
+          </MorphCover>
         </span>
         <span className="absolute right-1.5 top-1.5">
           <ScorePill score={game.metacritic} onImage />
