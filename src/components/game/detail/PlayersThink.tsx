@@ -10,8 +10,9 @@
  * dot, not a trend.
  */
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowUpRight, ChevronDown, Newspaper, Star, Wrench } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Flame, Newspaper, Star, Wrench } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { ScoreRing } from "@/components/ui/ScoreRing";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -19,6 +20,7 @@ import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import { compactNumber, formatDate } from "@/lib/utils/format";
 import type { PatchNote, UpdatePost } from "@/lib/games/types";
+import type { HypeNote } from "@/lib/games/hype-reality";
 import type { GameIds } from "./endpoint";
 import { useReviewVelocity, useScoreTimeline } from "./history";
 import { InfoTip } from "./InfoTip";
@@ -42,7 +44,11 @@ export interface ScoresData {
   userRating: { rating: number; count: number } | null;
   hasSteam: boolean;
   links: { openCritic: string | null; metacritic: string | null };
+  /** "Hype vs reality", for released games with a following and a score. */
+  hype?: HypeNote | null;
 }
+
+const HYPE_TONE: Record<HypeNote["tone"], string> = { over: "text-flare", sleeper: "text-mint", met: "text-gold" };
 
 /** The three verdicts side by side, each with what it means. */
 export function ScoresSummary({ data }: { data: ScoresData }) {
@@ -133,6 +139,15 @@ export function ScoresSummary({ data }: { data: ScoresData }) {
             recent: reviews.state === "ready" && reviews.value.recent ? { percent: reviews.value.recent.percent, total: reviews.value.recent.total } : null,
           }}
         />
+      )}
+      {data.hype && (
+        <div className="flex gap-3 border-t border-line px-5 py-4 sm:px-6">
+          <Flame size={18} aria-hidden className={cn("mt-0.5 shrink-0", HYPE_TONE[data.hype.tone])} />
+          <p className="text-[14px] leading-relaxed text-muted">
+            <span className="font-semibold text-text">Hype vs reality: {data.hype.headline.toLowerCase()}.</span> {data.hype.detail}{" "}
+            <Link href="/stats#hype-title" className="whitespace-nowrap font-medium text-brand-soft hover:underline">See all recent releases</Link>
+          </p>
+        </div>
       )}
       {outLinks.length > 0 && (
         <ul className="flex flex-wrap gap-2 border-t border-line px-5 py-3.5 sm:px-6">

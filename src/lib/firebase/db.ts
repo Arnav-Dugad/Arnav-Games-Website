@@ -38,6 +38,7 @@ import {
 import { getDb } from "./config";
 import type { GameDetail, GameSummary, UserPcSpecs } from "@/lib/games/types";
 import { releaseState } from "@/lib/games/release-state";
+import type { SteamMatch } from "@/lib/personal/steam-import";
 
 export type WatchStatus = "none" | "want" | "playing" | "played";
 export const LIBRARY_SCHEMA_VERSION = 3;
@@ -588,6 +589,97 @@ export async function batchUpdateLibraryEntries(
     }
     await batch.commit();
   }
+}
+
+/** One reviewed row of a Steam import. */
+export interface LibraryImportRow {
+  match: SteamMatch;
+  status: "none" | "playing" | "played";
+  /** Epoch ms Steam last saw it launched; null when never. */
+  lastPlayed: number | null;
+}
+
+const STATUS_RANK: Record<WatchStatus, number> = { none: 0, want: 1, playing: 2, played: 3 };
+
+/**
+ * What an import writes for one game: a whole new record, or — for a game
+ * already in the library — a merge patch that only ever adds. Ownership
+ * gains "steam"; the status moves forward (never back: a game marked Played
+ * stays Played whatever Steam's clock says); first-transition timestamps are
+ * filled only when missing. Pure, so the merge rules are checked.
+ */
+export function libraryImportWrite(
+  existing: WatchlistEntry | undefined,
+  row: LibraryImportRow,
+  now = Date.now(),
+): { kind: "create"; entry: WatchlistEntry } | { kind: "merge"; patch: Record<string, unknown> } | null {
+  const { match, status } = row;
+  const stamp = row.lastPlayed ?? now;
+  if (!existing) {
+    return {
+      kind: "create",
+      entry: {
+        gameId: match.id,
+        steamAppId: match.appid,
+        slug: match.slug,
+        name: match.name,
+        image: match.image,
+        imageFallback: match.imageFallback,
+        released: match.released,
+        releaseWindow: match.releaseWindow,
+        tba: match.tba,
+        metacritic: match.metacritic,
+        following: false,
+        watchlisted: false,
+        metadataVersion: LIBRARY_SCHEMA_VERSION,
+        metadataUpdatedAt: now,
+        ...(match.hours ? { playtime: match.hours } : {}),
+        status,
+        platform: status === "none" ? null : "steam",
+        startedAt: status === "playing" || status === "played" ? stamp : null,
+        finishedAt: status === "played" ? stamp : null,
+        genreIds: match.genres.map((genre) => genre.id),
+        genres: match.genres,
+        platformSlugs: match.platformSlugs,
+        ownedOn: ["steam"],
+        subscriptionAccess: [],
+        followedReleases: [],
+        addedAt: now,
+      },
+    };
+  }
+  const patch: Record<string, unknown> = {};
+  const owned = existing.ownedOn ?? [];
+  if (!owned.includes("steam")) patch.ownedOn = [...new Set([...owned, "steam"])];
+  if (STATUS_RANK[status] > STATUS_RANK[existing.status]) {
+    patch.status = status;
+    if (!existing.platform) patch.platform = "steam";
+  }
+  const next = (patch.status as WatchStatus | undefined) ?? existing.status;
+  if ((next === "playing" || next === "played") && !existing.startedAt) patch.startedAt = stamp;
+  if (next === "played" && !existing.finishedAt) patch.finishedAt = stamp;
+  if (!existing.steamAppId) patch.steamAppId = match.appid;
+  return Object.keys(patch).length ? { kind: "merge", patch } : null;
+}
+
+/** Writes reviewed import rows, 400 per atomic batch. Returns how many games changed. */
+export async function importLibraryGames(uid: string, rows: LibraryImportRow[], existing: WatchlistEntry[]): Promise<number> {
+  const db = requireDb();
+  const byId = new Map(existing.map((entry) => [entry.gameId, entry]));
+  const now = Date.now();
+  const writes = [...new Map(rows.map((row) => [row.match.id, row])).values()]
+    .map((row) => ({ id: row.match.id, write: libraryImportWrite(byId.get(row.match.id), row, now) }))
+    .filter((item) => item.write !== null);
+  for (let offset = 0; offset < writes.length; offset += 400) {
+    const batch = writeBatch(db);
+    for (const { id, write } of writes.slice(offset, offset + 400)) {
+      const ref = doc(db, "users", uid, "watchlist", String(id));
+      if (write!.kind === "create") batch.set(ref, write!.entry);
+      else batch.set(ref, write!.patch, { merge: true });
+    }
+    await batch.commit();
+  }
+  return writes.length;
 }
 
 /** Repairs stale catalogue snapshots while preserving every personal field. */

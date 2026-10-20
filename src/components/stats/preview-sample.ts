@@ -202,3 +202,120 @@ export function sampleWishlist(): {
   });
   return { entries, prices, timeToBeat };
 }
+
+/* ---------------------------------------------------------------------------
+ * Deeper personal data for `/stats/preview`: a journal, hours, purchases,
+ * ratings, facets and prices for the sample library. Deterministic for a
+ * given `now`, which the server passes down so both renders agree.
+ * ------------------------------------------------------------------------ */
+
+const THEMES: Partial<Record<GenreKey, Array<{ id: number; name: string }>>> = {
+  rpg: [{ id: 17, name: "Fantasy" }, { id: 38, name: "Open world" }],
+  adventure: [{ id: 1, name: "Action" }, { id: 38, name: "Open world" }],
+  shooter: [{ id: 1, name: "Action" }, { id: 18, name: "Science fiction" }],
+  platform: [{ id: 1, name: "Action" }],
+  puzzle: [{ id: 31, name: "Drama" }],
+  strategy: [{ id: 39, name: "Warfare" }],
+  tactical: [{ id: 39, name: "Warfare" }],
+  hack: [{ id: 1, name: "Action" }, { id: 19, name: "Horror" }],
+  indie: [{ id: 27, name: "Comedy" }],
+  racing: [{ id: 21, name: "Sandbox" }],
+};
+const PERSPECTIVE: Partial<Record<GenreKey, { id: number; name: string }>> = {
+  shooter: { id: 1, name: "First person" },
+  platform: { id: 4, name: "Side view" },
+  strategy: { id: 3, name: "Bird view / Isometric" },
+  tactical: { id: 3, name: "Bird view / Isometric" },
+};
+
+/** The sample's "today": fixed, so the sample is the same on every render (and the purity rules hold). */
+export const SAMPLE_NOW = Date.UTC(2026, 9, 20, 12);
+
+/** A tiny seeded generator, so the sample is the same on every render. */
+function seeded(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 2 ** 32;
+  };
+}
+
+export function sampleDeep(entries: WatchlistEntry[], now: number) {
+  const random = seeded(42);
+  const moods = ["great", "good", "good", "okay", "meh", "frustrated"] as const;
+  const played = entries.filter((entry) => entry.status === "played" || entry.status === "playing");
+  const journal = Array.from({ length: 140 }, (_, index) => {
+    const game = played[Math.floor(random() * played.length)];
+    const daysAgo = Math.floor(random() ** 1.4 * 360);
+    const weekend = random() < 0.4;
+    // Evenings on weekdays, afternoons and late nights at weekends.
+    const hour = weekend ? 13 + Math.floor(random() * 11) : 19 + Math.floor(random() * 5);
+    const at = Math.floor((now - daysAgo * 86_400_000) / 86_400_000) * 86_400_000 + hour * 3_600_000 + Math.floor(random() * 59) * 60_000;
+    return {
+      id: `sample-${index}`,
+      gameId: game.gameId,
+      slug: game.slug,
+      name: game.name,
+      image: null,
+      note: "",
+      mood: moods[Math.floor(random() * moods.length)],
+      hours: random() < 0.85 ? Math.round((0.5 + random() * 3.5) * 2) / 2 : null,
+      at: Math.min(at, now - 3_600_000),
+    };
+  });
+  const playtime: Record<number, number> = {};
+  for (const entry of entries) {
+    if (entry.status === "played") playtime[entry.gameId] = Math.round(10 + random() * 80);
+    else if (entry.status === "playing") playtime[entry.gameId] = Math.round(2 + random() * 25);
+    else if ((entry.ownedOn ?? []).length && random() < 0.25) playtime[entry.gameId] = Math.round(1 + random() * 6);
+  }
+  const owned = entries.filter((entry) => (entry.ownedOn ?? []).length > 0 && entry.released);
+  const purchases = owned.slice(0, 22).map((entry, index) => ({
+    gameId: entry.gameId,
+    amount: index === 5 ? 0 : Math.round((9.99 + random() * 60) * 100),
+    currency: index % 7 === 3 ? "EUR" : "USD",
+    store: entry.ownedOn[0],
+    at: Date.UTC(new Date(entry.addedAt).getUTCFullYear(), new Date(entry.addedAt).getUTCMonth(), new Date(entry.addedAt).getUTCDate()),
+    updatedAt: entry.addedAt,
+  }));
+  const reviews = entries.filter((entry) => entry.status === "played").slice(0, 8).map((entry, index) => ({ gameId: entry.gameId, rating: [10, 9, 8, 9, 6, 9, 4, 8][index] }));
+  const facets: Record<number, { themes: Array<{ id: number; name: string }>; perspectives: Array<{ id: number; name: string }> }> = {};
+  for (const entry of entries) {
+    const keys = (Object.keys(G) as GenreKey[]).filter((key) => entry.genreIds.includes(G[key].id));
+    const themes = [...new Map(keys.flatMap((key) => THEMES[key] ?? []).map((theme) => [theme.id, theme])).values()];
+    const perspective = keys.map((key) => PERSPECTIVE[key]).find(Boolean) ?? { id: 2, name: "Third person" };
+    facets[entry.gameId] = { themes, perspectives: [perspective] };
+  }
+  const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+  const current: BatchPrices = {};
+  const history: Record<number, { currency: string; samples: Array<{ date: string; price: number; initial: number | null }> }> = {};
+  owned.forEach((entry, index) => {
+    if (entry.ownedOn.includes("physical") && index % 2) {
+      current[String(entry.gameId)] = null;
+      return;
+    }
+    const full = [5999, 3999, 2999, 1999, 6999][index % 5];
+    const price = index % 3 === 0 ? Math.round(full * 0.6) : full;
+    current[String(entry.gameId)] = { store: "steam", country: "US", currency: "USD", price, initial: full, discount: Math.round((1 - price / full) * 100), formatted: usd.format(price / 100), url: "https://store.steampowered.com/" };
+    if (index < 18) {
+      history[entry.gameId] = {
+        currency: "USD",
+        samples: Array.from({ length: 10 }, (_, step) => {
+          const day = new Date(now - (300 - step * 30) * 86_400_000).toISOString().slice(0, 10);
+          const sale = (step + index) % 4 === 0;
+          return { date: day, price: sale ? Math.round(full * 0.5) : full, initial: full };
+        }),
+      };
+    }
+  });
+  return {
+    journal,
+    playtime,
+    purchases,
+    reviews,
+    facets,
+    pricing: { current, history, historyChecked: Math.min(30, owned.length) },
+    rates: { EUR: 0.92, GBP: 0.79, INR: 83.2 },
+    region: "US",
+  };
+}

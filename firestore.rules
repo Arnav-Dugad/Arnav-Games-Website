@@ -230,6 +230,30 @@ service cloud.firestore {
         allow create, update: if isOwner(uid) && validPlaytime(gameId);
       }
 
+      // --- What you paid -----------------------------------------------------
+      // users/{uid}/purchases/{gameId}: one purchase per game (the document
+      // id is the game id), for the spending tracker (src/lib/personal/
+      // spend.ts). `amount` is in minor units of `currency` (an ISO 4217
+      // code), bounded so a typo of extra zeros is refused; `store` is an
+      // ownership slug; `at` is the purchase date (UTC midnight), not in the
+      // future beyond a two-day zone allowance.
+      function validPurchase(gameId) {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['gameId', 'amount', 'currency', 'store', 'at', 'updatedAt'])
+          && data.keys().hasAll(['gameId', 'amount', 'currency', 'store', 'at', 'updatedAt'])
+          && data.gameId is int && data.gameId != 0 && data.gameId == int(gameId)
+          && data.amount is int && data.amount >= 0 && data.amount <= 10000000000
+          && data.currency is string && data.currency.matches('^[A-Z]{3}$')
+          && data.store is string && data.store.matches('^[a-z0-9-]{1,40}$')
+          && data.at is int && data.at >= 0 && data.at <= request.time.toMillis() + 172800000
+          && data.updatedAt is int && data.updatedAt > 0;
+      }
+
+      match /purchases/{gameId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validPurchase(gameId);
+      }
+
       // --- Your tags --------------------------------------------------------
       // users/{uid}/gameTags/{gameId}: the tags this reader gave one game.
       // Readable by its owner; written only by the server (POST /api/tags,

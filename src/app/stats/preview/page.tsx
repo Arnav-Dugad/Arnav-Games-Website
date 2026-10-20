@@ -10,12 +10,14 @@
  *   ?games=N        only the first N sample games (try 3 for the low-data states)
  *   ?hours=loading  | unavailable — the time-to-beat states
  *   ?benchmark=off  the catalogue benchmark missing
+ *   ?deep=off       without the deeper cards (finish rates, taste map, heatmap, money)
  */
 
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { StatsDashboard, type HoursStatus } from "@/components/stats/StatsDashboard";
-import { SAMPLE_BENCHMARK, sampleLibrary } from "@/components/stats/preview-sample";
+import type { HoursStatus } from "@/components/stats/StatsDashboard";
+import { StatsPreviewClient } from "@/components/stats/StatsPreviewClient";
+import { SAMPLE_BENCHMARK, SAMPLE_NOW, sampleDeep, sampleLibrary } from "@/components/stats/preview-sample";
 import { Container } from "@/components/ui/SectionHeading";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { buildPersonalAnalytics } from "@/lib/games/stats";
@@ -46,7 +48,9 @@ export default async function StatsPreviewPage({
     <>
       <PageHeader eyebrow={`Dev preview · sample library of ${entries.length} games`} title="Your stats" />
       <Container className="pb-8 lg:pb-12">
-        <StatsDashboard
+        <StatsPreviewClient
+          entries={entries}
+          deep={single("deep") === "off" ? null : sampleDeep(entries, SAMPLE_NOW)}
           analytics={analytics}
           benchmark={single("benchmark") === "off" ? null : SAMPLE_BENCHMARK}
           hoursStatus={hoursStatus}

@@ -8,24 +8,28 @@
  */
 
 import { useState } from "react";
-import { Minus, NotebookPen, Pencil, Plus, Trash2 } from "lucide-react";
+import { Minus, NotebookPen, Pencil, Plus, Trash2, Wallet } from "lucide-react";
 import { DetailHeading } from "@/components/game/detail/DetailSection";
 import { useToast } from "@/components/ui/Toast";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { haptic } from "@/lib/haptics";
-import { deleteJournalEntry, openSessionLog, setPlaytime, usePersonal, type GameRef, type JournalEntry } from "@/lib/personal/store";
+import { deleteJournalEntry, openPurchaseEditor, openSessionLog, setPlaytime, usePersonal, type GameRef, type JournalEntry } from "@/lib/personal/store";
+import { formatMoney, type Purchase } from "@/lib/personal/spend";
+import { ownershipPlatform } from "@/lib/games/stores-catalog";
 import { cn } from "@/lib/utils/cn";
 import { MOOD_ICON, MOOD_TONE } from "./SessionSheet";
 import { formatHours, journalDate } from "./format";
 
 export default function YourPlay({ game, crowdHours }: { game: GameRef; crowdHours: number | null }) {
-  const { uid, ready, journal, playtime } = usePersonal();
-  const { statusOf } = useWatchlist();
+  const { uid, ready, journal, playtime, purchases } = usePersonal();
+  const { statusOf, ownershipOf } = useWatchlist();
   if (!uid || !ready) return null;
 
   const entries = journal.filter((entry) => entry.gameId === game.id);
   const hours = playtime[game.id] ?? 0;
   const status = statusOf(game.id);
+  const purchase = purchases[game.id] ?? null;
+  const owned = ownershipOf(game.id).length > 0 || purchase !== null;
 
   return (
     <section id="your-play" aria-labelledby="your-play-title" className="scroll-mt-36">
@@ -43,7 +47,10 @@ export default function YourPlay({ game, crowdHours }: { game: GameRef; crowdHou
         }
       />
       <div className="mt-6 grid gap-4 sm:mt-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <YourTime uid={uid} gameId={game.id} hours={hours} crowdHours={crowdHours} finished={status === "played"} />
+        <div className="flex flex-col gap-4">
+          <YourTime uid={uid} gameId={game.id} hours={hours} crowdHours={crowdHours} finished={status === "played"} />
+          {owned && <YourPrice game={game} purchase={purchase} hours={hours} />}
+        </div>
         <Journal uid={uid} entries={entries} />
       </div>
     </section>
@@ -124,6 +131,37 @@ function YourTime({ uid, gameId, hours, crowdHours, finished }: { uid: string; g
           {crowdHours ? `Most players finish the story in ${formatHours(crowdHours)}.` : "Log sessions or add your hours to keep count."}
         </p>
       )}
+    </div>
+  );
+}
+
+const PAID_DATE = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+
+/** What they paid, and what that works out to per hour so far. */
+function YourPrice({ game, purchase, hours }: { game: GameRef; purchase: Purchase | null; hours: number }) {
+  const perHour = purchase && purchase.amount > 0 && hours >= 1 ? Math.round(purchase.amount / hours) : null;
+  return (
+    <div className="glass flex items-center gap-4 rounded-3xl p-5 sm:p-6">
+      <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-fg/[0.06] text-muted"><Wallet size={18} /></span>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-[15px] font-semibold text-text">What you paid</h3>
+        {purchase ? (
+          <p className="mt-0.5 text-[13px] text-muted">
+            <span className="font-display text-[20px] font-bold tabular-nums text-text">{purchase.amount === 0 ? "Free" : formatMoney(purchase.amount, purchase.currency, { whole: false })}</span>
+            {" "}· {ownershipPlatform(purchase.store)?.name ?? "another store"} · {PAID_DATE.format(purchase.at)}
+            {perHour !== null && <span className="block">{formatMoney(perHour, purchase.currency, { whole: false })} per hour so far</span>}
+          </p>
+        ) : (
+          <p className="mt-0.5 text-[13px] text-muted">Add it to see cost per hour and your spending on Stats.</p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => openPurchaseEditor(game)}
+        className="press inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-muted fine:hover:bg-fg/[0.06]"
+      >
+        <Pencil size={13} aria-hidden /> {purchase ? "Edit" : "Add"}
+      </button>
     </div>
   );
 }

@@ -30,6 +30,8 @@ import { usePreferences } from "@/lib/preferences/PreferencesProvider";
 import { useThemePreference, type ThemePreference } from "@/lib/preferences/theme";
 import { PRICE_REGIONS, readDetectedRegion, usePriceRegion } from "@/lib/preferences/region";
 import { InstallAppRow } from "@/components/pwa/InstallAppRow";
+import { BrandIcon } from "@/components/brand/BrandIcon";
+import { SteamImportButton } from "@/components/library/SteamImportButton";
 import { pcSummary, usePcSpecs } from "@/lib/preferences/pc";
 import { SearchField } from "@/components/filters";
 import { Sheet } from "@/components/ui/Sheet";
@@ -60,6 +62,7 @@ export function SettingsView() {
         </Group>
         <PricesGroup />
         <GamingGroup />
+        <LibraryGroup />
         <Group id="notifications" title="Notifications" footer="Release reminders run from 14 days before launch to three days after.">
           <NotificationRow />
         </Group>
@@ -506,6 +509,22 @@ function GamingGroup() {
         <ChevronRight size={17} aria-hidden className="shrink-0 text-faint" />
       </button>
       {mounted && <MyPcSheet open={open} onClose={() => setOpen(false)} />}
+    </Group>
+  );
+}
+
+function LibraryGroup() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return (
+    <Group id="library-import" title="Library" footer="Adds your Steam games as owned, with your hours and a suggested status you review first. Needs your Steam game details set to public.">
+      <SteamImportButton variant="custom" className={cn(rowClass, "press transition-colors fine:hover:bg-fg/[0.04]")}>
+        <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[8px] bg-[#171a21] text-white">
+          <BrandIcon name="steam" size={16} title={null} />
+        </span>
+        <span className="min-w-0 flex-1 text-[15px] sm:text-[16px]">Import from Steam</span>
+        <ChevronRight size={17} aria-hidden className="shrink-0 text-faint" />
+      </SteamImportButton>
     </Group>
   );
 }

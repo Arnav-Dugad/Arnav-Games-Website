@@ -20,7 +20,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { openSessionLog } from "@/lib/personal/store";
+import { openPurchaseEditor, openSessionLog } from "@/lib/personal/store";
 import {
   useCallback,
   useEffect,
@@ -49,6 +49,7 @@ import {
   Share,
   ThumbsUp,
   Trophy,
+  Wallet,
 } from "lucide-react";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { compareHref } from "@/components/compare/types";
@@ -754,6 +755,18 @@ function GameMenu({
             >
               I own this…
             </MenuItem>
+            {owned.length > 0 && (
+              <MenuItem
+                icon={<Wallet size={16} />}
+                onSelect={() => {
+                  if (!requireAccount()) return;
+                  onClose();
+                  openPurchaseEditor({ id: game.id, slug: game.slug, name: game.name, image: game.image });
+                }}
+              >
+                What I paid…
+              </MenuItem>
+            )}
             <MenuItem icon={<Columns3 size={16} />} onSelect={compare}>
               Compare with…
             </MenuItem>

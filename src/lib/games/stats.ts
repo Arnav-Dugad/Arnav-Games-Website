@@ -754,7 +754,7 @@ function hoursFor(ttb: TimeToBeatLike | undefined): number | null {
  * enough to stand in. Several copies and no play platform stays unassigned
  * rather than being credited to whichever copy happens to be listed first.
  */
-function hoursPlatform(game: WatchlistEntry): string | null {
+export function playPlatform(game: WatchlistEntry): string | null {
   if (game.platform) return game.platform;
   const owned = [...new Set(game.ownedOn ?? [])];
   const access = [...new Set((game.subscriptionAccess ?? []).map((item) => item.platform))];
@@ -774,7 +774,7 @@ function buildHours(
 
   const platforms = new Map<string, PlatformHours>();
   const credit = (game: WatchlistEntry, field: "finished" | "inProgress", hours: number) => {
-    const slug = hoursPlatform(game);
+    const slug = playPlatform(game);
     const key = slug ?? "unassigned";
     const row = platforms.get(key) ?? { key, label: slug ? platformLabel(slug) : "Platform not set", finished: 0, inProgress: 0 };
     row[field] += hours;

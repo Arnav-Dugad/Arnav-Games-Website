@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import { Check, Library, Plus } from "lucide-react";
+import { Check, ChevronRight, Library, Plus, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { BrandIcon } from "@/components/brand/BrandIcon";
 import { useAuth } from "@/lib/firebase/AuthProvider";
@@ -19,6 +19,8 @@ import { useToast } from "@/components/ui/Toast";
 import { haptic } from "@/lib/haptics";
 import { Popover } from "@/components/ui/Popover";
 import { OWNERSHIP_PLATFORMS } from "@/lib/games/stores-catalog";
+import { openPurchaseEditor, usePersonal } from "@/lib/personal/store";
+import { formatMoney } from "@/lib/personal/spend";
 import { cn } from "@/lib/utils/cn";
 import type { GameSummary } from "@/lib/games/types";
 
@@ -170,7 +172,35 @@ export function OwnershipPicker({
             );
           })}
         </ul>
+        {/* Once it's owned: what it cost, for the spending tracker on /stats. */}
+        {open && owned.length > 0 && <PaidRow game={game} onOpen={() => setOpen(false)} />}
       </Popover>
+    </div>
+  );
+}
+
+/**
+ * Its own component so the reader's purchases (and the rest of their play
+ * records) are only read when this popover is actually open — never by the
+ * dozens of cards on a grid.
+ */
+function PaidRow({ game, onOpen }: { game: GameSummary; onOpen: () => void }) {
+  const paid = usePersonal().purchases[game.id] ?? null;
+  return (
+    <div className="mt-1 border-t border-line pt-1">
+      <button
+        type="button"
+        onClick={() => {
+          onOpen();
+          openPurchaseEditor({ id: game.id, slug: game.slug, name: game.name, image: game.image });
+        }}
+        className="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-muted transition-colors hover:bg-fg/[0.06] hover:text-text"
+      >
+        <Wallet size={15} className="text-faint" aria-hidden />
+        <span className="flex-1">{paid ? "What you paid" : "Add what you paid"}</span>
+        {paid && <span className="tabular-nums text-text">{paid.amount === 0 ? "Free" : formatMoney(paid.amount, paid.currency, { whole: false })}</span>}
+        <ChevronRight size={14} className="text-faint" aria-hidden />
+      </button>
     </div>
   );
 }

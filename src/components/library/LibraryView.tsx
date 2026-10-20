@@ -38,6 +38,7 @@ import { OwnershipPicker } from "@/components/game/OwnershipPicker";
 import { entryAsGameSummary } from "@/components/interactions/game-menu-targets";
 import { useTimeToBeat } from "@/components/stats/useTimeToBeat";
 import { BatchEditPanel } from "./BatchEditPanel";
+import { SteamImportButton } from "./SteamImportButton";
 import { BacklogRoulette } from "./BacklogRoulette";
 import { RailTabs, SmartRail } from "./SmartRail";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
@@ -251,6 +252,10 @@ export function LibraryView({
           action={{ href: "/browse", label: "Find your games" }}
           secondaryAction={{ href: "/watchlist", label: "Open your watchlist" }}
         />
+        <div className="mt-5 flex flex-col items-center gap-2 text-center">
+          <p className="text-[14px] text-muted">Play on PC? Bring your whole Steam library across in one go.</p>
+          <SteamImportButton variant="primary" />
+        </div>
       </Container>
     );
   }
@@ -295,8 +300,14 @@ export function LibraryView({
 
       <Container>
         <section ref={collectionRef} aria-labelledby="library-all" className="mt-12 scroll-mt-24 sm:mt-16">
-          <div className="flex items-end justify-between gap-3">
-            <h2 id="library-all" className="font-display text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">All games</h2>
+          <div className="flex items-end gap-1 sm:gap-2">
+            <h2 id="library-all" className="whitespace-nowrap font-display text-[22px] font-bold tracking-[-0.02em] sm:text-[28px]">All games</h2>
+            <span className="ml-auto" />
+            <SteamImportButton variant="custom" className="press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[15px] font-medium text-brand-soft fine:hover:bg-brand/10">
+              <BrandIcon name="steam" size={15} title={null} />
+              <span className="max-sm:hidden">Import from Steam</span>
+              <span className="sm:hidden max-[359px]:sr-only">Import</span>
+            </SteamImportButton>
             {view !== "shelf" && (
               <button
                 type="button"

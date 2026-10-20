@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -8,11 +9,16 @@ import {
   Clock3,
   Disc3,
   Gauge,
+  Flag,
+  Grid3x3,
   History,
   Layers3,
+  Orbit,
   Radar,
   Star,
   Trophy,
+  TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { Reveal } from "@/components/motion/Reveal";
 import { SectionMiniMap } from "@/components/interactions/SectionMiniMap";
@@ -30,6 +36,22 @@ import { StatusFunnel } from "./charts/StatusFunnel";
 import { TasteDrift } from "./charts/TasteDrift";
 import { CountUp, LockedState, StatCard, VizStyles, formatHours, formatPercent } from "./primitives";
 import type { HoursStatus } from "./useTimeToBeat";
+import type { DeepInsights } from "./useDeepInsights";
+import { finishSentence } from "./charts/FinishRates";
+
+/*
+ * The deeper cards are heavier SVG and only mean anything with the reader's
+ * own data, so they load on demand and render nothing on the server (their
+ * skeletons hold the space, so nothing shifts when they arrive).
+ */
+const chartSkeleton = (height: string) => function ChartSkeleton() {
+  return <Skeleton className={`${height} rounded-2xl`} />;
+};
+const FinishRates = dynamic(() => import("./charts/FinishRates").then((mod) => mod.FinishRates), { ssr: false, loading: chartSkeleton("h-72") });
+const TasteMap = dynamic(() => import("./charts/TasteMap").then((mod) => mod.TasteMap), { ssr: false, loading: chartSkeleton("mx-auto aspect-square w-full max-w-[420px]") });
+const PlayHeatmap = dynamic(() => import("./charts/PlayHeatmap").then((mod) => mod.PlayHeatmap), { ssr: false, loading: chartSkeleton("h-72") });
+const SpendBreakdown = dynamic(() => import("./charts/Money").then((mod) => mod.SpendBreakdown), { ssr: false, loading: chartSkeleton("h-80") });
+const LibraryValueChart = dynamic(() => import("./charts/Money").then((mod) => mod.LibraryValueChart), { ssr: false, loading: chartSkeleton("h-64") });
 
 /** Where the time-to-beat lookup stands. "unavailable" hides every hours figure. */
 export type { HoursStatus } from "./useTimeToBeat";
@@ -49,6 +71,7 @@ const GROUPS = [
   { id: "taste", label: "Taste" },
   { id: "time", label: "Time" },
   { id: "collection", label: "Collection" },
+  { id: "money", label: "Money" },
 ] as const;
 const MAP_SECTIONS = GROUPS.map((group) => ({ id: `stats-${group.id}`, label: group.label }));
 
@@ -78,12 +101,15 @@ export function StatsDashboard({
   hoursStatus,
   forecast = null,
   personal = null,
+  deep = null,
 }: {
   analytics: PersonalAnalytics;
   benchmark: CatalogueBenchmark | null;
   hoursStatus: HoursStatus;
   forecast?: BacklogForecast | null;
   personal?: PersonalHours | null;
+  /** The deeper personal cards; omitted, they don't render. */
+  deep?: DeepInsights | null;
 }) {
   const { radar, drift, hours, finish, critic, funnel, eras, platformSplit } = analytics;
   const hoursReady = hoursStatus === "ready" && hours.available;
@@ -175,9 +201,54 @@ export function StatsDashboard({
             )}
           </StatCard>
         </Reveal>
+        {deep && (
+          <Reveal className="lg:col-span-12">
+            <StatCard
+              icon={<Flag size={13} />}
+              title="What you finish"
+              summary={deep.finish.highlight.genres ? finishSentence(deep.finish.highlight.genres, "genres") : undefined}
+            >
+              {deep.finish.base >= 3 ? (
+                <FinishRates rates={deep.finish} />
+              ) : (
+                <LockedState
+                  message="Own or play three games to see what you finish."
+                  detail="Finish rates compare what you finished with what you started and left, by genre, theme and platform."
+                  progress={deep.finish.base / 3}
+                  href="/library"
+                  cta="Open your library"
+                />
+              )}
+            </StatCard>
+          </Reveal>
+        )}
       </StatsGroup>
 
       <StatsGroup id="taste" title="Taste">
+        {deep && (
+          <Reveal className="lg:col-span-12">
+            <StatCard
+              icon={<Orbit size={13} />}
+              title="Your taste map"
+              summary={deep.taste?.unlocked ? `Strongest pulls: ${[...deep.taste.nodes].sort((a, b) => b.weight - a.weight).slice(0, 5).map((node) => node.label).join(", ")}.` : undefined}
+              footnote={deep.taste?.unlocked ? "Weighted by status, ownership, hours played, your ratings and the moods in your journal, with recent games counting more. A game's weight is shared across its genres, themes and perspectives." : undefined}
+            >
+              {!deep.taste ? (
+                <Skeleton className="mx-auto aspect-square w-full max-w-[420px] rounded-3xl" />
+              ) : deep.taste.unlocked ? (
+                <TasteMap map={deep.taste} />
+              ) : (
+                <LockedState
+                  message={deep.taste.games < deep.taste.required
+                    ? `Track, play or rate ${plural(deep.taste.required - deep.taste.games, "more game")} to map your taste.`
+                    : "Your games share too few genres and themes to map yet."}
+                  detail="Ratings and finished games pull hardest; a wishlist barely moves it."
+                  progress={Math.min(1, deep.taste.games / deep.taste.required)}
+                />
+              )}
+            </StatCard>
+          </Reveal>
+        )}
         <Reveal className="lg:col-span-6">
           <StatCard
             className="h-full"
@@ -268,6 +339,22 @@ export function StatsDashboard({
             )}
           </StatCard>
         </Reveal>
+        {deep && (
+          <Reveal className="lg:col-span-12">
+            <StatCard icon={<Grid3x3 size={13} />} title="When you play">
+              {deep.play.sessions.length + deep.play.milestones.length > 0 ? (
+                <PlayHeatmap sessions={deep.play.sessions} milestones={deep.play.milestones} />
+              ) : (
+                <LockedState
+                  message="Log a play session to see when you play."
+                  detail="Use “Log a session” on any game you’re playing. Your week fills in by day and hour, in your own time zone."
+                  href="/library"
+                  cta="Open your library"
+                />
+              )}
+            </StatCard>
+          </Reveal>
+        )}
       </StatsGroup>
 
       <StatsGroup id="collection" title="Collection">
@@ -301,6 +388,8 @@ export function StatsDashboard({
           </StatCard>
         </Reveal>
       </StatsGroup>
+
+      {deep && <MoneyGroup money={deep.money} />}
 
       <details className="group mt-10 rounded-3xl border border-line bg-fg/[0.02] px-5 py-3 sm:px-6">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-[15px] font-semibold">
@@ -468,4 +557,59 @@ function criticFootnote(basis: "owned" | "library", scored: number, considered: 
   return benchmark
     ? `${base} Benchmark: the average of the ${benchmark.sample} most-rated scored games on IGDB.`
     : `${base} The catalogue benchmark is unavailable right now.`;
+}
+
+function MoneyGroup({ money }: { money: DeepInsights["money"] }) {
+  const { spend, value } = money;
+  const loading = money.status === "loading";
+  return (
+    <StatsGroup id="money" title="Money">
+      <Reveal className="lg:col-span-7">
+        <StatCard
+          className="h-full"
+          icon={<Wallet size={13} />}
+          title="What you’ve spent"
+          summary={spend ? `${spend.counted} purchases recorded.` : undefined}
+          footnote={spend
+            ? `Totals in ${spend.currency}, converted at ECB reference rates where you paid in another currency${spend.unconverted ? `; ${plural(spend.unconverted, "purchase")} in a currency the ECB doesn’t publish ${spend.unconverted === 1 ? "is" : "are"} left out` : ""}. Lowest and full prices are the ones we’ve observed in ${money.regionName}.`
+            : undefined}
+        >
+          {money.purchases === 0 ? (
+            <LockedState
+              message="Record what you paid for a game to start."
+              detail="On a game you own, open “I own this” and add what you paid, in any currency. Totals, cost per hour and how your prices compare with the lows appear here."
+              href="/library"
+              cta="Open your library"
+            />
+          ) : loading || !spend ? (
+            <div className="space-y-3" aria-label="Loading"><Skeleton className="h-20 rounded-2xl" /><Skeleton className="h-36 rounded-2xl" /></div>
+          ) : (
+            <SpendBreakdown summary={spend} names={money.names} />
+          )}
+        </StatCard>
+      </Reveal>
+      <Reveal delay={0.04} className="lg:col-span-5">
+        <StatCard
+          className="h-full"
+          icon={<TrendingUp size={13} />}
+          title="What your library is worth"
+          footnote={value && money.status === "ready"
+            ? `Today’s best store prices in ${money.regionName} for ${value.priced} of ${plural(money.owned, "owned game")}${value.unpriced ? ` (${value.unpriced} not sold there)` : ""}. ${value.basis === "history" ? `Our price history covers ${money.historyFound} of the ${money.historyChecked} most valuable; earlier months use today’s price from the month each game joined your library (dashed).` : "We have no price history for these games yet, so each month shows today’s prices for the games you had by then."}`
+            : undefined}
+        >
+          {money.owned === 0 ? (
+            <LockedState message="Mark games you own to value your library." href="/library" cta="Open your library" />
+          ) : loading ? (
+            <div className="space-y-3" aria-label="Loading"><Skeleton className="h-20 rounded-2xl" /><Skeleton className="h-40 rounded-2xl" /></div>
+          ) : money.status === "unavailable" || !value || !money.valueCurrency ? (
+            <LockedState message="Store prices aren’t available right now." detail="Prices come from the stores themselves; try again later." />
+          ) : value.priced === 0 ? (
+            <LockedState message={`None of your games has a store price in ${money.regionName}.`} detail="Console and physical copies often have no digital price to look up." />
+          ) : (
+            <LibraryValueChart value={value} currency={money.valueCurrency} paid={money.paid} />
+          )}
+        </StatCard>
+      </Reveal>
+    </StatsGroup>
+  );
 }

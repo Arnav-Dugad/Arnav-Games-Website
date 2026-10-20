@@ -6,6 +6,7 @@
  *
  *   users/{uid}/journal/{entryId}   one session note (see firestore.rules)
  *   users/{uid}/playtime/{gameId}   { gameId, hours, updatedAt }
+ *   users/{uid}/purchases/{gameId}  what they paid (see `spend.ts`)
  *
  * Read straight from Firestore in the browser (no Worker request), once per
  * account per session, and kept on the device so the next visit paints
@@ -17,10 +18,11 @@
  */
 
 import { useEffect, useSyncExternalStore } from "react";
-import { collection, deleteDoc, doc, getDocs, limit, orderBy, query, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, limit, orderBy, query, setDoc, writeBatch } from "firebase/firestore";
 import { getDb } from "@/lib/firebase/config";
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { STORAGE_PREFIX } from "@/lib/utils/storage-keys";
+import { validPurchase, type Purchase } from "./spend";
 
 export const MOODS = ["great", "good", "okay", "meh", "frustrated"] as const;
 export type Mood = (typeof MOODS)[number];
@@ -53,6 +55,8 @@ interface PersonalState {
   journal: JournalEntry[];
   /** gameId → hours. */
   playtime: Record<number, number>;
+  /** gameId → what they paid. */
+  purchases: Record<number, Purchase>;
 }
 
 /** Newest 300 entries is plenty for every view and keeps the read bounded. */
@@ -74,7 +78,7 @@ function emit() {
 function set(next: PersonalState) {
   state = next;
   try {
-    window.localStorage.setItem(deviceKey(next.uid), JSON.stringify({ journal: next.journal, playtime: next.playtime }));
+    window.localStorage.setItem(deviceKey(next.uid), JSON.stringify({ journal: next.journal, playtime: next.playtime, purchases: next.purchases }));
   } catch {
     /* storage full or blocked: the in-memory copy still works */
   }
@@ -96,11 +100,13 @@ function validEntry(value: unknown): value is JournalEntry {
 
 function fromDevice(uid: string): PersonalState | null {
   try {
-    const raw = JSON.parse(window.localStorage.getItem(deviceKey(uid)) ?? "null") as { journal?: unknown[]; playtime?: Record<string, unknown> } | null;
+    const raw = JSON.parse(window.localStorage.getItem(deviceKey(uid)) ?? "null") as { journal?: unknown[]; playtime?: Record<string, unknown>; purchases?: Record<string, unknown> } | null;
     if (!raw) return null;
     const playtime: Record<number, number> = {};
     for (const [id, hours] of Object.entries(raw.playtime ?? {})) if (typeof hours === "number" && hours > 0) playtime[Number(id)] = hours;
-    return { uid, status: "loading", journal: (raw.journal ?? []).filter(validEntry), playtime };
+    const purchases: Record<number, Purchase> = {};
+    for (const value of Object.values(raw.purchases ?? {})) if (validPurchase(value)) purchases[value.gameId] = value;
+    return { uid, status: "loading", journal: (raw.journal ?? []).filter(validEntry), playtime, purchases };
   } catch {
     return null;
   }
@@ -111,11 +117,14 @@ async function load(uid: string) {
   const db = getDb();
   if (!db) return;
   loading.add(uid);
-  if (state?.uid !== uid) set(fromDevice(uid) ?? { uid, status: "loading", journal: [], playtime: {} });
+  if (state?.uid !== uid) set(fromDevice(uid) ?? { uid, status: "loading", journal: [], playtime: {}, purchases: {} });
   try {
-    const [journalSnap, playtimeSnap] = await Promise.all([
+    const [journalSnap, playtimeSnap, purchaseSnap] = await Promise.all([
       getDocs(query(collection(db, "users", uid, "journal"), orderBy("at", "desc"), limit(JOURNAL_LIMIT))),
       getDocs(collection(db, "users", uid, "playtime")),
+      // Rules for purchases may deploy after this code: a refusal leaves the
+      // spending tracker empty rather than failing the journal with it.
+      getDocs(collection(db, "users", uid, "purchases")).catch(() => null),
     ]);
     const journal = journalSnap.docs.map((snap): unknown => ({ image: null, hours: null, ...snap.data(), id: snap.id })).filter(validEntry);
     const playtime: Record<number, number> = {};
@@ -123,7 +132,12 @@ async function load(uid: string) {
       const hours = snap.data().hours;
       if (typeof hours === "number" && hours > 0) playtime[Number(snap.id)] = hours;
     }
-    if (state?.uid === uid) set({ uid, status: "ready", journal, playtime });
+    const purchases: Record<number, Purchase> = purchaseSnap ? {} : { ...(state?.uid === uid ? state.purchases : {}) };
+    for (const snap of purchaseSnap?.docs ?? []) {
+      const value = snap.data();
+      if (validPurchase(value)) purchases[value.gameId] = value;
+    }
+    if (state?.uid === uid) set({ uid, status: "ready", journal, playtime, purchases });
   } catch (error) {
     // Rules not deployed yet, offline, or quota: keep the device copy.
     console.warn("[personal] load failed:", error instanceof Error ? error.message : error);
@@ -139,7 +153,7 @@ function subscribe(listener: () => void) {
   };
 }
 
-const EMPTY: Omit<PersonalState, "uid"> = { status: "loading", journal: [], playtime: {} };
+const EMPTY: Omit<PersonalState, "uid"> = { status: "loading", journal: [], playtime: {}, purchases: {} };
 
 export interface Personal {
   /** Null when signed out (or Firebase isn't configured). */
@@ -147,6 +161,7 @@ export interface Personal {
   ready: boolean;
   journal: JournalEntry[];
   playtime: Record<number, number>;
+  purchases: Record<number, Purchase>;
 }
 
 /** The signed-in reader's journal and hours. Loads once per account per session. */
@@ -163,6 +178,7 @@ export function usePersonal(): Personal {
     ready: own ? own.status !== "loading" : !uid,
     journal: own?.journal ?? EMPTY.journal,
     playtime: own?.playtime ?? EMPTY.playtime,
+    purchases: own?.purchases ?? EMPTY.purchases,
   };
 }
 
@@ -188,6 +204,53 @@ export async function setPlaytime(uid: string, gameId: number, hours: number): P
   try {
     const ref = doc(db, "users", uid, "playtime", String(gameId));
     if (value > 0) await setDoc(ref, { gameId, hours: value, updatedAt: Date.now() });
+    else await deleteDoc(ref);
+  } catch (error) {
+    if (before) set(before);
+    throw error;
+  }
+}
+
+/**
+ * Hours from an import (Steam), merged so nothing already recorded shrinks:
+ * each game keeps the larger of its current total and the imported one.
+ * Batched — a big library is a few commits, not hundreds of round trips.
+ */
+export async function importPlaytime(uid: string, hours: Record<number, number>): Promise<number> {
+  const db = requireDb();
+  const current = state?.uid === uid ? state.playtime : {};
+  const changes = Object.entries(hours)
+    .map(([id, value]) => [Number(id), Math.min(PLAYTIME_MAX_HOURS, roundHours(value))] as const)
+    .filter(([id, value]) => id !== 0 && value > 0 && value > (current[id] ?? 0));
+  for (let offset = 0; offset < changes.length; offset += 400) {
+    const batch = writeBatch(db);
+    for (const [gameId, value] of changes.slice(offset, offset + 400)) {
+      batch.set(doc(db, "users", uid, "playtime", String(gameId)), { gameId, hours: value, updatedAt: Date.now() });
+    }
+    await batch.commit();
+  }
+  if (state?.uid === uid && changes.length) set({ ...state, playtime: { ...state.playtime, ...Object.fromEntries(changes) } });
+  return changes.length;
+}
+
+/**
+ * Records (or, with null, forgets) what the reader paid for a game. One
+ * purchase per game: the document id is the game id.
+ */
+export async function setPurchase(uid: string, gameId: number, purchase: Omit<Purchase, "gameId" | "updatedAt"> | null): Promise<void> {
+  const db = requireDb();
+  const ref = doc(db, "users", uid, "purchases", String(gameId));
+  const before = state;
+  const next: Purchase | null = purchase ? { ...purchase, gameId, updatedAt: Date.now() } : null;
+  if (next && !validPurchase(next)) throw new Error("That price couldn't be saved.");
+  if (state?.uid === uid) {
+    const purchases = { ...state.purchases };
+    if (next) purchases[gameId] = next;
+    else delete purchases[gameId];
+    set({ ...state, purchases });
+  }
+  try {
+    if (next) await setDoc(ref, next);
     else await deleteDoc(ref);
   } catch (error) {
     if (before) set(before);
@@ -248,8 +311,14 @@ export async function deleteJournalEntry(uid: string, entry: JournalEntry): Prom
 /* -------------------------------------------------------------------------- */
 
 export const LOG_SESSION_EVENT = "arnav-games:log-session";
+export const EDIT_PURCHASE_EVENT = "arnav-games:edit-purchase";
 
 /** Opens the session sheet (mounted once by `SessionLogHost`) for a game. */
 export function openSessionLog(game: GameRef) {
   window.dispatchEvent(new CustomEvent<GameRef>(LOG_SESSION_EVENT, { detail: game }));
+}
+
+/** Opens the "What you paid" sheet (mounted once by `SessionLogHost`) for a game. */
+export function openPurchaseEditor(game: GameRef) {
+  window.dispatchEvent(new CustomEvent<GameRef>(EDIT_PURCHASE_EVENT, { detail: game }));
 }

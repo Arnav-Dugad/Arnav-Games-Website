@@ -13,6 +13,7 @@ import { personalHours } from "./personal-hours";
 import type { Ref } from "@/lib/games/types";
 import { StatsDashboard } from "./StatsDashboard";
 import { useTimeToBeat } from "./useTimeToBeat";
+import { useDeepInsights } from "./useDeepInsights";
 
 /**
  * Live /stats: the reader's library plus IGDB time-to-beat (shared, tab-cached
@@ -29,6 +30,7 @@ export function StatsView({ genreDirectory, benchmark }: { genreDirectory: Ref[]
   );
   const forecast = useMemo(() => (timeToBeat ? backlogForecast(entries, timeToBeat, playtime) : null), [entries, timeToBeat, playtime]);
   const personal = useMemo(() => personalHours(entries, timeToBeat, playtime), [entries, timeToBeat, playtime]);
+  const deep = useDeepInsights(entries);
 
   if (loading) return <StatsSkeleton />;
   if (analytics.totalGames === 0) {
@@ -47,7 +49,7 @@ export function StatsView({ genreDirectory, benchmark }: { genreDirectory: Ref[]
 
   return (
     <Container className="pb-10 lg:pb-14">
-      <StatsDashboard analytics={analytics} benchmark={benchmark} hoursStatus={ttb.status} forecast={forecast} personal={personal} />
+      <StatsDashboard analytics={analytics} benchmark={benchmark} hoursStatus={ttb.status} forecast={forecast} personal={personal} deep={deep} />
     </Container>
   );
 }

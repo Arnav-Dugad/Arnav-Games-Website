@@ -81,6 +81,30 @@ function subscribeAccount(listener: () => void) {
   };
 }
 
+/**
+ * The reader's own review scores, from the same once-per-account (6-hour
+ * device cached) read the recommendations use — the stats page's taste map
+ * shares it instead of reading reviews a second time. Null while loading,
+ * empty when signed out.
+ */
+export function useAccountReviews(): TasteReview[] | null {
+  const { user, loading } = useAuth();
+  const uid = user?.uid ?? null;
+  const account = useSyncExternalStore(
+    subscribeAccount,
+    () => (uid ? accountInputs.get(uid) ?? null : null),
+    () => null,
+  );
+  useEffect(() => {
+    if (uid) loadAccount(uid);
+  }, [uid]);
+  if (loading) return null;
+  if (!uid) return EMPTY_REVIEWS;
+  return account?.reviews ?? null;
+}
+
+const EMPTY_REVIEWS: TasteReview[] = [];
+
 /* ---- answers: shared in memory, one device slot ------------------------- */
 
 type Answer = { status: "ready"; data: RecommendationsV2 } | { status: "error" };

@@ -21,7 +21,12 @@ import { buildDashboardSnapshot, daysUntilRelease } from "../src/lib/games/dashb
 import { buildLibraryStats } from "../src/lib/games/stats";
 import { releaseState } from "../src/lib/games/release-state";
 import { fuzzyMatches, normaliseSearch, searchQueryVariants } from "../src/lib/games/fuzzy-search";
-import { batchPatchForEntry, type WatchlistEntry } from "../src/lib/firebase/db";
+import { batchPatchForEntry, libraryImportWrite, type WatchlistEntry } from "../src/lib/firebase/db";
+import { inferImportStatus, parseAppids, parseSteamProfile, rankOwnedGames, statusForChoice } from "../src/lib/personal/steam-import";
+import { dayHourGrid, finishHighlight, finishRates, offsetMoment, playCalendar } from "../src/lib/personal/play-insights";
+import { currencyForRegion, libraryValue, observedLow, parseMoney, priceOn, spendSummary, toCurrency } from "../src/lib/personal/spend";
+import { buildTasteMap, moodRatings } from "../src/lib/personal/taste-map";
+import { analyseHype, fitHype, hypeNote, hypePercentile } from "../src/lib/games/hype-reality";
 import { localReleaseFor, regionForCountry } from "../src/lib/games/regions";
 import { buildHypeIndex, hypeScore } from "../src/lib/games/hype";
 import { stripNewsMarkup } from "../src/lib/games/news-text";
@@ -1861,6 +1866,254 @@ console.log("\nUpdates timeline (round 6)");
   check("every post, newest first, deduped, unsafe links dropped", feed.posts.map((p) => [p.title, p.patch]), [["Halloween event is live!", false], ["Patch 1.2", true]]);
   check("excerpts are plain text: no markup, media or script", feed.posts[0].excerpt, "Spooky Join us for double XP all week.");
   check("escaped section labels lose their backslash", stripNewsMarkup("[p]\\[ UI ][/p][list][*]Added a progress bar[/*][/list]"), "[ UI ] • Added a progress bar");
+}
+
+console.log("\nSteam import (round 7)");
+{
+  const gaben = { kind: "id64", id: "76561197960287930" };
+  check("profile URL with a vanity name", parseSteamProfile("https://steamcommunity.com/id/gaben/"), { kind: "vanity", name: "gaben" });
+  check("profile URL with a trailing games path", parseSteamProfile("steamcommunity.com/id/gaben/games/?tab=all"), { kind: "vanity", name: "gaben" });
+  check("profiles URL → id64", parseSteamProfile("https://steamcommunity.com/profiles/76561197960287930"), gaben);
+  check("bare id64", parseSteamProfile(" 76561197960287930 "), gaben);
+  check("legacy STEAM_0 id", parseSteamProfile("STEAM_0:0:11101"), gaben);
+  check("steam3 id", parseSteamProfile("[U:1:22202]"), gaben);
+  check("bare vanity name", parseSteamProfile("gaben"), { kind: "vanity", name: "gaben" });
+  check(
+    "store links, out-of-range ids, junk and empty input are refused",
+    [
+      parseSteamProfile("https://store.steampowered.com/app/620/"),
+      parseSteamProfile("12345678901234567"),
+      parseSteamProfile("steamcommunity.com/profiles/123"),
+      parseSteamProfile("a b c"),
+      parseSteamProfile(""),
+    ],
+    [null, null, null, null, null],
+  );
+
+  const now = Date.UTC(2026, 9, 20);
+  const daysAgo = (days: number) => Math.floor((now - days * 86_400_000) / 1000);
+  check(
+    "status: unplayed → backlog, finished hours → finished, recent → playing, old partial → shelved",
+    [
+      inferImportStatus({ minutes: 0, now }),
+      inferImportStatus({ minutes: 20, lastPlayed: daysAgo(1), now }),
+      inferImportStatus({ minutes: 46 * 60, lastPlayed: daysAgo(400), timeToBeat: 50, now }),
+      inferImportStatus({ minutes: 10 * 60, lastPlayed: daysAgo(3), timeToBeat: 50, now }),
+      inferImportStatus({ minutes: 10 * 60, lastPlayed: daysAgo(90), timeToBeat: 50, now }),
+      inferImportStatus({ minutes: 10 * 60, lastPlayed: 0, now }),
+    ],
+    ["backlog", "backlog", "finished", "playing", "shelved", "shelved"],
+  );
+  check("choices map onto stored statuses", (["backlog", "playing", "finished", "shelved", "skip"] as const).map(statusForChoice), ["none", "playing", "played", "none", null]);
+  check(
+    "owned games rank by hours, then recency, then name",
+    rankOwnedGames([
+      { appid: 1, name: "B", minutes: 0, lastPlayed: 0 },
+      { appid: 2, name: "A", minutes: 0, lastPlayed: 0 },
+      { appid: 3, name: "C", minutes: 600, lastPlayed: 5 },
+      { appid: 4, name: "D", minutes: 0, lastPlayed: 9 },
+    ]).map((game) => game.appid),
+    [3, 4, 2, 1],
+  );
+  check("appid pages are validated and deduped", [parseAppids([620, 620, 400]), parseAppids([]), parseAppids([1.5]), parseAppids("620")], [[620, 400], null, null, null]);
+
+  const match = {
+    appid: 620, id: 72, slug: "portal-2", name: "Portal 2", image: null, imageFallback: null, released: "2011-04-18",
+    releaseWindow: null, tba: false, metacritic: 95, genres: [{ id: 9, slug: "puzzle", name: "Puzzle" }], platformSlugs: ["pc"], hours: 8.5,
+  };
+  const created = libraryImportWrite(undefined, { match, status: "played", lastPlayed: 1_700_000_000_000 }, 1_800_000_000_000);
+  check(
+    "a new game is created owned on Steam, finished at its last launch",
+    created?.kind === "create" ? [created.entry.ownedOn, created.entry.status, created.entry.finishedAt, created.entry.addedAt, created.entry.steamAppId] : created,
+    [["steam"], "played", 1_700_000_000_000, 1_800_000_000_000, 620],
+  );
+  const existing = { ...(created as { entry: WatchlistEntry }).entry, status: "played" as const, ownedOn: ["ps5"], finishedAt: 5, startedAt: 4 };
+  const merged = libraryImportWrite(existing, { match, status: "playing", lastPlayed: 9 }, 10);
+  check("an existing game only gains Steam ownership; Played never moves back", merged, { kind: "merge", patch: { ownedOn: ["ps5", "steam"] } });
+  const upgraded = libraryImportWrite({ ...existing, status: "want", ownedOn: ["steam"], startedAt: null, finishedAt: null, platform: null }, { match, status: "playing", lastPlayed: 9 }, 10);
+  check("a wish moves forward to Playing, stamped once", upgraded, { kind: "merge", patch: { status: "playing", platform: "steam", startedAt: 9 } });
+  check("nothing new to say → no write", libraryImportWrite({ ...existing, ownedOn: ["steam"] }, { match, status: "none", lastPlayed: null }, 10), null);
+}
+
+console.log("\nFinish rates (round 7)");
+{
+  const now = Date.UTC(2026, 9, 20);
+  const base = (gameId: number, extra: Partial<WatchlistEntry>): WatchlistEntry => ({
+    gameId, slug: `g${gameId}`, name: `G${gameId}`, image: null, imageFallback: null, released: "2020-01-01", releaseWindow: null, tba: false,
+    metacritic: null, following: false, watchlisted: false, metadataVersion: 3, metadataUpdatedAt: 0, status: "none", platform: null,
+    startedAt: null, finishedAt: null, genreIds: [], genres: [], platformSlugs: [], ownedOn: ["steam"], subscriptionAccess: [], followedReleases: [],
+    addedAt: now - 400 * 86_400_000, ...extra,
+  });
+  const rpg = { id: 12, slug: "rpg", name: "Role-playing (RPG)" };
+  const sim = { id: 13, slug: "sim", name: "Simulator" };
+  const library = [
+    base(1, { status: "played", genres: [rpg] }),
+    base(2, { status: "played", genres: [rpg] }),
+    base(3, { status: "played", genres: [rpg] }),
+    base(4, { status: "playing", startedAt: now - 200 * 86_400_000, genres: [rpg] }), // stalled: untouched 200 days
+    base(5, { status: "playing", startedAt: now - 200 * 86_400_000, genres: [sim] }), // but a recent session
+    base(6, { status: "none", genres: [sim] }), // hours, no status → stalled
+    base(7, { status: "none", genres: [sim] }),
+    base(8, { status: "none", genres: [sim] }),
+    base(9, { status: "played", genres: [sim] }),
+    base(10, { status: "none", genres: [sim], released: "2030-01-01" }), // pre-order: left out
+    base(11, { status: "none", genres: [sim], ownedOn: [] }), // not owned, no status: left out
+  ];
+  const rates = finishRates(library, {
+    now,
+    playtime: { 6: 3, 7: 1, 8: 2 },
+    journal: [{ gameId: 5, at: now - 5 * 86_400_000, hours: 1 }],
+  });
+  const row = (key: string) => rates.genres.find((item) => item.key === key);
+  check("base counts owned/played released games once", rates.base, 9);
+  check("RPG: 3 finished, 1 stalled → 75%", [row("g12")?.finished, row("g12")?.stalled, row("g12")?.rate], [3, 1, 0.75]);
+  check("Simulator: a recent session keeps Playing alive; hours without status are stalled", [row("g13")?.playing, row("g13")?.stalled, row("g13")?.untouched, row("g13")?.rate], [1, 3, 0, 0.25]);
+  check("highlight contrasts the best and worst confident rows", rates.highlight.genres ? [rates.highlight.genres.best.key, rates.highlight.genres.worst.key] : null, ["g12", "g13"]);
+  check("platform rows come from the single owned store", rates.platforms.map((item) => [item.key, item.total]), [["steam", 9]]);
+  check("no highlight when the rows are close", finishHighlight([{ ...row("g12")!, rate: 0.6 }, { ...row("g13")!, rate: 0.5 }]), null);
+}
+
+console.log("\nPlay heatmap (round 7)");
+{
+  const india = offsetMoment(330);
+  // Monday 2026-10-19 22:00 IST = 16:30 UTC; a 2-hour session ending then.
+  const at = Date.UTC(2026, 9, 19, 16, 30);
+  const grid = dayHourGrid([{ gameId: 1, at, hours: 2 }, { gameId: 1, at: Date.UTC(2026, 9, 24, 14, 45), hours: null }], india);
+  check("a session's hours are laid back from when it was logged (IST)", [grid.cells[0][21], grid.cells[0][20], grid.cells[0][22]], [1, 1, 0]);
+  check("an untimed Saturday session counts an hour ending when it was logged (20:15 IST)", [grid.cells[5][20], grid.cells[5][19], grid.hours, grid.sessions], [0.25, 0.75, 3, 2]);
+  const half = dayHourGrid([{ gameId: 1, at: Date.UTC(2026, 9, 19, 15, 0), hours: 1 }], india);
+  check("half-hour zones split a session across local hours", [half.cells[0][20], half.cells[0][19]], [0.5, 0.5]);
+
+  const utc = offsetMoment(0);
+  const now = Date.UTC(2026, 9, 21, 12); // a Wednesday
+  const day = (offset: number, hour = 20) => Date.UTC(2026, 9, 21 - offset, hour);
+  const calendar = playCalendar(
+    [day(0), day(1), day(2), day(5), day(6)].map((time) => ({ gameId: 1, at: time, hours: 1 })),
+    [day(10)],
+    { now, weeks: 4, zone: utc },
+  );
+  check("calendar spans whole Monday-first weeks ending this week", [calendar.days.length, calendar.days[0].weekday, calendar.days.filter((cell) => cell.future).length], [28, 0, 4]);
+  check("active days, longest and current streaks", [calendar.activeDays, calendar.longestStreak, calendar.currentStreak], [6, 3, 3]);
+  const quiet = playCalendar([{ gameId: 1, at: day(1), hours: 1 }], [], { now, weeks: 2, zone: utc });
+  check("not having played yet today doesn't break a streak", quiet.currentStreak, 1);
+}
+
+console.log("\nSpending and library value (round 7)");
+{
+  check(
+    "typed prices → minor units",
+    [parseMoney("59.99", "USD"), parseMoney("59,99", "EUR"), parseMoney("1,299", "INR"), parseMoney("₹1,29,999.50", "INR"), parseMoney("1.299,00", "EUR"), parseMoney("6980", "JPY"), parseMoney("0", "USD"), parseMoney("abc", "USD")],
+    [5999, 5999, 129900, 12999950, 129900, 6980, 0, null],
+  );
+  check("currency per region (euro area, local currency for USD-priced Steam regions)", ["IN", "DE", "TR", "ZZ"].map(currencyForRegion), ["INR", "EUR", "TRY", "USD"]);
+  const rates = { USD: 0.012, EUR: 0.011 }; // per 1 INR
+  check(
+    "conversion through the reader's base, including to a non-base currency",
+    [toCurrency(5999, "USD", "INR", rates), toCurrency(1000, "INR", "INR", null), toCurrency(100, "GBP", "INR", rates), toCurrency(83300, "INR", "USD", rates, "INR")],
+    [499917, 1000, null, 1000],
+  );
+  const now = Date.UTC(2026, 9, 20);
+  const p = (gameId: number, amount: number, currency: string, at: string) => ({ gameId, amount, currency, store: "steam", at: Date.parse(`${at}T00:00:00Z`), updatedAt: 1 });
+  const summary = spendSummary(
+    [p(1, 5999, "USD", "2025-03-02"), p(2, 349900, "INR", "2026-10-01"), p(3, 0, "INR", "2026-09-10"), p(4, 999, "GBP", "2026-01-01")],
+    {
+      currency: "INR",
+      rates,
+      playtime: { 1: 50, 2: 10, 3: 30 },
+      lows: { 2: { currency: "INR", lowest: 249900, full: 349900 } },
+      now,
+    },
+  );
+  check("totals count convertible purchases and report the rest", [summary.total, summary.counted, summary.unconverted, summary.free], [499917 + 349900, 3, 1, 1]);
+  check("average is over paid games", summary.average, Math.round((499917 + 349900) / 2));
+  check("per year, oldest first", summary.years.map((bucket) => [bucket.key, bucket.value]), [["2025", 499917], ["2026", 349900]]);
+  check("12 zero-filled months ending this month", [summary.months.length, summary.months[11].key, summary.months[11].value, summary.months[10].purchases], [12, "2026-10", 349900, 1]);
+  check("cost per hour over paid games with hours", summary.perHour, { value: Math.round((499917 + 349900) / 60), hours: 60, games: 2 });
+  check("paid vs lowest seen and vs full price", [summary.vsLowest, summary.vsFull], [
+    { games: 1, paid: 349900, lowest: 249900, overpaid: 100000, atLowest: 0 },
+    { games: 1, paid: 349900, full: 349900, saved: 0 },
+  ]);
+
+  const history = [
+    { date: "2026-06-10", price: 4000, initial: 4000 },
+    { date: "2026-08-10", price: 2000, initial: 4000 },
+  ];
+  check("price on a day: the last observation on or before it", [priceOn(history, "2026-06-01"), priceOn(history, "2026-07-31"), priceOn(history, "2026-09-30")], [null, 4000, 2000]);
+  check("observed low and full price", observedLow(history, "USD"), { currency: "USD", lowest: 2000, full: 4000 });
+  const value = libraryValue(
+    [
+      { gameId: 1, addedAt: Date.UTC(2026, 5, 1), current: 3000, history },
+      { gameId: 2, addedAt: Date.UTC(2026, 7, 20), current: 1000, history: [] },
+      { gameId: 3, addedAt: Date.UTC(2026, 0, 1), current: null, history: [] },
+    ],
+    { now: Date.UTC(2026, 9, 20) },
+  );
+  check("value: today, priced and unpriced", [value.current, value.priced, value.unpriced, value.basis], [4000, 2, 1, "history"]);
+  check(
+    "monthly value from the first priced game, observed where we can; this month is today's value",
+    value.points.map((point) => [point.key, point.value, point.games, Math.round(point.observed * 100)]),
+    [["2026-06", 4000, 1, 100], ["2026-07", 4000, 1, 100], ["2026-08", 3000, 2, 67], ["2026-09", 3000, 2, 67], ["2026-10", 4000, 2, 100]],
+  );
+}
+
+console.log("\nTaste map (round 7)");
+{
+  const now = Date.UTC(2026, 9, 20);
+  const month = (offset: number) => now - offset * 30 * 86_400_000;
+  const rpg = { id: 12, name: "Role-playing (RPG)" };
+  const shooter = { id: 5, name: "Shooter" };
+  const puzzle = { id: 9, name: "Puzzle" };
+  const game = (gameId: number, genres: Array<{ id: number; name: string }>, at: number, status: "played" | "want" = "played") => ({
+    gameId, status, addedAt: at, finishedAt: status === "played" ? at : null, ownedOn: ["steam"], genres,
+  });
+  const entries = [
+    game(1, [shooter], month(20)), game(2, [shooter], month(18)), game(3, [shooter, puzzle], month(16)),
+    game(4, [rpg], month(4)), game(5, [rpg], month(3)), game(6, [rpg, puzzle], month(2)), game(7, [rpg], month(1)),
+  ];
+  const facets = { 4: { themes: [{ id: 17, name: "Fantasy" }], perspectives: [{ id: 2, name: "Third person" }] } };
+  const map = buildTasteMap(entries, { now, facets });
+  check("unlocks at five weighted games with facets", [map.unlocked, map.games, map.required], [true, 7, 5]);
+  check("genre shares sum to one within the kind", Math.round(map.nodes.filter((node) => node.kind === "genre").reduce((sum, node) => sum + node.share, 0) * 1000) / 1000, 1);
+  check("themes and perspectives join the map", map.nodes.filter((node) => node.kind !== "genre").map((node) => node.label), ["Fantasy", "Third person"]);
+  check("recent RPGs rise and older shooters fade", [map.rising.map((node) => node.label), map.fading.map((node) => node.label)], [["Role-playing (RPG)"], ["Shooter"]]);
+  const locked = buildTasteMap(entries.slice(0, 3), { now });
+  check("locked below five games", [locked.unlocked, locked.games], [false, 3]);
+  check(
+    "journal moods stand in for missing ratings, never over a real one",
+    moodRatings([{ gameId: 1, mood: "great" }, { gameId: 1, mood: "good" }, { gameId: 2, mood: "frustrated" }, { gameId: 3, mood: "great" }], new Set([3])),
+    [{ gameId: 1, rating: 8.3 }, { gameId: 2, rating: 3.5 }],
+  );
+  const hated = buildTasteMap([...entries, game(8, [shooter], month(1))], { now, reviews: [{ gameId: 8, rating: 1 }, { gameId: 1, rating: 2 }, { gameId: 2, rating: 2 }] });
+  check("low ratings pull a genre down", (hated.nodes.find((node) => node.label === "Shooter")?.share ?? 0) < (map.nodes.find((node) => node.label === "Shooter")?.share ?? 0), true);
+}
+
+console.log("\nHype vs reality (round 7)");
+{
+  // score = 60 + 8·log10(hypes), with three planted outliers.
+  const rows = Array.from({ length: 20 }, (_, index) => {
+    const hypes = Math.round(10 ** (1 + (index % 10) * 0.3));
+    return { id: index + 1, slug: `g${index + 1}`, name: `Game ${index + 1}`, image: null, hypes, score: 60 + 8 * Math.log10(hypes) + (index % 2 ? 1 : -1), scoreKind: "critics" as const, count: 10, released: `2026-0${(index % 9) + 1}-01` };
+  });
+  const clean = fitHype(rows)!;
+  check("fit recovers the planted line", [Math.round(clean.slope), Math.round(clean.intercept), clean.r > 0.95], [8, 60, true]);
+  rows.push({ ...rows[0], id: 99, slug: "flop", name: "Big Flop", hypes: 5000, score: 55 });
+  rows.push({ ...rows[0], id: 98, slug: "gem", name: "Hidden Gem", hypes: 15, score: 92 });
+  const result = analyseHype(rows)!;
+  check("labelled outliers", [result.over.map((point) => point.name), result.sleepers.map((point) => point.name)], [["Big Flop"], ["Hidden Gem"]]);
+  check("too few games: no model", fitHype(rows.slice(0, 5)), null);
+  check(
+    "game page notes by distance from the line",
+    [
+      hypeNote({ hypes: 5000, score: 55, scoreKind: "critics" }, result.model)?.tone,
+      hypeNote({ hypes: 15, score: 92, scoreKind: "members" }, result.model)?.tone,
+      hypeNote({ hypes: 100, score: 76, scoreKind: "critics" }, result.model)?.tone,
+      hypeNote({ hypes: 1, score: 80, scoreKind: "critics" }, result.model),
+      hypeNote({ hypes: 100, score: null, scoreKind: "critics" }, result.model),
+    ],
+    ["over", "sleeper", "met", null, null],
+  );
+  // Two sample games have ~5,012 follows, so 19 of the 22 have fewer than 5,000.
+  check("percentile counts games with less hype", hypePercentile(result.model, 5000), 19 / 22);
 }
 
 pngChecks().then(() => {

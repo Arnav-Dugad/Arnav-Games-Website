@@ -127,6 +127,18 @@ in `.env.local` (or the shell) on the machine running `npm run deploy`.
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | — | Unused; Analytics is not wired up |
 | `CRON_SECRET` | Cron jobs (`/api/cron/*`) | Secret. Sent by the Worker's cron triggers as `x-cron-secret`; without it scheduled jobs don't run |
 | `FIREBASE_SERVICE_ACCOUNT` | Price/player/Twitch/review/score/release history, the crons' queue | Secret, server-only. Base64 of the service-account JSON; `npx wrangler secret put FIREBASE_SERVICE_ACCOUNT` |
+| `STEAM_API_KEY` | "Import from Steam" in the library and Settings | Secret, server-only, optional. A free Steam Web API key from <https://steamcommunity.com/dev/apikey>; `npx wrangler secret put STEAM_API_KEY`. Without it the import shows "coming soon" |
+
+### Steam library import
+
+Steam's community games pages now require a signed-in session, so the import
+uses the official Web API (`ISteamUser/ResolveVanityURL`, `ISteamUser/GetPlayerSummaries`,
+`IPlayerService/GetOwnedGames`) with `STEAM_API_KEY`. `POST /api/steam/import`
+verifies the reader's Firebase ID token, reads their owned games (most played
+first, capped at 1,500), and matches them to IGDB 100 apps per request (≤ 10
+outbound requests per call); the browser pages through the rest and writes the
+reviewed rows to the reader's own library. The key and the reader's library are
+never logged. The reader's Steam profile and **Game details** must be public.
 
 If you add Firebase after the first deploy, remember step 6 above — add the
 `workers.dev` (or custom) domain to Firebase's authorised domains or Google
@@ -155,6 +167,7 @@ holds no database any more (the D1 tables were migrated with
 | Data | Location | Who reads | Who writes |
 | --- | --- | --- | --- |
 | Profile, library/watchlist, reviews | `users/{uid}`, `users/{uid}/watchlist/*`, `reviews/*` | Owner (reviews: everyone) | Owner, shape-checked by the rules |
+| Play journal, personal hours, what you paid | `users/{uid}/journal/*`, `users/{uid}/playtime/{game}`, `users/{uid}/purchases/{game}` | Owner | Owner, shape-checked by the rules (purchases: minor units, ISO 4217 currency, bounded amount and date) |
 | Preferences: motion, poster sizes, alerts, theme, price region, PC specs, recent searches, wishlist budget | device `localStorage` + `users/{uid}/settings/preferences` | Owner | Owner. The device copy is read first; the account mirrors it and restores it on a new device |
 | Player / Twitch / review / critic-score history | `playerHistory/*`, `twitchHistory/*`, `reviewHistory/*`, `scoreHistory/*` (one document per series) | Everyone, **directly from the browser** | Server only (crons) |
 | Price history, release-date history (delay tracker) | `priceHistory/{game}`, `releaseHistory/s0…s3` | Everyone | Server only |

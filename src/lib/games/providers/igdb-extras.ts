@@ -11,7 +11,8 @@
 
 import type { ExternalIds, HypeIndex, TimeToBeat } from "../types";
 import { buildHypeIndex } from "../hype";
-import { igdbCachedQuery, igdbConfigured } from "./igdb";
+import type { HypeRow } from "../hype-reality";
+import { igdbCachedQuery, igdbConfigured, igdbImage, MAIN_GAMES } from "./igdb";
 import { TTL } from "./types";
 
 const validIds = (ids: number[]) =>
@@ -435,4 +436,148 @@ export async function criticAggregatesFor(
     warn("criticAggregates", err);
     return null;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Hype vs reality
+ * ------------------------------------------------------------------------ */
+
+/** Hype vs reality is a slow-moving picture: one query, cached for half a day. */
+const HYPE_TTL = 60 * 60 * 12;
+/** How far back "recent releases" reaches, and how long a launch gets for scores to settle. */
+const HYPE_WINDOW_DAYS = 540;
+const HYPE_SETTLE_DAYS = 21;
+/**
+ * IGDB `game_type`s that are a release in their own right: main game,
+ * standalone expansion, remake, remaster, expanded game. Bundles, mods and
+ * fan forks would compare a compilation's or a fan project's reception with
+ * a following it never had.
+ */
+const HYPE_GAME_TYPES = "0,4,8,9,10";
+
+/**
+ * Recent releases with both a pre-release following and a settled score, for
+ * `analyseHype`. One IGDB request. The window is pinned to the UTC day, so
+ * every caller that day — the stats page and every game page's note — shares
+ * one cache entry. Throws nothing: an outage returns null.
+ */
+export async function hypeRealityRows(now = Date.now()): Promise<HypeRow[] | null> {
+  if (!igdbConfigured()) return null;
+  const today = Math.floor(now / 86_400_000) * 86_400;
+  const from = today - HYPE_WINDOW_DAYS * 86_400;
+  const to = today - HYPE_SETTLE_DAYS * 86_400;
+  try {
+    const rows = await igdbCachedQuery<Array<{
+      id?: number;
+      slug?: string;
+      name?: string;
+      cover?: { image_id?: string };
+      hypes?: number;
+      aggregated_rating?: number;
+      aggregated_rating_count?: number;
+      rating?: number;
+      rating_count?: number;
+      first_release_date?: number;
+    }>>(
+      "games",
+      `fields slug,name,cover.image_id,hypes,aggregated_rating,aggregated_rating_count,rating,rating_count,first_release_date;\nwhere ${MAIN_GAMES} & game_type = (${HYPE_GAME_TYPES}) & first_release_date >= ${from} & first_release_date < ${to} & hypes >= 5 & (aggregated_rating_count >= 3 | rating_count >= 25);\nsort hypes desc;\nlimit 300;`,
+      HYPE_TTL,
+    );
+    return rows.flatMap((row): HypeRow[] => {
+      if (typeof row.id !== "number" || !row.slug || !row.name || typeof row.hypes !== "number" || !row.first_release_date) return [];
+      const critics = typeof row.aggregated_rating === "number" && (row.aggregated_rating_count ?? 0) >= 3;
+      const members = typeof row.rating === "number" && (row.rating_count ?? 0) >= 25;
+      if (!critics && !members) return [];
+      const score = critics ? row.aggregated_rating! : row.rating!;
+      if (!Number.isFinite(score) || score <= 0 || score > 100) return [];
+      return [{
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        image: igdbImage(row.cover?.image_id, "cover_small"),
+        hypes: row.hypes,
+        score: Math.round(score * 10) / 10,
+        scoreKind: critics ? "critics" : "members",
+        count: critics ? row.aggregated_rating_count ?? 0 : row.rating_count ?? 0,
+        released: new Date(row.first_release_date * 1000).toISOString().slice(0, 10),
+      }];
+    });
+  } catch (err) {
+    warn("hypeReality", err);
+    return null;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Steam library matching
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Steam appids → IGDB game ids (`external_games`, source 1 = Steam), as
+ * `appid → game id`. An app IGDB lists against several records keeps the
+ * oldest listing — the original game, not a later edition. One query per
+ * 200 appids. Null on an outage, so the import can say "try again" rather
+ * than "none of your games are known".
+ */
+export async function igdbIdsForSteamApps(appids: number[]): Promise<Map<number, number> | null> {
+  const out = new Map<number, number>();
+  const valid = validIds(appids);
+  if (valid.length === 0 || !igdbConfigured()) return out;
+  try {
+    const rows = (
+      await Promise.all(
+        chunk(valid, 200).map((part) =>
+          igdbCachedQuery<Array<{ game?: number; uid?: string }>>(
+            "external_games",
+            `fields game,uid;\nwhere external_game_source = ${SOURCES.steam} & uid = (${part.map((id) => `"${id}"`).join(",")});\nsort id asc;\nlimit 500;`,
+            TTL.detail,
+          ),
+        ),
+      )
+    ).flat();
+    for (const row of rows) {
+      const appid = Number(row.uid);
+      if (Number.isInteger(appid) && appid > 0 && typeof row.game === "number" && !out.has(appid)) out.set(appid, row.game);
+    }
+    return out;
+  } catch (err) {
+    warn("steamApps", err);
+    return null;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Taste facets
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Themes and player perspectives per game, for the taste map. Kept out of
+ * the summary query (every list would pay for them); one query per 450 ids.
+ */
+export async function facetsFor(ids: number[]): Promise<Map<number, { t: Array<[number, string]>; p: Array<[number, string]> }>> {
+  const out = new Map<number, { t: Array<[number, string]>; p: Array<[number, string]> }>();
+  const valid = validIds(ids);
+  if (valid.length === 0 || !igdbConfigured()) return out;
+  try {
+    const rows = (
+      await Promise.all(
+        chunk(valid, 450).map((part) =>
+          igdbCachedQuery<Array<{ id?: number; themes?: Array<{ id?: number; name?: string }>; player_perspectives?: Array<{ id?: number; name?: string }> }>>(
+            "games",
+            `fields themes.name,player_perspectives.name;\nwhere id = (${part.join(",")});\nlimit ${part.length};`,
+            TTL.detail,
+          ),
+        ),
+      )
+    ).flat();
+    const pairs = (list: Array<{ id?: number; name?: string }> | undefined) =>
+      (list ?? []).flatMap((item): Array<[number, string]> => (typeof item.id === "number" && item.name ? [[item.id, item.name]] : []));
+    for (const row of rows) {
+      // Erotic (42) is never charted, as everywhere else in the app.
+      if (typeof row.id === "number") out.set(row.id, { t: pairs(row.themes).filter(([id]) => id !== 42), p: pairs(row.player_perspectives) });
+    }
+  } catch (err) {
+    warn("facets", err);
+  }
+  return out;
 }

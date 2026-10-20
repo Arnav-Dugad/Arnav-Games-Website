@@ -49,6 +49,8 @@ import {
   relativeRelease,
 } from "@/lib/utils/format";
 import type { GameDetail } from "@/lib/games/types";
+import { fitHype, hypeNote, type HypeNote } from "@/lib/games/hype-reality";
+import { hypeRealityRows } from "@/lib/games/providers/igdb-extras";
 import type { DatePrecision } from "@/lib/games/release-confidence";
 import { releaseWindowInfo } from "@/lib/games/release-state";
 
@@ -108,6 +110,23 @@ async function visitorCountry(searchParams: SearchParams): Promise<string | null
   return /^[A-Z]{2}$/.test(normalised) && normalised !== "XX" && normalised !== "T1" ? normalised : null;
 }
 
+/**
+ * "Hype vs reality" for a released IGDB game with a pre-launch following and
+ * a settled score, judged against recent releases. Shares the stats page's
+ * twice-daily cached query, so it costs a request at most once per half day.
+ */
+async function hypeVerdict(game: GameDetail, source: string): Promise<HypeNote | null> {
+  if (source !== "igdb" || !(game.hypes > 0) || isUnreleased(game)) return null;
+  const critics = game.metacritic !== null && (game.criticCount ?? 0) >= 3;
+  const members = game.rating > 0 && game.ratingsCount >= 15;
+  if (!critics && !members) return null;
+  const rows = await hypeRealityRows();
+  return hypeNote(
+    { hypes: game.hypes, score: critics ? game.metacritic : game.rating * 20, scoreKind: critics ? "critics" : "members" },
+    rows ? fitHype(rows) : null,
+  );
+}
+
 export default async function GamePage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   const { slug } = await params;
   const result = await getGame(slug);
@@ -115,7 +134,11 @@ export default async function GamePage({ params, searchParams }: { params: Param
 
   const { data: game, source } = result;
   // Pass the source so the rail comes from the same catalogue as the page.
-  const [related, country] = await Promise.all([getRelated(game, source, 12), visitorCountry(searchParams)]);
+  const [related, country, hype] = await Promise.all([
+    getRelated(game, source, 12),
+    visitorCountry(searchParams),
+    hypeVerdict(game, source),
+  ]);
 
   // Everything here is server-rendered from the cached game record plus the
   // reader's country (a request header, so no per-user data); only the
@@ -405,6 +428,7 @@ export default async function GamePage({ params, searchParams }: { params: Param
                     userRating: game.rating > 0 ? { rating: game.rating, count: game.ratingsCount } : null,
                     hasSteam,
                     links: { openCritic: game.links?.openCritic ?? null, metacritic: game.links?.metacritic ?? game.metacriticUrl },
+                    hype,
                   }}
                 />
                 {!upcoming && <OpinionTrends ids={ids} igdbId={source === "igdb" ? game.id : null} launch={local.date} />}

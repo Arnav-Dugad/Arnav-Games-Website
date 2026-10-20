@@ -82,13 +82,23 @@ export function ratingMultiplier(rating: number | undefined): number {
   return -(5 - r) / 4;
 }
 
-export function buildTasteProfile(
+/**
+ * Each game's taste weight, before recommendation feedback: status, follows,
+ * ownership, hours actually played and the reader's own rating, faded by
+ * recency. Shared by the recommendation profile and the stats page's taste
+ * map, so "your taste" means the same thing on both.
+ *
+ * `decay: false` keeps every signal at full strength — the taste map's
+ * drift compares periods with each other, and fading old periods would just
+ * make the past look like a smaller version of the present.
+ */
+export function gameTasteWeights(
   entries: TasteEntry[],
   reviews: TasteReview[] = [],
-  feedback: RecFeedback[] = [],
-  options: { ownedPlatforms?: string[]; subscriptions?: string[]; now?: number } = {},
-): RecsProfile {
+  options: { now?: number; decay?: boolean } = {},
+): Map<number, number> {
   const now = options.now ?? Date.now();
+  const decay = options.decay ?? true;
   const rating = new Map(reviews.filter((r) => r.gameId > 0).map((r) => [r.gameId, r.rating]));
   const weights = new Map<number, number>();
 
@@ -104,11 +114,21 @@ export function buildTasteProfile(
     w *= ratingMultiplier(rating.get(entry.gameId));
     const stamp = entry.finishedAt ?? entry.startedAt ?? entry.addedAt;
     // Old signals fade but never vanish: a favourite from years ago still counts a quarter.
-    w *= Math.max(0.25, Math.pow(0.5, Math.max(0, now - stamp) / DAY_MS / HALF_LIFE_DAYS));
+    if (decay) w *= Math.max(0.25, Math.pow(0.5, Math.max(0, now - stamp) / DAY_MS / HALF_LIFE_DAYS));
     weights.set(entry.gameId, w);
   }
   // A review without a library entry is still the reader's opinion.
   for (const [gameId, score] of rating) if (!weights.has(gameId)) weights.set(gameId, 1.5 * ratingMultiplier(score));
+  return weights;
+}
+
+export function buildTasteProfile(
+  entries: TasteEntry[],
+  reviews: TasteReview[] = [],
+  feedback: RecFeedback[] = [],
+  options: { ownedPlatforms?: string[]; subscriptions?: string[]; now?: number } = {},
+): RecsProfile {
+  const weights = gameTasteWeights(entries, reviews, { now: options.now });
 
   const latest = new Map<number, RecFeedback>();
   for (const item of [...feedback].sort((a, b) => a.at - b.at)) if (item.gameId > 0) latest.set(item.gameId, item);
