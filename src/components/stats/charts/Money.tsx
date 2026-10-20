@@ -69,7 +69,7 @@ function Bars({ buckets, currency }: { buckets: SpendBucket[]; currency: string 
 function ValueList({ title, items, names, currency }: { title: string; items: GameValue[]; names: Record<number, GameName>; currency: string }) {
   if (items.length === 0) return null;
   return (
-    <div className="rounded-2xl bg-fg/[0.04] p-3.5">
+    <div className="min-w-0 rounded-2xl bg-fg/[0.04] p-3.5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{title}</p>
       <ul className="mt-2 space-y-1.5">
         {items.map((item) => (
@@ -143,7 +143,7 @@ export function SpendBreakdown({ summary, names }: { summary: SpendSummary; name
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <ValueList title="Best value" items={summary.bestValue} names={names} currency={currency} />
         <ValueList title="Most per hour" items={summary.worstValue} names={names} currency={currency} />
       </div>

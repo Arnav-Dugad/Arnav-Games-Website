@@ -163,7 +163,9 @@ export function HypeScatter({ data }: { data: HypeReality }) {
         <span className="flex items-center gap-1.5"><span aria-hidden className="h-0 w-4 border-t-[1.5px] border-dashed border-text/60" />What that hype usually scores</span>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* `grid-cols-1` is minmax(0, 1fr): an implicit column would grow to the
+          longest (truncated) game name and push the page wider than a phone. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <OutlierList title="Over-hyped" tone={TONE.over} items={data.over} empty="Nothing fell far short of its hype in this window." />
         <OutlierList title="Sleeper hits" tone={TONE.sleeper} items={data.sleepers} empty="No quiet launch beat expectations by a wide margin." />
       </div>
@@ -222,7 +224,7 @@ function placeLabels(points: HypePoint[], px: (x: number) => number, py: (score:
 
 function OutlierList({ title, tone, items, empty }: { title: string; tone: string; items: HypePoint[]; empty: string }) {
   return (
-    <div className="rounded-2xl bg-fg/[0.04] p-3.5">
+    <div className="min-w-0 rounded-2xl bg-fg/[0.04] p-3.5">
       <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
         <Swatch color={tone} className="rounded-full" /> {title}
       </p>

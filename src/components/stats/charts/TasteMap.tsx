@@ -205,13 +205,13 @@ export function TasteMap({ map }: { map: Map_ }) {
       </ul>
 
       {(map.rising.length > 0 || map.fading.length > 0) ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {[
             { title: "Rising this year", items: map.rising },
             { title: "Fading", items: map.fading },
           ].map((group) =>
             group.items.length ? (
-              <div key={group.title} className="rounded-2xl bg-fg/[0.04] p-3.5">
+              <div key={group.title} className="min-w-0 rounded-2xl bg-fg/[0.04] p-3.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{group.title}</p>
                 <ul className="mt-2 space-y-2">
                   {group.items.map((node) => (
