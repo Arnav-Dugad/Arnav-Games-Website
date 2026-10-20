@@ -172,5 +172,5 @@ export function fuzzyMatches(candidate: string, query: string): boolean {
  */
 export function searchSortKey(score: number, isEdition: boolean, popularity: number): number {
   const band = score < 5 ? 0 : 100;
-  return band + score * 0.35 + (isEdition ? 0.5 : 0) - Math.log10(1 + Math.max(0, popularity));
+  return band + score * 0.25 + (isEdition ? 0.5 : 0) - Math.log10(1 + Math.max(0, popularity));
 }

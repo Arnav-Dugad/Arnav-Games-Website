@@ -53,7 +53,7 @@ import { platformKey, type PlatformKey } from "@/lib/utils/format";
 import { classifyUrl, storeFromUrl } from "../stores";
 import { buildDirectoryWhere, type DirectoryOrder } from "../directory";
 import type { SearchHit } from "../search";
-import { searchQueryVariants, searchSortKey } from "../fuzzy-search";
+import { fuzzyTitleScore as sharedTitleScore, searchQueryVariants, searchSortKey } from "../fuzzy-search";
 import { releaseState } from "../release-state";
 
 const API = "https://api.igdb.com/v4";
@@ -1998,7 +1998,10 @@ export function rankSearchResults(
 
   const scoreOf = (game: GameSummary): number => {
     const candidates = [game.name, ...(altNames?.get(game.id) ?? [])];
-    const best = Math.min(...candidates.map((name) => fuzzyTitleScore(name, q)));
+    // The shared scorer, not this file's older `fuzzyTitleScore`: it expands
+    // shorthand ("gta" → grand theft auto), so GTA V matches on its real title
+    // instead of leaning on whichever alternative names IGDB happens to hold.
+    const best = Math.min(...candidates.map((name) => sharedTitleScore(name, q)));
     // An edition is a worse answer than the plain title at the same tier, but
     // must not fall below a genuinely weaker match.
     const isEdition = EDITION_MARKERS.test(normalise(game.name)) && !EDITION_MARKERS.test(q);
