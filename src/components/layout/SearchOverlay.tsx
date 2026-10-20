@@ -16,7 +16,10 @@
  * Empty field: recent searches (this device only), what's trending (IGDB's
  * live signal via /search/suggest), example queries and quick links.
  * No results: the same suggestions plus two honest ways to look further.
- * Typo tolerance lives server-side (`/api/search`); nothing here guesses.
+ * Typo tolerance lives server-side (`/api/search`). Popular games are also
+ * matched on the device as you type (`instant.ts`), so the obvious answer is
+ * up before the server replies — and stays up if it can't. A failed search
+ * retries once, then says so; it never pretends to be "no results".
  *
  * Opening a game hands off to the game page instead of closing first: the
  * panel stays up until the navigation commits and is removed in that same
@@ -38,7 +41,9 @@ import {
   Loader2,
   Search,
   SearchX,
+  RotateCw,
   TrendingUp,
+  WifiOff,
   X,
 } from "lucide-react";
 import { OwnershipPicker } from "@/components/game/OwnershipPicker";
@@ -49,6 +54,8 @@ import { SpotlightPreview } from "@/components/search/SpotlightPreview";
 import { hitAsGame } from "@/components/search/hit-game";
 import { buildSections, SEARCH_PROMPTS, type SearchSection } from "@/components/search/model";
 import { useRecentSearches } from "@/components/search/recent";
+import { loadInstantIndex, matchInstant } from "@/components/search/instant";
+import type { SearchIndexEntry } from "@/lib/games/providers/igdb";
 import { readLocalCache, writeLocalCache } from "@/lib/utils/local-cache";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { useDebouncedValue, useDialogFocus, useLockBodyScroll, useMediaQuery } from "@/hooks";
@@ -103,7 +110,10 @@ function loadTrending(): Promise<SearchHit[]> {
 
 export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [query, setQuery] = useState("");
-  const [settled, setSettled] = useState<{ term: string; results: SearchHit[] }>({ term: "", results: [] });
+  const [settled, setSettled] = useState<{ term: string; results: SearchHit[]; failed?: boolean }>({ term: "", results: [] });
+  /** Bumped by Retry to re-run the same query. */
+  const [attempt, setAttempt] = useState(0);
+  const [instantIndex, setInstantIndex] = useState<SearchIndexEntry[]>([]);
   const [cursor, setCursor] = useState(0);
   const [trending, setTrending] = useState<SearchHit[]>([]);
   /** A game result was opened; the panel waits for the page (see header). */
@@ -119,17 +129,31 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   const typed = query.trim();
   const searchable = term.length >= 2;
   const fresh = searchable && settled.term === term;
-  // While a new query is in flight the previous results stay up (dimmed),
+  const failed = fresh && Boolean(settled.failed);
+  const serverHits = fresh && !failed && settled.results.length > 0;
+  // Matched on every keystroke, ahead of the debounce.
+  const instant = useMemo(() => matchInstant(instantIndex, typed), [instantIndex, typed]);
+  const instantShown = !serverHits && typed.length >= 2 && instant.length > 0;
+  // Server answers win. Until one lands (or if it can't), the instant
+  // matches stand in; failing those, the previous results stay up (dimmed)
   // rather than the list flashing empty on every keystroke.
-  const results = useMemo(
-    () => (fresh ? settled.results : searchable && settled.term.length >= 2 ? settled.results : EMPTY_RESULTS),
-    [fresh, searchable, settled],
-  );
+  const results = useMemo(() => {
+    if (serverHits) return settled.results;
+    if (instantShown) return instant;
+    if (fresh) return settled.results;
+    return searchable && settled.term.length >= 2 && !settled.failed ? settled.results : EMPTY_RESULTS;
+  }, [serverHits, instantShown, instant, fresh, searchable, settled]);
+  const resultsTerm = instantShown ? typed : settled.term;
   const loading = typed.length >= 2 && (!fresh || term !== typed);
-  const sections = useMemo(() => buildSections(results, settled.term, LIMITS), [results, settled.term]);
+  const sections = useMemo(() => buildSections(results, resultsTerm, LIMITS), [results, resultsTerm]);
 
   const showResults = typed.length >= 2 && results.length > 0;
-  const noResults = typed.length >= 2 && fresh && term === typed && results.length === 0;
+  const noResults = typed.length >= 2 && fresh && !failed && term === typed && results.length === 0;
+  const offline = typed.length >= 2 && failed && term === typed && results.length === 0;
+  const retry = useCallback(() => {
+    setSettled((current) => ({ ...current, term: "" }));
+    setAttempt((n) => n + 1);
+  }, []);
 
   const items = useMemo<NavItem[]>(() => {
     if (showResults) {
@@ -140,14 +164,14 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
         { type: "all", key: "all" },
       ];
     }
-    if (typed.length < 2 || noResults) {
+    if (typed.length < 2 || noResults || offline) {
       return [
-        ...(noResults ? [] : recent.map((entry): NavItem => ({ type: "recent", key: `recent-${entry}`, term: entry }))),
+        ...(noResults || offline ? [] : recent.map((entry): NavItem => ({ type: "recent", key: `recent-${entry}`, term: entry }))),
         ...trending.map((hit): NavItem => ({ type: "hit", key: `trending-${hit.id}`, hit })),
       ];
     }
     return [];
-  }, [showResults, sections, typed, noResults, recent, trending]);
+  }, [showResults, sections, typed, noResults, offline, recent, trending]);
 
   const activeIndex = items.length > 0 ? Math.min(cursor, items.length - 1) : -1;
   const active = activeIndex >= 0 ? items[activeIndex] : null;
@@ -169,6 +193,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
     void loadTrending().then((hits) => {
       if (!cancelled) setTrending(hits);
     });
+    void loadInstantIndex().then((games) => {
+      if (!cancelled) setInstantIndex(games);
+    });
     return () => {
       cancelled = true;
     };
@@ -177,20 +204,35 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   useEffect(() => {
     if (term.length < 2) return;
     const controller = new AbortController();
-    fetch(`/api/search?q=${encodeURIComponent(term)}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : { hits: [] }))
-      .then((data: { hits?: SearchHit[] }) => {
-        setSettled({ term, results: data.hits ?? [] });
+    // Lower-cased so "GTA" and "gta" share one cached answer server-side.
+    const url = `/api/search?q=${encodeURIComponent(term.toLowerCase())}`;
+    const run = (retries: number): Promise<SearchHit[]> =>
+      fetch(url, { signal: controller.signal })
+        .then((res) => {
+          if (!res.ok) throw new Error(`search ${res.status}`);
+          return res.json() as Promise<{ hits?: SearchHit[]; error?: boolean }>;
+        })
+        .then((data) => {
+          if (data.error) throw new Error("search unavailable");
+          return data.hits ?? [];
+        })
+        .catch((err: unknown) => {
+          // One quiet retry rides out a cold start or a dropped connection.
+          if (controller.signal.aborted || retries <= 0) throw err;
+          return new Promise((resolve) => setTimeout(resolve, 700)).then(() => run(retries - 1));
+        });
+    run(1)
+      .then((hits) => {
+        setSettled({ term, results: hits });
         setCursor(0);
       })
-      .catch((err) => {
-        if (err instanceof Error && err.name !== "AbortError") {
-          console.error("[search] failed", err);
-          setSettled({ term, results: [] });
-        }
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        console.error("[search] failed", err);
+        setSettled({ term, results: [], failed: true });
       });
     return () => controller.abort();
-  }, [term]);
+  }, [term, attempt]);
 
   const openFullSearch = useCallback(
     (raw?: string) => {
@@ -401,12 +443,21 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain safe-b">
               {showResults ? (
                 <div className="grid lg:grid-cols-[minmax(0,1fr)_380px]">
-                  <div className={cn("min-w-0 p-2 transition-opacity duration-200 sm:p-3", loading && "opacity-60")}>
+                  <div className={cn("min-w-0 p-2 transition-opacity duration-200 sm:p-3", loading && !instantShown && "opacity-60")}>
+                    {failed && instantShown && (
+                      <div role="status" className="mx-1 mb-2 mt-1 flex items-center gap-3 rounded-2xl bg-fg/[0.06] px-3.5 py-2.5 text-[13px] text-muted">
+                        <WifiOff size={15} aria-hidden className="shrink-0 text-faint" />
+                        <span className="min-w-0 flex-1">Showing popular matches while full search reconnects.</span>
+                        <button type="button" onClick={retry} className="press shrink-0 rounded-full bg-fg/[0.08] px-3 py-1.5 text-[13px] font-semibold text-text">
+                          Retry
+                        </button>
+                      </div>
+                    )}
                     {sections.map((section) => (
                       <ResultSection
                         key={section.id}
                         section={section}
-                        query={settled.term}
+                        query={resultsTerm}
                         renderRow={(hit) => {
                           const i = indexOf.get(`${section.id}-${hit.kind}-${hit.id}`) ?? -1;
                           return section.id === "top" ? (
@@ -415,7 +466,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                             <HitRow key={`${hit.kind}-${hit.id}`} hit={hit} active={i === activeIndex} rowProps={rowProps(i)} onFollow={followed} onOpenGame={openGame} />
                           );
                         }}
-                        onShowAll={() => openFullSearch(settled.term)}
+                        onShowAll={() => openFullSearch(resultsTerm)}
                       />
                     ))}
                     {(() => {
@@ -446,12 +497,14 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                     </div>
                   </aside>
                 </div>
-              ) : typed.length >= 2 && !noResults ? (
+              ) : typed.length >= 2 && !noResults && !offline ? (
                 <ResultsSkeleton />
               ) : (
                 <EmptyStart
-                  query={noResults ? typed : null}
-                  recent={noResults ? [] : recent}
+                  query={noResults || offline ? typed : null}
+                  failed={offline}
+                  onRetry={retry}
+                  recent={noResults || offline ? [] : recent}
                   trending={trending}
                   activeIndex={activeIndex}
                   rowProps={rowProps}
@@ -475,7 +528,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             </div>
 
             <p className="sr-only" aria-live="polite" aria-atomic="true">
-              {noResults
+              {offline
+                ? "Search couldn't reach the server."
+                : noResults
                 ? `No results for ${typed}`
                 : showResults && !loading
                   ? // Count only: each row is a real link, so screen readers read
@@ -670,6 +725,8 @@ function TopHit({
 
 function EmptyStart({
   query,
+  failed = false,
+  onRetry,
   recent,
   trending,
   activeIndex,
@@ -685,6 +742,9 @@ function EmptyStart({
 }: {
   /** Set when the field holds a query that found nothing. */
   query: string | null;
+  /** The query couldn't be answered at all (as opposed to answered with nothing). */
+  failed?: boolean;
+  onRetry?: () => void;
   recent: string[];
   trending: SearchHit[];
   activeIndex: number;
@@ -704,15 +764,20 @@ function EmptyStart({
       {query && (
         <div className="px-3 pb-6 pt-8 text-center sm:pt-10">
           <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-fg/[0.06] text-faint">
-            <SearchX size={22} aria-hidden />
+            {failed ? <WifiOff size={22} aria-hidden /> : <SearchX size={22} aria-hidden />}
           </span>
           <p className="mx-auto mt-4 max-w-md break-words text-[19px] font-semibold tracking-[-0.01em] [overflow-wrap:anywhere]">
-            No results for “{query}”
+            {failed ? "Search didn’t answer" : <>No results for “{query}”</>}
           </p>
           <p className="mx-auto mt-1.5 max-w-sm text-[15px] text-muted">
-            Check the spelling, try fewer words, or search game titles only.
+            {failed ? "It’s usually back in a moment." : "Check the spelling, try fewer words, or search game titles only."}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
+            {failed && onRetry && (
+              <button type="button" onClick={onRetry} className="press inline-flex min-h-11 items-center gap-1.5 rounded-full bg-brand px-4 text-[14px] font-semibold text-white">
+                <RotateCw size={14} aria-hidden /> Try again
+              </button>
+            )}
             <button type="button" onClick={onFullSearch} className="press inline-flex min-h-11 items-center gap-1.5 rounded-full bg-fg px-4 text-[14px] font-semibold text-bg">
               Open full search <ArrowRight size={14} aria-hidden />
             </button>

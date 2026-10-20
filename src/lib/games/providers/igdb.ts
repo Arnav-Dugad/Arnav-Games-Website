@@ -236,42 +236,42 @@ export class IgdbTransportError extends Error {
  * This is per-instance, not global, so it cannot guarantee the account-wide
  * rate. It removes the self-inflicted bursts, which are the dominant cause;
  * `retryAfter` handles whatever still slips through.
+ *
+ * It is pure time arithmetic: each call reserves a start time and sleeps on
+ * its own timer. It used to be a queue of resolvers released by whichever
+ * request finished last — on Workers that hands one request's wake-up to
+ * another request's I/O, and a cancelled request (the search palette aborts
+ * one per keystroke) never released its slot. Three leaked slots and every
+ * later IGDB call in that isolate waited forever, killed as "hung".
  */
-const MAX_CONCURRENT = 3;
-const MIN_SPACING_MS = 260;
+const BURST = 4;
+const WINDOW_MS = 1000;
+/** Past this, waiting costs more than the 429 it avoids; go and let retry cope. */
+const MAX_WAIT_MS = 1500;
 
-let inFlight = 0;
-let nextSlotAt = 0;
-const waiting: Array<() => void> = [];
-
-function pump() {
-  while (inFlight < MAX_CONCURRENT && waiting.length > 0) {
-    inFlight += 1;
-    waiting.shift()!();
-  }
-}
+/** Reserved start times within the last window (resolved numbers, never promises). */
+let recentStarts: number[] = [];
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function withRateLimit<T>(run: () => Promise<T>): Promise<T> {
-  await new Promise<void>((resolve) => {
-    waiting.push(resolve);
-    pump();
-  });
-
-  // Space request *starts* so a burst of permitted-concurrency calls still
-  // can't exceed the per-second ceiling.
+function reserveStart(): number {
   const now = Date.now();
-  const startAt = Math.max(now, nextSlotAt);
-  nextSlotAt = startAt + MIN_SPACING_MS;
-  if (startAt > now) await sleep(startAt - now);
+  recentStarts = recentStarts.filter((at) => at > now - WINDOW_MS);
+  // Fewer than BURST starts in the window: go now. Otherwise take the slot
+  // that opens when the BURST-th most recent start leaves the window.
+  const startAt =
+    recentStarts.length < BURST
+      ? now
+      : Math.min(recentStarts[recentStarts.length - BURST] + WINDOW_MS, now + MAX_WAIT_MS);
+  recentStarts.push(startAt);
+  recentStarts.sort((a, b) => a - b);
+  return startAt - now;
+}
 
-  try {
-    return await run();
-  } finally {
-    inFlight -= 1;
-    pump();
-  }
+async function withRateLimit<T>(run: () => Promise<T>): Promise<T> {
+  const wait = reserveStart();
+  if (wait > 0) await sleep(wait);
+  return run();
 }
 
 /** How long to wait before retrying, honouring either Retry-After format. */
@@ -285,7 +285,7 @@ function retryDelayMs(res: Response | null, attempt: number): number {
     if (Number.isFinite(date) && date > Date.now()) return Math.min(date - Date.now(), 5000);
   }
 
-  const base = Math.min(MIN_SPACING_MS * 2 ** attempt, 4000);
+  const base = Math.min((WINDOW_MS / BURST) * 2 ** attempt, 4000);
   return base + Math.floor(Math.random() * Math.min(180, base / 3));
 }
 
@@ -2285,6 +2285,70 @@ export async function igdbSearchAll(
     warn("search.multiquery", err);
     return [];
   }
+}
+
+/** One row of the instant-search index: just enough to render and rank a hit. */
+export interface SearchIndexEntry {
+  id: number;
+  name: string;
+  slug: string;
+  /** IGDB cover image id; the client builds the URL. */
+  cover: string | null;
+  /** ISO day of first release. */
+  released: string | null;
+  genres: string;
+  /** Short alternative titles ("GTA V", "BotW") — long ones never match a typed prefix. */
+  alt?: string[];
+}
+
+/**
+ * The most-played and most-rated games, shaped for client-side matching.
+ *
+ * The search palette downloads this once a day and matches it on every
+ * keystroke, so the popular answer appears before the server has replied —
+ * and still appears if the server can't. Two plain requests, cached a day.
+ */
+export async function igdbSearchIndex(): Promise<SearchIndexEntry[]> {
+  if (!igdbConfigured()) return [];
+  const query = queryFor(TTL.detail);
+  const fields = "name,slug,cover.image_id,first_release_date,genres.name,alternative_names.name";
+  const pages = await Promise.all(
+    [0, 500].map((offset) =>
+      query<IgdbGame[]>(
+        "games",
+        apicalypse({
+          fields,
+          where: `${MAIN_GAMES} & total_rating_count > 40 & cover != null`,
+          sort: "total_rating_count desc",
+          limit: 500,
+          offset,
+        }),
+      ).catch((err) => {
+        warn("search.index", err);
+        return [] as IgdbGame[];
+      }),
+    ),
+  );
+  const seen = new Set<number>();
+  const entries: SearchIndexEntry[] = [];
+  for (const row of pages.flat()) {
+    if (!row.name || !row.slug || seen.has(row.id)) continue;
+    seen.add(row.id);
+    const alt = (row.alternative_names ?? [])
+      .map((entry) => entry.name)
+      .filter((name): name is string => Boolean(name) && name!.length <= 24 && /^[\x20-\x7e]+$/.test(name!))
+      .slice(0, 3);
+    entries.push({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      cover: row.cover?.image_id ?? null,
+      released: row.first_release_date ? new Date(row.first_release_date * 1000).toISOString().slice(0, 10) : null,
+      genres: (row.genres ?? []).slice(0, 2).map((genre) => genre.name).filter(Boolean).join(" · "),
+      ...(alt.length ? { alt } : {}),
+    });
+  }
+  return entries;
 }
 
 export const igdbProvider: GameProvider = {

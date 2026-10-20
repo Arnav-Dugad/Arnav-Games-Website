@@ -18,7 +18,8 @@ import { searchGames } from "@/lib/games/source";
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const query = searchParams.get("q")?.trim() ?? "";
+  // Case never changes the answer; one spelling means one cached upstream query.
+  const query = searchParams.get("q")?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
 
   if (query.length < 2) {
     return NextResponse.json({ results: [], hits: [], source: "unavailable" });
@@ -50,6 +51,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ hits, source }, { headers });
   } catch (err) {
     console.error("[api/search] failed", err);
-    return NextResponse.json({ hits: [], source: "unavailable" }, { status: 200 });
+    // A failure is not "no results": the palette retries and says so.
+    return NextResponse.json(
+      { hits: [], source: "unavailable", error: true },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }
