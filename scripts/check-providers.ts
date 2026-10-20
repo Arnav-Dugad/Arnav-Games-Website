@@ -53,7 +53,11 @@ import {
   matchGpu,
   matchGpus,
   parsePcRequirements,
+  typicalVram,
 } from "../src/lib/games/hardware";
+import { backlogForecast } from "../src/lib/games/forecast";
+import { cleanRenderer } from "../src/lib/games/pc-detect";
+import { cleanCustomTag, parseMyTags, topPlayerTags } from "../src/lib/games/community-tags";
 import { downsampleTwitch, reviewVelocity, scoreTimeline, sumStreams } from "../src/lib/games/history-rules";
 import { decodeFields, encodeFields, fieldPath } from "../src/lib/firebase/server/values";
 import {
@@ -952,7 +956,7 @@ console.log("\nHardware (round 4)");
   check("GPU: no space", matchGpu("rtx3060ti")?.name, "NVIDIA GeForce RTX 3060 Ti");
   check("GPU: AMD XTX", matchGpu("rx 7900xtx")?.name, "AMD Radeon RX 7900 XTX");
   check("GPU: Vega 56 is not an APU", matchGpu("AMD RADEON RX VEGA 56 8 GB")?.name, "AMD Radeon RX Vega 56");
-  check("GPU: laptop parts scaled", matchGpu("GTX 1060M"), { name: "NVIDIA GeForce GTX 1060 Laptop", score: 32 });
+  check("GPU: laptop parts scaled", matchGpu("GTX 1060M"), { name: "NVIDIA GeForce GTX 1060 Laptop", score: 32, laptop: true });
   check(
     "GPU: Intel iGPU vs Radeon HD",
     [matchGpu("Intel HD Graphics 4000")?.name, matchGpu("Radeon HD 7750 (1GB)")?.name],
@@ -1025,6 +1029,12 @@ console.log("\nHardware (round 4)");
       { part: "RAM", yours: "16 GB", needed: "16 GB", ok: true },
     ],
     summary: "Meets the minimum specs; your GPU is below recommended.",
+    outlook: [
+      { label: "1080p High", fps: 60, level: "lower" },
+      { label: "1440p High", fps: 60, level: "no" },
+      { label: "4K High", fps: 60, level: "no" },
+    ],
+    headline: "1080p High is a stretch; 1080p Medium should hold up.",
   });
   check(
     "verdict: below",
@@ -1033,6 +1043,147 @@ console.log("\nHardware (round 4)");
   );
   check("verdict: unknown part → unknown, never a guess", evaluateHardware({ cpu: "", gpu: "Mystery GPU", ramGb: 32 }, req).kind, "unknown");
   check("verdict: no requirements", evaluateHardware({ cpu: "i5-8400", gpu: "GTX 1060", ramGb: 16 }, null).kind, "unknown");
+}
+
+console.log("\nHardware (round 5: laptops, new names, detection strings, outlook)");
+{
+  check("GPU: laptop table", matchGpu("NVIDIA GeForce RTX 4060 Laptop GPU"), { name: "NVIDIA GeForce RTX 4060 Laptop", score: 105, laptop: true });
+  check(
+    "GPU: WebGL/ANGLE renderer strings",
+    [
+      matchGpu("ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 Direct3D11 vs_5_0 ps_5_0, D3D11)")?.name,
+      matchGpu("ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)")?.name,
+      matchGpu("ANGLE (Apple, ANGLE Metal Renderer: Apple M2 Pro, Unspecified Version)")?.name,
+      matchGpu("ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) Direct3D11 vs_5_0 ps_5_0, D3D11)")?.name,
+      matchGpu("AMD Custom GPU 0405 (radeonsi, vangogh, LLVM 15.0.7, DRM 3.54)")?.name,
+    ],
+    ["NVIDIA GeForce RTX 3070", "NVIDIA GeForce RTX 3060", "Apple M2 Pro", "Intel Iris Xe", "Steam Deck"],
+  );
+  check("GPU: integrated Radeon is not a laptop dGPU", matchGpu("AMD Radeon 780M"), { name: "AMD Radeon 780M", score: 27 });
+  check(
+    "GPU: AMD/Intel laptop suffixes, Max-Q, Strix Halo",
+    [
+      matchGpu("AMD Radeon RX 6800M")?.score,
+      matchGpu("Radeon RX 7600M XT")?.name,
+      matchGpu("Intel(R) Arc(TM) A770M Graphics")?.name,
+      matchGpu("RTX 3070 Max-Q")?.score,
+      matchGpu("AMD Radeon 8060S Graphics")?.score,
+    ],
+    [120, "AMD Radeon RX 7600M XT", "Intel Arc A770M", 89.3, 100],
+  );
+  check(
+    "GPU: a laptop owner's bare card name means the laptop chip",
+    [matchGpu("RTX 3060", { laptop: true })?.name, matchGpu("RTX 3060")?.name],
+    ["NVIDIA GeForce RTX 3060 Laptop", "NVIDIA GeForce RTX 3060"],
+  );
+  check("VRAM suggestion differs on laptops", [typicalVram("RTX 3060"), typicalVram("RTX 3060 Laptop GPU"), typicalVram("Mystery")], [12, 6, null]);
+  check(
+    "CPU: Core Ultra series 1/2, Core 7, Ryzen AI, handhelds",
+    [
+      matchCpu("Intel Core Ultra 7 155H"),
+      matchCpu("Intel Core Ultra 9 285K")?.score,
+      matchCpu("Intel(R) Core(TM) Ultra 7 258V")?.score,
+      matchCpu("Intel Core 7 150U")?.score,
+      matchCpu("AMD Ryzen AI 9 HX 370 w/ Radeon 890M")?.name,
+      matchCpu("AMD Ryzen AI Max+ 395")?.score,
+      matchCpu("AMD Ryzen Z1 Extreme")?.score,
+    ],
+    [{ name: "Intel Core Ultra 7 155H", score: 25, laptop: true }, 64, 20, 16, "AMD Ryzen AI 9 HX 370", 55, 25],
+  );
+  check(
+    "CPU: laptop suffixes flag the part",
+    [matchCpu("i9-14900HX"), matchCpu("Ryzen 7 7840HS")?.score, matchCpu("Intel Xeon E3-1230 v3")?.score],
+    [{ name: "Intel Core i9-14900HX", score: 55.1, laptop: true }, 28, 7],
+  );
+
+  const req5 = parsePcRequirements({
+    minimum:
+      "<ul><li><strong>Processor:</strong> INTEL CORE I5-8400</li><li><strong>Memory:</strong> 12 GB RAM</li><li><strong>Graphics:</strong> NVIDIA GEFORCE GTX 1060 3 GB</li><li><strong>Storage:</strong> 60 GB available space</li></ul>",
+    recommended:
+      "<ul><li><strong>Processor:</strong> INTEL CORE I7-8700K</li><li><strong>Memory:</strong> 16 GB RAM</li><li><strong>Graphics:</strong> NVIDIA GEFORCE GTX 1070 8 GB</li><li><strong>Storage:</strong> 60 GB SSD</li></ul>",
+  });
+  check(
+    "outlook: resolution ladder headline",
+    evaluateHardware({ cpu: "Ryzen 5 5600X", gpu: "RTX 3060", ramGb: 16 }, req5).headline,
+    "Runs well at 1080p High; 1440p High is a stretch.",
+  );
+  check(
+    "outlook: a known 1440p screen compares presets",
+    evaluateHardware({ cpu: "Ryzen 5 5600X", gpu: "RTX 3060", ramGb: 16, display: { resolution: "1440p" } }, req5).outlook?.map((row) => [row.label, row.level]),
+    [["1440p Medium", "great"], ["1440p High", "lower"], ["1440p Max", "lower"]],
+  );
+  const laptop = evaluateHardware(
+    {
+      cpu: "i7-12700H",
+      gpu: "RTX 3060",
+      ramGb: 16,
+      formFactor: "laptop",
+      vramGb: 6,
+      storage: "hdd",
+      freeStorageGb: 40,
+      goal: { resolution: "1440p", fps: 60, quality: "max" },
+    },
+    req5,
+  );
+  check("laptop verdict: kind and part rows", [laptop.kind, laptop.parts.map((p) => [p.part, p.ok])], [
+    "ok",
+    [["CPU", true], ["GPU", true], ["RAM", true], ["VRAM", false], ["Storage", false]],
+  ]);
+  check("laptop verdict: reasons, most important first", laptop.reasons, [
+    "Your goal (1440p Max, 60 fps) asks more than your graphics card has — lower the preset or use upscaling.",
+    "6 GB of video memory is below the 8 GB recommended — keep textures at Medium.",
+    "Needs 60 GB of space; you have 40 GB free.",
+    "This game asks for an SSD — from a hard drive expect long loads and stutter.",
+  ]);
+}
+
+console.log("\nRound 5: renderer strings, backlog forecast, player tags");
+{
+  check(
+    "WebGL renderer → card name",
+    [
+      cleanRenderer("ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+      cleanRenderer("ANGLE (Apple, ANGLE Metal Renderer: Apple M2 Pro, Unspecified Version)"),
+      cleanRenderer("NVIDIA GeForce RTX 4060 Laptop GPU/PCIe/SSE2"),
+    ],
+    ["NVIDIA GeForce RTX 3060", "Apple M2 Pro", "NVIDIA GeForce RTX 4060 Laptop GPU/PCIe/SSE2"],
+  );
+
+  const DAY = 86_400_000;
+  const now = Date.parse("2026-10-19T12:00:00Z");
+  const base = { released: "2020-01-01", ownedOn: ["steam"] };
+  const sample = [
+    { ...base, gameId: 1, status: "played" as const, finishedAt: now - 180 * DAY },
+    { ...base, gameId: 2, status: "played" as const, finishedAt: now - 90 * DAY },
+    { ...base, gameId: 3, status: "played" as const, finishedAt: now - 10 * DAY },
+    { ...base, gameId: 4, status: "none" as const },
+    { ...base, gameId: 5, status: "want" as const },
+    { ...base, gameId: 6, status: "want" as const, ownedOn: [] },
+    { ...base, gameId: 7, status: "none" as const, released: "2027-03-01" },
+  ];
+  const ttb = { 1: { hastily: 15, normally: 20, completely: 40 }, 2: { hastily: 15, normally: 20, completely: 40 }, 3: { hastily: 15, normally: 20, completely: 40 }, 4: { hastily: 25, normally: 30, completely: 60 } };
+  const forecast = backlogForecast(sample, ttb, {}, now);
+  check("forecast: pace from finished games, owned released backlog only", forecast && { ...forecast, date: new Date(forecast.date).toISOString().slice(0, 10) }, {
+    date: "2027-03-18",
+    games: 2,
+    hours: 50,
+    estimatedGames: 1,
+    typicalHours: 20,
+    finished: 3,
+    windowDays: 180,
+    hoursPerMonth: 10,
+    distant: false,
+  });
+  check("forecast: hidden with too little history", backlogForecast(sample.slice(1), ttb, {}, now), null);
+  check("forecast: logged hours replace estimates", backlogForecast(sample, ttb, { 1: 40, 2: 40, 3: 40 }, now)?.hoursPerMonth, 20);
+
+  check("tags: unknown slugs dropped, custom cleaned", parseMyTags({ tags: ["cozy", "nope", "cozy"], custom: ["  Play  with Sam!! ", "x"] }), { tags: ["cozy"], custom: ["Play with Sam"] });
+  check("tags: too many refused", parseMyTags({ tags: ["cozy", "funny", "short", "long", "scary", "linear", "grindy"] }), null);
+  check("tags: custom tag must say something", [cleanCustomTag("<script>"), cleanCustomTag("!")], ["script", null]);
+  check("tags: top tags ignore zero and unknown", topPlayerTags({ cozy: 3, funny: 0, bogus: 9, "great-story": 5 }), [
+    { tag: "great-story", count: 5 },
+    { tag: "cozy", count: 3 },
+  ]);
 }
 
 console.log("\nValue per hour (round 4)");

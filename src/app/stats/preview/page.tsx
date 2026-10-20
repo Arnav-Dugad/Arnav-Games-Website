@@ -19,6 +19,7 @@ import { SAMPLE_BENCHMARK, sampleLibrary } from "@/components/stats/preview-samp
 import { Container } from "@/components/ui/SectionHeading";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { buildPersonalAnalytics } from "@/lib/games/stats";
+import { backlogForecast } from "@/lib/games/forecast";
 
 export const metadata: Metadata = {
   title: "Stats preview (dev)",
@@ -49,6 +50,7 @@ export default async function StatsPreviewPage({
           analytics={analytics}
           benchmark={single("benchmark") === "off" ? null : SAMPLE_BENCHMARK}
           hoursStatus={hoursStatus}
+          forecast={hoursStatus === "ready" ? backlogForecast(entries, timeToBeat) : null}
         />
       </Container>
     </>

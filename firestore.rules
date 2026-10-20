@@ -52,6 +52,41 @@ service cloud.firestore {
         || (request.resource.data[field] is list && request.resource.data[field].size() <= max);
     }
 
+    // --- My PC (inside preferences) ---------------------------------------
+    // Mirrors `parsePcSpecs` in src/lib/preferences/pc.ts. The three parts
+    // are required; everything after them is optional and vocabulary-checked.
+    // `get(field, default)` lets an absent optional field pass its check.
+    function validPcSpecs(p) {
+      return p is map
+        && p.keys().hasOnly(['cpu', 'gpu', 'ramGb', 'formFactor', 'vramGb', 'storage',
+                             'freeStorageGb', 'os', 'display', 'goal'])
+        && p.cpu is string && p.cpu.size() <= 120
+        && p.gpu is string && p.gpu.size() <= 120
+        && p.ramGb is number && p.ramGb > 0 && p.ramGb <= 1024
+        && p.get('formFactor', 'desktop') in ['desktop', 'laptop', 'handheld']
+        && p.get('vramGb', 1) is number && p.get('vramGb', 1) > 0 && p.get('vramGb', 1) <= 128
+        && p.get('storage', 'nvme') in ['nvme', 'sata-ssd', 'hdd']
+        && p.get('freeStorageGb', 1) is number && p.get('freeStorageGb', 1) > 0 && p.get('freeStorageGb', 1) <= 100000
+        && p.get('os', 'windows') in ['windows', 'macos', 'linux', 'steamos']
+        && validPcDisplay(p.get('display', {'resolution': '1080p'}))
+        && validPcGoal(p.get('goal', {'resolution': '1080p', 'fps': 60, 'quality': 'high'}));
+    }
+
+    function validPcDisplay(d) {
+      return d is map
+        && d.keys().hasOnly(['resolution', 'refreshHz'])
+        && d.resolution in ['720p', '1080p', '1440p', '4k']
+        && d.get('refreshHz', 60) is number && d.get('refreshHz', 60) > 0 && d.get('refreshHz', 60) <= 1000;
+    }
+
+    function validPcGoal(g) {
+      return g is map
+        && g.keys().hasOnly(['resolution', 'fps', 'quality'])
+        && g.resolution in ['720p', '1080p', '1440p', '4k']
+        && g.fps in [30, 60, 120]
+        && g.quality in ['low', 'medium', 'high', 'max'];
+    }
+
     // --- Profiles ---------------------------------------------------------
     // Private to the account holder. Reviews carry their own public author
     // snapshot, so exposing the profile document would only leak account data.
@@ -117,12 +152,7 @@ service cloud.firestore {
           && (!changes('theme') || data.theme in ['system', 'light', 'dark'])
           && (!changes('priceRegion') || data.priceRegion == null
               || (data.priceRegion is string && data.priceRegion.matches('^[A-Z]{2}$')))
-          && (!changes('pcSpecs') || data.pcSpecs == null
-              || (data.pcSpecs is map
-                  && data.pcSpecs.keys().hasOnly(['cpu', 'gpu', 'ramGb'])
-                  && data.pcSpecs.cpu is string && data.pcSpecs.cpu.size() <= 120
-                  && data.pcSpecs.gpu is string && data.pcSpecs.gpu.size() <= 120
-                  && data.pcSpecs.ramGb is number && data.pcSpecs.ramGb > 0 && data.pcSpecs.ramGb <= 1024))
+          && (!changes('pcSpecs') || data.pcSpecs == null || validPcSpecs(data.pcSpecs))
           && optionalList('recentSearches', 8)
           && (!changes('wishlistBudget') || data.wishlistBudget == null
               || (data.wishlistBudget is map
@@ -157,18 +187,57 @@ service cloud.firestore {
         allow create, update: if isOwner(uid) && validFeedback(gameId);
       }
 
-      // --- Coming next (stubs, deliberately closed until built) ------------
-      // Each is owner-only. When a feature lands, replace `false` with
-      // `isOwner(uid) && valid…()` and a shape check like the ones above.
-
-      // Play journal: users/{uid}/journal/{entryId} — owner-only.
-      match /journal/{entryId} {
-        allow read, write: if false; // TODO: isOwner(uid) && validJournalEntry()
+      // --- Play journal -----------------------------------------------------
+      // users/{uid}/journal/{entryId}: one session note (src/lib/personal/
+      // store.ts). Private. A game snapshot (id, slug, name, cover) lets the
+      // profile timeline render without fetching every game; the note is
+      // capped, the mood is a fixed vocabulary, session hours are bounded.
+      // Game ids may be negative (Steam-only titles), never zero.
+      function validJournalEntry() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['gameId', 'slug', 'name', 'image', 'note', 'mood', 'hours', 'at'])
+          && data.keys().hasAll(['gameId', 'slug', 'name', 'note', 'mood', 'at'])
+          && data.gameId is int && data.gameId != 0
+          && data.slug is string && data.slug.size() > 0 && data.slug.size() <= 200
+          && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+          && (data.get('image', null) == null || (data.image is string && data.image.size() <= 2048))
+          && data.note is string && data.note.size() <= 1000
+          && data.mood in ['great', 'good', 'okay', 'meh', 'frustrated']
+          && (data.get('hours', null) == null || (data.hours is number && data.hours > 0 && data.hours <= 48))
+          && data.at is int && data.at > 0;
       }
 
-      // Per-game playtime: users/{uid}/playtime/{gameId} — owner-only.
+      match /journal/{entryId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validJournalEntry();
+      }
+
+      // --- Personal playtime -----------------------------------------------
+      // users/{uid}/playtime/{gameId}: the reader's own total hours for one
+      // game. The document id must be the game id, so one game never has two
+      // totals.
+      function validPlaytime(gameId) {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['gameId', 'hours', 'updatedAt'])
+          && data.keys().hasAll(['gameId', 'hours', 'updatedAt'])
+          && data.gameId is int && data.gameId == int(gameId)
+          && data.hours is number && data.hours > 0 && data.hours <= 100000
+          && data.updatedAt is int && data.updatedAt > 0;
+      }
+
       match /playtime/{gameId} {
-        allow read, write: if false; // TODO: isOwner(uid) && validPlaytime(gameId)
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validPlaytime(gameId);
+      }
+
+      // --- Your tags --------------------------------------------------------
+      // users/{uid}/gameTags/{gameId}: the tags this reader gave one game.
+      // Readable by its owner; written only by the server (POST /api/tags,
+      // which verifies the ID token and keeps communityTags/{gameId} in step
+      // in the same commit), so the public counts can't drift or be stuffed.
+      match /gameTags/{gameId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
       }
     }
 
@@ -229,8 +298,9 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
-    // Community tags (coming next): communityTags/{gameId} — public read,
-    // written only by the server (which bypasses rules), never by clients.
+    // Community tags: communityTags/{gameId} — { counts: { tag: n }, total,
+    // updatedAt }. Public read, written only by the server (POST /api/tags,
+    // which bypasses rules), never by clients.
     match /communityTags/{gameId} {
       allow get: if true;
       allow list, write: if false;

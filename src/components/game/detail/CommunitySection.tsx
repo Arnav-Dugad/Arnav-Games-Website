@@ -16,7 +16,8 @@ import { cn } from "@/lib/utils/cn";
 import { compactNumber } from "@/lib/utils/format";
 import type { GameMods, SpeedrunRecords, SteamSpyData } from "@/lib/games/types";
 import { DetailSection } from "./DetailSection";
-import { useGameExtras } from "./live";
+import { useGameExtras, useGameRequest } from "./live";
+import { PlayerTags } from "./PlayerTags";
 
 const MAX_TAGS = 14;
 const MAX_RECORDS = 4;
@@ -27,22 +28,27 @@ const RUN_DATE = new Intl.DateTimeFormat("en-US", { month: "short", year: "numer
 export default function CommunitySection() {
   const near = useNearId("reviews");
   const extras = useGameExtras(near);
-  if (extras?.status !== "ready") return null;
+  const game = useGameRequest();
+  // Player tags don't depend on the extras, so the section stands even when
+  // the extras fail; it waits for them only so the blocks arrive together.
+  if (!extras || extras.status === "loading" || !near || !game) return null;
 
-  const { steamSpy, speedrun, mods } = extras.data;
-  const tags = steamSpy?.tags.slice(0, MAX_TAGS) ?? [];
+  const data = extras.status === "ready" ? extras.data : null;
+  const tags = data?.steamSpy?.tags.slice(0, MAX_TAGS) ?? [];
+  const speedrun = data?.speedrun ?? null;
+  const mods = data?.mods ?? null;
   const records = speedrun ? [...speedrun.records.filter((r) => !r.misc), ...speedrun.records.filter((r) => r.misc)].slice(0, MAX_RECORDS) : [];
-  const hasMods = Boolean(mods.thunderstore?.top.length || mods.links.steamWorkshop);
-  if (tags.length === 0 && records.length === 0 && !hasMods) return null;
+  const hasMods = Boolean(mods && (mods.thunderstore?.top.length || mods.links.steamWorkshop));
 
   return (
     <DetailSection id="community" title="Community">
-      <div className="space-y-4">
+      <div className="space-y-6">
+        <PlayerTags gameId={game.id} gameName={game.name} slug={game.slug ?? String(game.id)} />
         {tags.length > 0 && <Tags tags={tags} />}
         {(records.length > 0 || hasMods) && (
           <div className={records.length > 0 && hasMods ? "grid gap-4 lg:grid-cols-2" : undefined}>
             {records.length > 0 && speedrun && <Records game={speedrun.game} records={records} wide={!hasMods} />}
-            {hasMods && <Mods mods={mods} />}
+            {hasMods && mods && <Mods mods={mods} />}
           </div>
         )}
       </div>
@@ -53,8 +59,8 @@ export default function CommunitySection() {
 function Tags({ tags }: { tags: SteamSpyData["tags"] }) {
   return (
     <div>
-      <h3 className="sr-only">Steam tags</h3>
-      <ul className="flex flex-wrap gap-2" aria-label="Steam tags, most voted first">
+      <h3 className="text-[15px] font-semibold text-text">On Steam</h3>
+      <ul className="mt-2 flex flex-wrap gap-2" aria-label="Steam tags, most voted first">
         {tags.map((tag) => (
           <li key={tag.name}>
             <Chip href={`/browse?search=${encodeURIComponent(tag.name)}`}>{tag.name}</Chip>

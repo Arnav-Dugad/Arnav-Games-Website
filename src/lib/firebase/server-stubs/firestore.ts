@@ -13,6 +13,7 @@ export const persistentLocalCache = () => browserOnly("persistentLocalCache");
 export const persistentMultipleTabManager = () => browserOnly("persistentMultipleTabManager");
 export const limit = () => browserOnly("limit");
 export const onSnapshot = () => browserOnly("onSnapshot");
+export const orderBy = () => browserOnly("orderBy");
 export const query = () => browserOnly("query");
 export const serverTimestamp = () => browserOnly("serverTimestamp");
 export const setDoc = () => browserOnly("setDoc");

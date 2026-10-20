@@ -44,6 +44,10 @@ import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { usePreferences } from "@/lib/preferences/PreferencesProvider";
 import { OWNERSHIP_PLATFORMS, ownershipPlatform } from "@/lib/games/stores-catalog";
 import { buildPersonalAnalytics, type TimeToBeatLike } from "@/lib/games/stats";
+import { backlogForecast, type BacklogForecast } from "@/lib/games/forecast";
+import { usePersonal } from "@/lib/personal/store";
+import { LiquidRing } from "@/components/stats/charts/LiquidRing";
+import { ForecastNote } from "@/components/stats/ForecastNote";
 import { fuzzyMatches } from "@/lib/games/fuzzy-search";
 import { releaseState, type ReleaseState } from "@/lib/games/release-state";
 import { haptic } from "@/lib/haptics";
@@ -212,6 +216,12 @@ export function LibraryView({
     [owned, ttb.status, ttb.data],
   );
 
+  const { playtime } = usePersonal();
+  const forecast = useMemo(
+    () => (ttb.status === "ready" && ttb.data ? backlogForecast(owned, ttb.data, playtime) : null),
+    [owned, ttb.status, ttb.data, playtime],
+  );
+
   const groups = useMemo(() => smartGroups(owned), [owned]);
 
   const clearFilters = () => {
@@ -248,7 +258,7 @@ export function LibraryView({
   return (
     <div className="pb-8 lg:pb-12">
       <Container>
-        <LibraryHero owned={owned} analytics={analytics} hoursStatus={ttb.status} storeCount={stores.length} />
+        <LibraryHero owned={owned} analytics={analytics} hoursStatus={ttb.status} storeCount={stores.length} forecast={forecast} />
       </Container>
 
       <div className="mt-10 space-y-10 sm:mt-14 sm:space-y-14">
@@ -434,11 +444,13 @@ function LibraryHero({
   analytics,
   hoursStatus,
   storeCount,
+  forecast,
 }: {
   owned: WatchlistEntry[];
   analytics: ReturnType<typeof buildPersonalAnalytics>;
   hoursStatus: "loading" | "ready" | "unavailable";
   storeCount: number;
+  forecast: BacklogForecast | null;
 }) {
   const { finish, funnel, hours } = analytics;
   const upcoming = owned.filter((entry) => releaseState(entry) === "upcoming").length;
@@ -486,6 +498,23 @@ function LibraryHero({
           <HeroTile label="Playing" value={funnel.playing} note={funnel.playing ? "on the go right now" : "nothing in progress"} />
         )}
       </dl>
+      {/* Progress you can watch fill: finish rate, hours played, and when the backlog clears at this pace. */}
+      {(finish.rate !== null || forecast) && (
+        <div className="mt-4 grid items-center gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+          <div className="flex items-center justify-center gap-4 sm:justify-start">
+            {finish.rate !== null && <LiquidRing value={finish.rate} label="finished" className="h-24 w-24 sm:h-28 sm:w-28" />}
+            {hoursReady && hours.finished + hours.inProgress > 0 && (
+              <LiquidRing
+                value={(hours.finished + hours.inProgress) / (hours.finished + hours.inProgress + hours.backlog)}
+                label="hours played"
+                tone="var(--color-brand)"
+                className="h-24 w-24 sm:h-28 sm:w-28"
+              />
+            )}
+          </div>
+          {forecast && <ForecastNote forecast={forecast} />}
+        </div>
+      )}
       {hoursReady && hours.withData < hours.eligible && (
         <p className="mt-3 text-[12px] text-faint">
           Backlog hours: IGDB estimates for {hours.withData} of {plural(hours.eligible, "game")}.

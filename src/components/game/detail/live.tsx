@@ -214,6 +214,11 @@ export function useGameExtras(enabled: boolean): EndpointState<GameExtras> | nul
   return context ? state : null;
 }
 
+/** The game this page is about (id, name, slug), or null outside a game page. */
+export function useGameRequest(): LiveRequest | null {
+  return useContext(InsightsContext)?.request ?? null;
+}
+
 /** A part of the page's own insights answer, whatever ids a section was given (e.g. none, for a game with no store ids). */
 export function usePagePart<K extends "cloud" | "antiCheat">(part: K) {
   const context = useContext(InsightsContext);

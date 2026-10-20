@@ -50,9 +50,22 @@ export function HeroArt({
   media?: React.ReactNode;
 }) {
   const tint = heroTint(game.palette);
+  // Light theme: a brighter screenshot when the server found one, and
+  // lighter, more colourful scrims. The copy column keeps its protection.
+  const light = heroTint(game.lightArt?.palette ?? game.palette, 0.7);
+  const scrims = {
+    "--hero-phone": `linear-gradient(0deg, #000 0%, ${tint.base(0.94)} 26%, ${tint.base(0.5)} 46%, ${tint.base(0)} 64%)`,
+    "--hero-phone-light": `linear-gradient(0deg, ${light.base()} 0%, ${light.base(0.9)} 26%, ${light.base(0.4)} 46%, ${light.base(0)} 62%)`,
+    "--hero-bottom": `linear-gradient(0deg, #000 0%, ${tint.base(0.82)} 15%, ${tint.base(0.32)} 36%, ${tint.base(0)} 56%)`,
+    "--hero-bottom-light": `linear-gradient(0deg, ${light.base(0.92)} 0%, ${light.base(0.66)} 15%, ${light.base(0.2)} 34%, ${light.base(0)} 50%)`,
+    "--hero-left": `linear-gradient(90deg, ${tint.base(0.9)} 0%, ${tint.base(0.6)} 24%, ${tint.base(0.16)} 48%, ${tint.base(0)} 66%)`,
+    "--hero-left-light": `linear-gradient(90deg, ${light.base(0.78)} 0%, ${light.base(0.46)} 24%, ${light.base(0.08)} 46%, ${light.base(0)} 60%)`,
+  } as React.CSSProperties;
+  const LIGHT_ONLY = "hidden [:root[data-theme=light]_&]:block";
+  const DARK_ONLY = "[:root[data-theme=light]_&]:hidden";
 
   return (
-    <div aria-hidden className="absolute inset-0 overflow-hidden" style={{ backgroundColor: tint.base() }}>
+    <div aria-hidden className="absolute inset-0 overflow-hidden" style={{ backgroundColor: tint.base(), ...scrims }}>
       {drift && (
         // React 19 hoists and de-duplicates this by `href`, so every slide
         // shares one keyframes rule without a global stylesheet entry.
@@ -83,49 +96,42 @@ export function HeroArt({
               : undefined
           }
         >
-          <GameCover
-            name={game.name}
-            slug={game.slug}
-            image={game.screenshots[0] ?? game.image}
-            imageFallback={game.imageFallback}
-            width={1920}
-            priority={priority}
-            sizes="100vw"
-            rounded="rounded-none"
-          />
+          <div className={cn("absolute inset-0", game.lightArt && DARK_ONLY)}>
+            <GameCover
+              name={game.name}
+              slug={game.slug}
+              image={game.screenshots[0] ?? game.image}
+              imageFallback={game.imageFallback}
+              width={1920}
+              priority={priority}
+              sizes="100vw"
+              rounded="rounded-none"
+            />
+          </div>
+          {game.lightArt && (
+            // Lazy and display:none outside the light theme, so dark readers never download it.
+            <div className={cn("absolute inset-0", LIGHT_ONLY)}>
+              <GameCover name={game.name} slug={game.slug} image={game.lightArt.image} width={1920} sizes="100vw" rounded="rounded-none" />
+            </div>
+          )}
         </div>
         {media}
       </div>
 
       {/* Phones: a tall bottom field carrying the copy. */}
-      <div
-        className="absolute inset-0 md:hidden"
-        style={{
-          background: `linear-gradient(0deg, #000 0%, ${tint.base(0.94)} 26%, ${tint.base(0.5)} 46%, ${tint.base(0)} 64%)`,
-        }}
-      />
+      <div className="absolute inset-0 [background:var(--hero-phone)] md:hidden [:root[data-theme=light]_&]:[background:var(--hero-phone-light)]" />
       {/* Desktop: a bottom pass anchoring the copy and a left pass protecting
           its column. Both clear well before the top-right, so the art and
           trailer stay bright where nothing overlaps them. */}
-      <div
-        className="absolute inset-0 hidden md:block"
-        style={{
-          background: `linear-gradient(0deg, #000 0%, ${tint.base(0.82)} 15%, ${tint.base(0.32)} 36%, ${tint.base(0)} 56%)`,
-        }}
-      />
-      <div
-        className="absolute inset-0 hidden md:block"
-        style={{
-          background: `linear-gradient(90deg, ${tint.base(0.9)} 0%, ${tint.base(0.6)} 24%, ${tint.base(0.16)} 48%, ${tint.base(0)} 66%)`,
-        }}
-      />
+      <div className="absolute inset-0 hidden [background:var(--hero-bottom)] md:block [:root[data-theme=light]_&]:[background:var(--hero-bottom-light)]" />
+      <div className="absolute inset-0 hidden [background:var(--hero-left)] md:block [:root[data-theme=light]_&]:[background:var(--hero-left-light)]" />
       {/* The light source: the slide's own vibrant colour, low behind the copy. */}
       <div
         className="absolute inset-0"
         style={{ background: `radial-gradient(60% 46% at 6% 94%, ${tint.glow(0.26)}, transparent 72%)` }}
       />
       {/* Keeps the floating header legible over bright skies. */}
-      <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/45 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/45 to-transparent [:root[data-theme=light]_&]:from-black/25" />
     </div>
   );
 }

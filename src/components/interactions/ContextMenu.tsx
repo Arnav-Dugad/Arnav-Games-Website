@@ -20,6 +20,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import { openSessionLog } from "@/lib/personal/store";
 import {
   useCallback,
   useEffect,
@@ -31,6 +32,7 @@ import {
 } from "react";
 import {
   ArrowUpRight,
+  NotebookPen,
   BellPlus,
   BellRing,
   Bookmark,
@@ -722,6 +724,19 @@ function GameMenu({
                 );
               })}
             </div>
+            {/* Released games the reader is playing or has played (or owns) can get a session note. */}
+            {!isUnreleased(game) && (status === "playing" || status === "played" || owned.length > 0) && (
+              <MenuItem
+                icon={<NotebookPen size={16} />}
+                onSelect={() => {
+                  if (!requireAccount()) return;
+                  onClose();
+                  openSessionLog({ id: game.id, slug: game.slug, name: game.name, image: game.image });
+                }}
+              >
+                Log a session
+              </MenuItem>
+            )}
             <Separator />
             <MenuItem
               icon={<Library size={17} />}

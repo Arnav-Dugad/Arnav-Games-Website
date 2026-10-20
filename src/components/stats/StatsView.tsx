@@ -7,6 +7,9 @@ import { Container } from "@/components/ui/SectionHeading";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { buildPersonalAnalytics, type CatalogueBenchmark } from "@/lib/games/stats";
+import { backlogForecast } from "@/lib/games/forecast";
+import { usePersonal } from "@/lib/personal/store";
+import { personalHours } from "./personal-hours";
 import type { Ref } from "@/lib/games/types";
 import { StatsDashboard } from "./StatsDashboard";
 import { useTimeToBeat } from "./useTimeToBeat";
@@ -18,10 +21,14 @@ import { useTimeToBeat } from "./useTimeToBeat";
 export function StatsView({ genreDirectory, benchmark }: { genreDirectory: Ref[]; benchmark: CatalogueBenchmark | null }) {
   const { entries, loading } = useWatchlist();
   const ttb = useTimeToBeat(entries, { enabled: !loading });
+  const { playtime } = usePersonal();
+  const timeToBeat = ttb.status === "ready" ? ttb.data : null;
   const analytics = useMemo(
-    () => buildPersonalAnalytics(entries, { genreDirectory, timeToBeat: ttb.status === "ready" ? ttb.data : null }),
-    [entries, genreDirectory, ttb.status, ttb.data],
+    () => buildPersonalAnalytics(entries, { genreDirectory, timeToBeat }),
+    [entries, genreDirectory, timeToBeat],
   );
+  const forecast = useMemo(() => (timeToBeat ? backlogForecast(entries, timeToBeat, playtime) : null), [entries, timeToBeat, playtime]);
+  const personal = useMemo(() => personalHours(entries, timeToBeat, playtime), [entries, timeToBeat, playtime]);
 
   if (loading) return <StatsSkeleton />;
   if (analytics.totalGames === 0) {
@@ -40,7 +47,7 @@ export function StatsView({ genreDirectory, benchmark }: { genreDirectory: Ref[]
 
   return (
     <Container className="pb-10 lg:pb-14">
-      <StatsDashboard analytics={analytics} benchmark={benchmark} hoursStatus={ttb.status} />
+      <StatsDashboard analytics={analytics} benchmark={benchmark} hoursStatus={ttb.status} forecast={forecast} personal={personal} />
     </Container>
   );
 }

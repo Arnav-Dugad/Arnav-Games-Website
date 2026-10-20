@@ -15,6 +15,7 @@
  * `/profile/preview` route show the signed-in design without an account.
  */
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -54,6 +55,17 @@ import { cn } from "@/lib/utils/cn";
 import { OWNERSHIP_PLATFORMS } from "@/lib/games/stores-catalog";
 import { SUBSCRIPTION_SERVICES } from "@/components/game/SubscriptionAccessPicker";
 import { BrandIcon } from "@/components/brand/BrandIcon";
+import { JournalTimeline } from "@/components/personal/JournalTimeline";
+import { usePersonal, type JournalEntry } from "@/lib/personal/store";
+import { STORAGE_PREFIX } from "@/lib/utils/storage-keys";
+
+// The physics shelf is a toy: opt-in, browser-only, never in the first paint.
+const PhysicsShelf = dynamic(() => import("@/components/shelf/PhysicsShelf"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[420px] rounded-3xl" />,
+});
+const SHELF_KEY = `${STORAGE_PREFIX}profile-shelf`;
+const SHELF_LIMIT = 40;
 
 type PlayStyle = "casual" | "balanced" | "dedicated" | "competitive" | null;
 
@@ -76,6 +88,8 @@ export interface ProfileData {
   /** Null while loading. */
   reviews: Review[] | null;
   entries: WatchlistEntry[];
+  /** The play journal, newest first; null while loading. */
+  journal?: JournalEntry[] | null;
 }
 
 const EMPTY_DRAFT: ProfileDraft = { name: "", bio: "", gamerTag: "", ownedPlatforms: [], activeSubscriptions: [], playStyle: null };
@@ -87,6 +101,7 @@ const EMPTY_DRAFT: ProfileDraft = { name: "", bio: "", gamerTag: "", ownedPlatfo
 export function ProfileView() {
   const { user, signOut, setDisplayName } = useAuth();
   const { entries } = useWatchlist();
+  const personal = usePersonal();
   const { toast } = useToast();
   const router = useRouter();
   const [reviews, setReviews] = useState<Review[] | null>(null);
@@ -135,6 +150,7 @@ export function ProfileView() {
         draft: { ...draft, name: draft.name || fallbackName },
         reviews,
         entries,
+        journal: personal.ready ? personal.journal : null,
       }}
       onSave={async (next) => {
         const name = next.name.trim() || fallbackName;
@@ -239,6 +255,14 @@ export function ProfileScreen({
             )}
           </ProfileSection>
 
+          {data.journal && data.journal.length > 0 && now !== null && (
+            <ProfileSection title="Play journal" subtitle="Only you can see this">
+              <JournalTimeline entries={data.journal} now={now} />
+            </ProfileSection>
+          )}
+
+          <ShelfSection entries={entries} />
+
           <ProfileSection title="Where you play" action={<button type="button" onClick={() => setEditing(true)} className="press min-h-11 text-[15px] font-medium text-brand-soft">Edit</button>}>
             <OwnedLibrary entries={entries} declared={draft.ownedPlatforms} />
             {draft.activeSubscriptions.length > 0 && (
@@ -265,6 +289,82 @@ export function ProfileScreen({
 
       <EditProfileSheet open={editing} onClose={() => setEditing(false)} draft={draft} onSave={onSave} />
     </Container>
+  );
+}
+
+/**
+ * Your covers as a pile of real objects to pick up and throw. Opt-in (the
+ * choice is remembered on this device), because it's a toy, it costs a
+ * little battery, and a profile should open calmly.
+ */
+function ShelfSection({ entries }: { entries: WatchlistEntry[] }) {
+  const owned = useMemo(
+    () => entries.filter((entry) => (entry.ownedOn ?? []).length > 0 || entry.status === "played").sort((a, b) => b.addedAt - a.addedAt).slice(0, SHELF_LIMIT),
+    [entries],
+  );
+  const stored = useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener("storage", onChange);
+      window.addEventListener(SHELF_KEY, onChange);
+      return () => {
+        window.removeEventListener("storage", onChange);
+        window.removeEventListener(SHELF_KEY, onChange);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(SHELF_KEY) === "on";
+      } catch {
+        return false;
+      }
+    },
+    () => false,
+  );
+  const toggle = () => {
+    try {
+      window.localStorage.setItem(SHELF_KEY, stored ? "off" : "on");
+    } catch {
+      /* storage blocked: nothing to remember */
+    }
+    window.dispatchEvent(new Event(SHELF_KEY));
+  };
+  if (owned.length < 4) return null;
+
+  return (
+    <ProfileSection
+      title="Your shelf"
+      subtitle={stored ? "Grab a cover and throw it. Tap one to open it." : undefined}
+      action={
+        <button type="button" onClick={toggle} aria-pressed={stored} className="press min-h-11 text-[15px] font-medium text-brand-soft">
+          {stored ? "Put away" : "Open shelf"}
+        </button>
+      }
+    >
+      {stored ? (
+        <PhysicsShelf entries={owned} />
+      ) : (
+        <button
+          type="button"
+          onClick={toggle}
+          className="press group relative flex h-36 w-full items-end justify-center overflow-hidden rounded-3xl bg-fg/[0.04] pb-0 ring-1 ring-inset ring-line"
+          aria-label="Open your interactive shelf"
+        >
+          {owned.slice(0, 7).map((entry, index, list) => {
+            const middle = (list.length - 1) / 2;
+            return (
+              <span
+                key={entry.gameId}
+                aria-hidden
+                className="relative -mx-2 h-[104px] w-[78px] shrink-0 overflow-hidden rounded-lg shadow-[0_10px_24px_-12px_rgba(0,0,0,0.7)] ring-1 ring-inset ring-fg/15"
+                style={{ transform: `rotate(${(index - middle) * 6}deg) translateY(${Math.abs(index - middle) * 9 + 16}px)`, zIndex: list.length - Math.abs(Math.round(index - middle)) }}
+              >
+                <GameCover name={entry.name} slug={entry.slug} image={entry.image} imageFallback={entry.imageFallback} width={160} sizes="78px" />
+              </span>
+            );
+          })}
+        </button>
+      )}
+    </ProfileSection>
   );
 }
 

@@ -19,14 +19,54 @@ const CHANGE_EVENT = PC_SPECS_CHANGE_EVENT;
 let cachedRaw: string | null = null;
 let cachedValue: UserPcSpecs | null = null;
 
+const FORM_FACTORS = ["desktop", "laptop", "handheld"] as const;
+const STORAGE = ["nvme", "sata-ssd", "hdd"] as const;
+const OSES = ["windows", "macos", "linux", "steamos"] as const;
+const RESOLUTIONS = ["720p", "1080p", "1440p", "4k"] as const;
+const QUALITIES = ["low", "medium", "high", "max"] as const;
+const FPS = [30, 60, 120] as const;
+
+const oneOf = <T extends string | number>(list: readonly T[], value: unknown): T | undefined =>
+  list.includes(value as T) ? (value as T) : undefined;
+const gb = (value: unknown, max: number): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 && value <= max ? value : undefined;
+
+/**
+ * Validates stored specs (device or account copy). The three parts are
+ * required; every later field is optional and dropped when malformed, so a
+ * bad value never costs the reader their whole saved PC. Mirrors the shape
+ * `firestore.rules` accepts for `pcSpecs`.
+ */
 export function parsePcSpecs(raw: string | null): UserPcSpecs | null {
   if (!raw) return null;
   try {
-    const value = JSON.parse(raw) as Partial<UserPcSpecs>;
+    const value = JSON.parse(raw) as Record<string, unknown>;
     if (typeof value.cpu !== "string" || typeof value.gpu !== "string") return null;
     const ramGb = Number(value.ramGb);
     if (!Number.isFinite(ramGb) || ramGb <= 0 || ramGb > 1024) return null;
-    return { cpu: value.cpu.slice(0, 120), gpu: value.gpu.slice(0, 120), ramGb };
+    const specs: UserPcSpecs = { cpu: value.cpu.slice(0, 120), gpu: value.gpu.slice(0, 120), ramGb };
+    const formFactor = oneOf(FORM_FACTORS, value.formFactor);
+    if (formFactor) specs.formFactor = formFactor;
+    const vramGb = gb(value.vramGb, 128);
+    if (vramGb) specs.vramGb = vramGb;
+    const storage = oneOf(STORAGE, value.storage);
+    if (storage) specs.storage = storage;
+    const freeStorageGb = gb(value.freeStorageGb, 100_000);
+    if (freeStorageGb) specs.freeStorageGb = freeStorageGb;
+    const os = oneOf(OSES, value.os);
+    if (os) specs.os = os;
+    const display = value.display as Record<string, unknown> | undefined;
+    const resolution = oneOf(RESOLUTIONS, display?.resolution);
+    if (resolution) {
+      const refreshHz = gb(display?.refreshHz, 1000);
+      specs.display = refreshHz ? { resolution, refreshHz } : { resolution };
+    }
+    const goal = value.goal as Record<string, unknown> | undefined;
+    const goalResolution = oneOf(RESOLUTIONS, goal?.resolution);
+    const fps = oneOf(FPS, goal?.fps);
+    const quality = oneOf(QUALITIES, goal?.quality);
+    if (goalResolution && fps && quality) specs.goal = { resolution: goalResolution, fps, quality };
+    return specs;
   } catch {
     return null;
   }
@@ -71,4 +111,13 @@ export function usePcSpecs(): [UserPcSpecs | null, (next: UserPcSpecs | null) =>
   }, []);
 
   return [specs, setSpecs];
+}
+
+const RES: Record<string, string> = { "720p": "720p", "1080p": "1080p", "1440p": "1440p", "4k": "4K" };
+const QUALITY: Record<string, string> = { low: "Low", medium: "Medium", high: "High", max: "Max" };
+
+/** "RTX 4060 Laptop · 16 GB · 1440p High" — the one-line summary rows show. */
+export function pcSummary(specs: UserPcSpecs): string {
+  const goal = specs.goal ? `${RES[specs.goal.resolution]} ${QUALITY[specs.goal.quality]}${specs.goal.fps === 120 ? " · 120 fps" : ""}` : null;
+  return [specs.gpu || specs.cpu, `${specs.ramGb} GB`, goal].filter(Boolean).join(" · ");
 }

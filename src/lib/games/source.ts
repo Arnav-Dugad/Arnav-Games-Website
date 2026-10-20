@@ -40,6 +40,7 @@ import { cache } from "react";
 import { runAfterResponse } from "@/lib/cloudflare/after";
 import { gamePassShelf } from "./gamepass";
 import { paletteFor } from "./palette";
+import { brighterArt } from "./art-light";
 import { commitWrites, type Write } from "@/lib/firebase/server";
 import {
   forgetRecorded,
@@ -205,8 +206,11 @@ export async function getSpotlight(limit = 6): Promise<Sourced<SpotlightGame[]>>
    * one batched summary query for the tagline. Either failing leaves its
    * field null and the hero falls back to neutral scrims / no tagline.
    */
-  const [palettes, summaries] = await Promise.all([
+  // The light theme may swap in a brighter second screenshot (art-light.ts):
+  // one more tiny palette per slide, cached for a month like the first.
+  const [palettes, alternates, summaries] = await Promise.all([
     Promise.all(data.map((game) => paletteFor(game.screenshots[0] ?? game.image))),
+    Promise.all(data.map((game) => (game.screenshots[0] && game.screenshots[1] ? paletteFor(game.screenshots[1]) : Promise.resolve(null)))),
     summariesFor(data.map((game) => game.id)),
   ]);
 
@@ -214,6 +218,7 @@ export async function getSpotlight(limit = 6): Promise<Sourced<SpotlightGame[]>>
     data: data.map((game, i) => ({
       ...game,
       palette: palettes[i] ?? null,
+      lightArt: game.screenshots[1] ? brighterArt({ palette: palettes[i] ?? null }, [{ image: game.screenshots[1], palette: alternates[i] ?? null }]) : null,
       tagline: heroTagline(summaries.get(game.id)),
       ...(launch && game.id === launch.id ? { takeover: true } : {}),
     })),
@@ -354,7 +359,11 @@ async function enrichIgdbDetail(detail: GameDetail): Promise<GameDetail> {
     }
   });
 
-  const [enriched, ids, timeToBeat, hype, palette, wiki, observations] = await Promise.all([
+  // The hero's backdrop and one alternative, for the light theme's brighter
+  // pick (art-light.ts). Tiny cached palettes; the cover's stays the page tint.
+  const backdrop = detail.artworks[0] ?? detail.screenshots[0] ?? null;
+  const alternative = detail.artworks[0] ? detail.screenshots[0] ?? detail.artworks[1] ?? null : detail.screenshots[1] ?? null;
+  const [enriched, ids, timeToBeat, hype, palette, wiki, observations, backdropPalette, alternativePalette] = await Promise.all([
     merged,
     externalIds,
     timeToBeatFor([detail.id]),
@@ -363,7 +372,10 @@ async function enrichIgdbDetail(detail: GameDetail): Promise<GameDetail> {
     paletteFor(detail.image ?? detail.imageFallback),
     wikidataFor(detail.slug),
     releaseObservationsFor(detail.id),
+    backdrop && alternative ? paletteFor(backdrop) : Promise.resolve(null),
+    backdrop && alternative ? paletteFor(alternative) : Promise.resolve(null),
   ]);
+  const lightBackdrop = alternative ? brighterArt({ palette: backdropPalette }, [{ image: alternative, palette: alternativePalette }])?.image ?? null : null;
   const releaseChanges = changesFromObservations(observations ?? []);
 
   // IGDB's wordmark first; then Steam's library logo; Wikidata/Commons last,
@@ -387,6 +399,7 @@ async function enrichIgdbDetail(detail: GameDetail): Promise<GameDetail> {
     timeToBeat: timeToBeat.get(detail.id) ?? null,
     hypeIndex: hype.get(detail.id) ?? null,
     palette,
+    lightBackdrop,
     links: wiki?.links ?? null,
     releaseChanges,
   };

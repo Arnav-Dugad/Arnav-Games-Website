@@ -29,6 +29,7 @@ import { readLocalCache, writeLocalCache } from "@/lib/utils/local-cache";
 import type { RecommendationsV2, RecommendedGame, RecsProfile } from "@/lib/games/types";
 import { useRecFeedback } from "./feedback";
 import { buildTasteProfile, hasEnoughTaste, profileKey, type TasteReview } from "./profile";
+import { usePersonal } from "@/lib/personal/store";
 
 const TTL_MS = 6 * 60 * 60_000;
 /** One device slot, overwritten: old profiles' answers never pile up in storage. */
@@ -165,6 +166,8 @@ export function useRecommendationsV2({ enabled = true, anonymous = false }: UseR
   const { user, loading: authLoading } = useAuth();
   const { entries, loading: libraryLoading } = useWatchlist();
   const feedback = useRecFeedback();
+  // Hours the reader logged themselves weigh a game up in their taste.
+  const own = usePersonal();
   const uid = user?.uid ?? null;
 
   const account = useSyncExternalStore(
@@ -176,15 +179,16 @@ export function useRecommendationsV2({ enabled = true, anonymous = false }: UseR
     if (uid && enabled) loadAccount(uid);
   }, [uid, enabled]);
 
-  const inputsReady = !authLoading && (!uid || (!libraryLoading && account !== null && feedback.ready));
+  const inputsReady = !authLoading && (!uid || (!libraryLoading && account !== null && feedback.ready && own.ready));
 
   const profile = useMemo<RecsProfile | null>(() => {
     if (!inputsReady) return null;
-    return buildTasteProfile(uid ? entries : [], account?.reviews ?? [], feedback.items, {
+    const withHours = entries.map((entry) => (own.playtime[entry.gameId] ? { ...entry, hoursPlayed: own.playtime[entry.gameId] } : entry));
+    return buildTasteProfile(uid ? withHours : [], account?.reviews ?? [], feedback.items, {
       ownedPlatforms: account?.ownedPlatforms ?? [],
       subscriptions: account?.subscriptions ?? [],
     });
-  }, [inputsReady, uid, entries, account, feedback.items]);
+  }, [inputsReady, uid, entries, account, feedback.items, own.playtime]);
 
   const personal = Boolean(profile && hasEnoughTaste(profile));
   const wanted = enabled && profile !== null && (personal || anonymous);

@@ -1,25 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarX2 } from "lucide-react";
 import { BrowseControls, UPCOMING_SORTS } from "@/components/game/BrowseControls";
-import { SegmentedControl } from "@/components/filters";
-import { ReleaseTimeline } from "@/components/game/ReleaseTimeline";
-import { addDays, rangeLabel, weekStartOf, type ReleaseSignals } from "./_lib/calendar";
+import type { ReleaseSignals } from "./_lib/calendar";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Container } from "@/components/ui/SectionHeading";
-import { Pagination } from "@/components/ui/Pagination";
 import { DataSourceNotice, SourceAttribution } from "@/components/ui/DataSourceNotice";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { getGenres, getPlatforms, getUpcoming, isDegraded } from "@/lib/games/source";
-import type { GameSummary, SortKey } from "@/lib/games/types";
+import type { GameSummary } from "@/lib/games/types";
 import { releaseState } from "@/lib/games/release-state";
 import { getDelayCounts } from "@/lib/games/release-history";
 import { hypeIndexFor } from "@/lib/games/providers/igdb-extras";
-import { MonthView, WeekView } from "./_components/CalendarViews";
-import { ThisWeek } from "./_components/ThisWeek";
+import { ReleaseCalendar } from "./_components/ReleaseCalendar";
 
 /**
- * Delay counts (our own D1 history) and hype index per row, fetched together.
+ * Delay counts (our own history) and hype index per row, fetched together.
  * Both are decoration: any failure yields no badges rather than a broken page,
  * and hype only exists for IGDB ids.
  */
@@ -49,303 +43,142 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: "Upcoming game releases",
   description:
-    "A filterable release calendar of upcoming video games — list, week and month views, with countdowns, hype and delay history.",
+    "A release calendar of upcoming video games — every day's launches with covers, hype and delay history, plus release windows and undated announcements.",
 };
 
 /**
- * 120 keeps the list useful across long release windows without pushing a
- * single page past a couple of hundred rows. The Week and Month grids fetch
- * their own date range in one go instead, so a day is never "quiet" merely
- * because it fell onto page two.
+ * One month per render, fetched for exactly its own date range, so a quiet
+ * Tuesday really is quiet — never an artefact of pagination. 300 covers the
+ * busiest months of the notable calendar; beyond it the page says so.
  */
-const PAGE_SIZE = 120;
-const WEEK_LIMIT = 200;
 const MONTH_LIMIT = 300;
-const WINDOWS = [
-  { value: "30", label: "30 days", detail: "Launching within the next month" },
-  { value: "90", label: "90 days", detail: "The next three months of launches" },
-  { value: "365", label: "12 months", detail: "The long-range calendar for the year ahead" },
-  { value: "all", label: "All dated", detail: "Every future release with a date or window" },
-  { value: "tba", label: "Date TBA", detail: "Announced, but no date given yet" },
-] as const;
+/** The undated tray is a taste; `?window=tba` opens it fully. */
+const TBA_TRAY = 18;
+const TBA_FULL = 60;
 
-type View = "list" | "week" | "month";
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 const first = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? value[0] : value;
 
-interface Query {
-  genres?: string;
-  platforms?: string;
-  ordering?: SortKey;
-  timeframe?: string;
-  showAll?: boolean;
-  view?: View;
-  week?: string;
-  month?: string;
-}
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-/** Every link on this page goes through here, so filters always survive a view change. */
-function upcomingHref({ genres, platforms, ordering, timeframe = "90", showAll, view = "list", week, month }: Query) {
-  const params = new URLSearchParams();
-  if (view !== "list") params.set("view", view);
-  if (genres) params.set("genres", genres);
-  if (platforms) params.set("platforms", platforms);
-  if (view === "list") {
-    const defaultOrdering = timeframe === "tba" ? "-hypes" : "released";
-    if (ordering && ordering !== defaultOrdering) params.set("ordering", ordering);
-    if (timeframe !== "90") params.set("window", timeframe);
-  }
-  if (view === "week" && week) params.set("week", week);
-  if (view === "month" && month) params.set("month", month);
-  if (showAll) params.set("all", "1");
-  const query = params.toString();
-  return query ? `/upcoming?${query}` : "/upcoming";
-}
-
+/**
+ * The calendar is always a calendar. Links from before it was (`?view=week`,
+ * `?week=…`, `?window=…`, `?ordering=…`) still land somewhere sensible: a
+ * requested week opens its month with that week's Monday selected, and the
+ * old horizons simply open the current month.
+ */
 export default async function UpcomingPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
 
   const genres = first(sp.genres);
   const platforms = first(sp.platforms);
-  const page = Math.max(1, Number(first(sp.page) ?? 1) || 1);
-  const rawView = first(sp.view);
-  const view: View = rawView === "week" || rawView === "month" ? rawView : "list";
-  const requestedWindow = first(sp.window);
-  const timeframe = WINDOWS.some((item) => item.value === requestedWindow) ? requestedWindow! : "90";
-  const defaultOrdering: SortKey = timeframe === "tba" ? "-hypes" : "released";
-  const ordering = (first(sp.ordering) as SortKey | undefined) ?? defaultOrdering;
   // Notable-only is the default. Opting *out* is the explicit choice, because
   // the unfiltered calendar is two thirds shovelware and reads as broken.
   const showAll = first(sp.all) === "1";
-  const filtered = Boolean(genres || platforms);
-  const base = { genres, platforms, showAll };
+  const tbaOpen = first(sp.window) === "tba";
 
   const today = new Date().toISOString().slice(0, 10);
-  const thisWeek = weekStartOf(today);
   const thisMonth = today.slice(0, 7);
 
-  // Week and month are clamped to now: the calendar never pages into the past.
-  const requestedWeek = first(sp.week);
-  const weekStart = requestedWeek && /^\d{4}-\d{2}-\d{2}$/.test(requestedWeek) && weekStartOf(requestedWeek) > thisWeek
-    ? weekStartOf(requestedWeek)
-    : thisWeek;
+  const requestedDay = first(sp.day) ?? first(sp.week);
+  const day = requestedDay && ISO_DAY.test(requestedDay) && requestedDay > today ? requestedDay : null;
   const requestedMonth = first(sp.month);
-  const month = requestedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth) && requestedMonth > thisMonth
-    ? requestedMonth
-    : thisMonth;
+  // Clamped to now: the calendar never pages into the past.
+  const month =
+    day?.slice(0, 7) ??
+    (requestedMonth && ISO_MONTH.test(requestedMonth) && requestedMonth > thisMonth ? requestedMonth : thisMonth);
   const monthEnd = `${month}-${String(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate()).padStart(2, "0")}`;
+  // `?week=` named a Monday that may sit in the previous month; select within this one.
+  const selectedDay = day && day.slice(0, 7) === month ? day : null;
 
-  const rangeDays = timeframe === "all" || timeframe === "tba" ? null : Number(timeframe);
-  const listDates = rangeDays ? `${today},${addDays(today, rangeDays)}` : undefined;
-  const dates = view === "week" ? `${weekStart},${addDays(weekStart, 6)}` : view === "month" ? `${month}-01,${monthEnd}` : listDates;
-  // The spotlight: page one of the list only, and never on the TBA shelf.
-  const withSpotlight = view === "list" && page === 1 && timeframe !== "tba";
-
-  const [{ data, source }, genreList, platformList, spotlight] = await Promise.all([
-    getUpcoming(view === "list" ? PAGE_SIZE : view === "week" ? WEEK_LIMIT : MONTH_LIMIT, view === "list" ? page : 1, {
-      genres,
-      platforms,
-      dates,
-      ordering: view === "list" ? ordering : "released",
-      notableOnly: !showAll,
-      releaseTiming: view === "list" && timeframe === "tba" ? "tba" : "dated",
-    }),
+  const filters = { genres, platforms, notableOnly: !showAll };
+  const [{ data, source }, tba, genreList, platformList] = await Promise.all([
+    getUpcoming(MONTH_LIMIT, 1, { ...filters, dates: `${month}-01,${monthEnd}`, ordering: "released", releaseTiming: "dated" }),
+    getUpcoming(tbaOpen ? TBA_FULL : TBA_TRAY, 1, { ...filters, ordering: "-hypes", releaseTiming: "tba" }).catch(() => null),
     getGenres(),
     getPlatforms(),
-    withSpotlight
-      ? getUpcoming(10, 1, {
-          genres,
-          platforms,
-          dates: `${today},${addDays(today, 7)}`,
-          ordering: "-hypes",
-          notableOnly: true,
-          releaseTiming: "dated",
-        }).catch(() => null)
-      : Promise.resolve(null),
   ]);
 
-  const totalPages = data.count > 0 ? Math.ceil(data.count / PAGE_SIZE) : 1;
   // Final render-boundary guard. Provider output is normalized first, then
   // classified; no stale index row can leak a past title into this page.
-  const games = data.results.filter((game) =>
-    releaseState(game) === "upcoming" && (view === "list" && timeframe === "tba" ? game.tba : !game.tba),
-  );
-  const weekGames = (spotlight?.data.results ?? []).filter((game) => releaseState(game) === "upcoming" && game.released);
-  const signals = await releaseSignals([...games, ...weekGames], source === "igdb");
+  const games = data.results.filter((game) => releaseState(game) === "upcoming" && !game.tba);
+  const undated = (tba?.data.results ?? []).filter((game) => releaseState(game) === "upcoming" && game.tba && !game.released);
+  const signals = await releaseSignals([...games, ...undated], source === "igdb");
 
-  const exact = games.filter((game) => game.released).length;
-  const windowed = games.filter((game) => game.releaseWindow).length;
+  // Filters carried by every calendar link, so they survive month changes.
+  const carried = new URLSearchParams();
+  if (genres) carried.set("genres", genres);
+  if (platforms) carried.set("platforms", platforms);
+  if (showAll) carried.set("all", "1");
+  const toggleAll = new URLSearchParams(carried);
+  if (showAll) toggleAll.delete("all");
+  else toggleAll.set("all", "1");
+  if (month !== thisMonth) toggleAll.set("month", month);
 
   return (
     <>
       <PageHeader title="Release calendar" />
 
-      {withSpotlight && weekGames.length > 0 && (
-        <ThisWeek
-          games={weekGames}
-          signals={signals}
-          title="This week"
-          rangeLabel={rangeLabel(addDays(today, 1), addDays(today, 7))}
-          weekHref={upcomingHref({ ...base, view: "week" })}
-        />
-      )}
-
-      <Container className="pb-8 pt-6 lg:pb-12 lg:pt-8">
+      <Container>
         {source === "unavailable" && (
           <div className="mb-7">
             <DataSourceNotice source={source} degraded={isDegraded(source)} />
           </div>
         )}
 
-        {/*
-          Two page-level choices, both in the URL so they're shareable: how to
-          look at the calendar, and (for the list) how far ahead. They are
-          links drawn as segmented controls because that's what they are.
-        */}
-        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <SegmentedControl
-            label="Calendar view"
-            value={view}
-            fill={false}
-            className="w-fit max-w-full"
-            segments={[
-              { value: "list", label: "List", href: upcomingHref({ ...base, view: "list" }) },
-              { value: "week", label: "Week", href: upcomingHref({ ...base, view: "week" }) },
-              { value: "month", label: "Month", href: upcomingHref({ ...base, view: "month" }) },
-            ]}
-          />
-          {view === "list" && (
-            <div className="min-w-0 lg:w-[34rem]">
-              <SegmentedControl
-                label="Release horizon"
-                value={timeframe}
-                segments={WINDOWS.map((item) => ({
-                  value: item.value,
-                  label: item.label,
-                  title: item.detail,
-                  href: upcomingHref({ ...base, timeframe: item.value }),
-                }))}
-              />
-            </div>
-          )}
-        </div>
-
         <BrowseControls
           genres={genreList.data}
           platforms={platformList.data}
-          // The grids show exactly what was fetched; the list pages through IGDB's total.
-          totalCount={view === "list" ? data.count : games.length}
+          // The grid shows exactly what was fetched for the month.
+          totalCount={games.length}
           sorts={UPCOMING_SORTS}
-          defaultSort={defaultOrdering}
+          defaultSort="released"
           noun="release"
           showDatePresets={false}
           showScore={false}
-          showSort={view === "list"}
+          showSort={false}
         />
 
         {/*
           The honest escape hatch: the default hides roughly two thirds of the
           calendar, so it says so in plain words and offers the way back.
         */}
-        <p className="mt-3 text-[13px] leading-relaxed text-faint">
-          {/* The horizon control already names the window; only the honest counts remain. */}
-          {view === "list" && timeframe !== "tba" && games.length > 0 && (
-            <>
-              {exact} exact {exact === 1 ? "day" : "days"}
-              {windowed > 0 && `, ${windowed} ${windowed === 1 ? "window" : "windows"}`}
-              {" · "}
-            </>
-          )}
-          {showAll ? "Every announced game. " : "Games people are following. "}
+        <p className="mt-3 text-[13px] text-faint">
+          {showAll ? "Every announced game. " : "Games people follow. "}
           <Link
-            href={upcomingHref({ ...base, ordering, timeframe, view, week: weekStart, month, showAll: !showAll })}
+            href={`/upcoming${toggleAll.size ? `?${toggleAll}` : ""}`}
             scroll={false}
             className="font-medium text-brand-soft underline-offset-2 fine:hover:underline"
           >
-            {showAll ? "Only followed games" : "Include every announced game"}
+            {showAll ? "Only followed games" : "Show every game"}
           </Link>
         </p>
+      </Container>
 
-        <div className="mt-8 sm:mt-10">
-          {view === "week" ? (
-            <WeekView
-              games={games}
-              signals={signals}
-              weekStart={weekStart}
-              prevHref={weekStart > thisWeek ? upcomingHref({ ...base, view: "week", week: addDays(weekStart, -7) }) : null}
-              nextHref={upcomingHref({ ...base, view: "week", week: addDays(weekStart, 7) })}
-            />
-          ) : view === "month" ? (
-            <MonthView
-              games={games}
-              signals={signals}
-              month={month}
-              truncated={data.count > data.results.length && data.hasNext ? data.count : null}
-              prevHref={month > thisMonth ? upcomingHref({ ...base, view: "month", month: shiftMonth(month, -1) }) : null}
-              nextHref={upcomingHref({ ...base, view: "month", month: shiftMonth(month, 1) })}
-            />
-          ) : games.length === 0 ? (
-            <EmptyCalendar filtered={filtered} showAll={showAll} tba={timeframe === "tba"} />
-          ) : (
-            <>
-              <ReleaseTimeline games={games} signals={signals} />
-              <Pagination
-                page={page}
-                hasNext={data.hasNext}
-                totalPages={totalPages}
-                basePath="/upcoming"
-                params={{
-                  genres,
-                  platforms,
-                  ordering: ordering === defaultOrdering ? undefined : ordering,
-                  all: showAll ? "1" : undefined,
-                  window: timeframe === "90" ? undefined : timeframe,
-                }}
-              />
-            </>
-          )}
-        </div>
+      <div className="mt-6 sm:mt-8">
+        <ReleaseCalendar
+          games={games}
+          undated={undated}
+          signals={signals}
+          month={month}
+          thisMonth={thisMonth}
+          serverToday={today}
+          initialDay={selectedDay}
+          query={carried.toString()}
+          truncated={data.hasNext && data.count > data.results.length ? data.count : null}
+          undatedOpen={tbaOpen}
+          filtered={Boolean(genres || platforms)}
+        />
+      </div>
 
+      <Container className="pb-8 lg:pb-12">
         <div className="mt-12">
           <SourceAttribution source={source} />
         </div>
       </Container>
     </>
-  );
-}
-
-function shiftMonth(month: string, delta: number): string {
-  const date = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 + delta, 1));
-  return date.toISOString().slice(0, 7);
-}
-
-function EmptyCalendar({ filtered, showAll, tba }: { filtered: boolean; showAll: boolean; tba: boolean }) {
-  if (filtered) {
-    return (
-      <EmptyState
-        icon={<CalendarX2 size={24} />}
-        title="Nothing upcoming matches those filters"
-        body="Try widening the genre or platform selection."
-        action={{ href: "/upcoming", label: "Clear filters" }}
-      />
-    );
-  }
-
-  return (
-    <EmptyState
-      icon={<CalendarX2 size={24} />}
-      title={tba ? "No undated announcements" : "Nothing scheduled in this window"}
-      body={
-        tba
-          ? "Try including every announced game, or go back to the dated calendar."
-          : showAll
-            ? "The calendar fills in as studios announce dates. Try a longer horizon."
-            : "Nothing people are following is dated in this window yet. The full calendar includes every announced game."
-      }
-      action={showAll ? { href: "/upcoming?window=365", label: "Look 12 months ahead" } : { href: tba ? "/upcoming?window=tba&all=1" : "/upcoming?all=1", label: "Include every game" }}
-      secondaryAction={{ href: "/browse", label: "Browse released games" }}
-    />
   );
 }

@@ -76,7 +76,7 @@ export async function ChartsShelf({ trending, topRated }: { trending: GameSummar
     {
       id: "anticipated",
       label: "Most anticipated",
-      href: "/upcoming?ordering=-hypes",
+      href: "/upcoming",
       rows: anticipated.data.map(({ game, hype }) => ({ game, hype })),
     },
     {

@@ -36,7 +36,7 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { getDb } from "./config";
-import type { GameDetail, GameSummary } from "@/lib/games/types";
+import type { GameDetail, GameSummary, UserPcSpecs } from "@/lib/games/types";
 import { releaseState } from "@/lib/games/release-state";
 
 export type WatchStatus = "none" | "want" | "playing" | "played";
@@ -190,7 +190,7 @@ export interface UserPreferences {
   /** An explicitly chosen price country (ISO alpha-2); null = automatic. */
   priceRegion?: string | null;
   /** The reader's own PC, for "Will it run?"; null = not entered. */
-  pcSpecs?: { cpu: string; gpu: string; ramGb: number } | null;
+  pcSpecs?: UserPcSpecs | null;
   /** Newest first, at most 8. */
   recentSearches?: string[];
   /** "Best buys this month" budget, in minor units of `currency`. */

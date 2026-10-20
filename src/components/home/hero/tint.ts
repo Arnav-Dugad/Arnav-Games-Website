@@ -45,13 +45,14 @@ export interface HeroTint {
   accent: string;
 }
 
-export function heroTint(palette: CoverPalette | null | undefined): HeroTint {
+export function heroTint(palette: CoverPalette | null | undefined, depth = 0.82): HeroTint {
   const dominant = parseHex(palette?.dominant);
   const vibrant = parseHex(palette?.vibrant) ?? dominant;
 
   // 82% toward black keeps the hue recognisable while staying darker than
-  // any type that sits on it needs.
-  const base = dominant ? mix(dominant, [0, 0, 0], 0.82) : FALLBACK_BASE;
+  // any type that sits on it needs. The light theme passes a shallower
+  // depth: richer colour, still well under white type.
+  const base = dominant ? mix(dominant, [0, 0, 0], depth) : FALLBACK_BASE;
   const glow = vibrant ?? FALLBACK_GLOW;
   // Dark vibrants (deep reds, navy) get lifted harder than already-bright ones.
   const accent = mix(glow, [255, 255, 255], luminance(glow) < 0.18 ? 0.55 : 0.28);

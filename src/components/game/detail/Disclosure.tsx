@@ -14,7 +14,6 @@
 
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import type { HelpTopic } from "./glossary";
@@ -43,7 +42,6 @@ export function Disclosure({
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const calm = useCalmMotion();
   const panelId = useId();
   const titleId = `${panelId}-title`;
 
@@ -105,13 +103,15 @@ export function Disclosure({
           <ChevronDown
             size={17}
             aria-hidden
-            className={cn("shrink-0 text-faint", !calm && "transition-transform duration-300", open && "rotate-180")}
+            // Unconditional: the global reduced-motion CSS (OS and in-app) squashes
+            // the duration, and a JS-chosen class broke hydration for those readers.
+            className={cn("shrink-0 text-faint transition-transform duration-300", open && "rotate-180")}
           />
         </button>
       </div>
       <div
         id={panelId}
-        className={cn("grid", !calm && "transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)]")}
+        className="grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
         style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
       >
         <div className="min-h-0 overflow-hidden" inert={!open}>

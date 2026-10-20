@@ -74,24 +74,35 @@ export function GameHero({
     >
       <div className="absolute inset-0 -z-10">
         <Parallax distance={40} scale className="h-full w-full">
-          <GameCover
-            name={game.name}
-            slug={game.slug}
-            image={backdrop}
-            imageFallback={game.imageFallback}
-            width={1920}
-            priority
-            sizes="100vw"
-            rounded="rounded-none"
-          />
+          <div className={game.lightBackdrop ? "absolute inset-0 [:root[data-theme=light]_&]:hidden" : "absolute inset-0"}>
+            <GameCover
+              name={game.name}
+              slug={game.slug}
+              image={backdrop}
+              imageFallback={game.imageFallback}
+              width={1920}
+              priority
+              sizes="100vw"
+              rounded="rounded-none"
+            />
+          </div>
+          {/* Light theme: a clearly brighter piece of art, when there is one (art-light.ts).
+              Lazy and display:none for dark readers, so they never download it. */}
+          {game.lightBackdrop && (
+            <div className="absolute inset-0 hidden [:root[data-theme=light]_&]:block">
+              <GameCover name={game.name} slug={game.slug} image={game.lightBackdrop} width={1920} sizes="100vw" rounded="rounded-none" />
+            </div>
+          )}
         </Parallax>
 
         {/* The trailer dissolves in over the key art, muted and chrome-free.
             Sits under the scrims so the title never loses contrast. */}
         <BackdropTrailer trailer={game.trailers[0] ?? game.heroTrailer} />
 
-        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/75 to-bg/30" />
-        <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/45 to-transparent" />
+        {/* Light theme: the art stays brighter at the top and right, while the
+            copy corner keeps the same protection for white type. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/75 to-bg/30 [:root[data-theme=light]_&]:via-bg/60 [:root[data-theme=light]_&]:to-bg/5" />
+        <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/45 to-transparent [:root[data-theme=light]_&]:from-bg/80 [:root[data-theme=light]_&]:via-bg/25" />
         {/* The cover's own colour, washed in from the corner: each game's page
             opens in its own light. */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_100%,color-mix(in_oklab,var(--game-tint)_90%,transparent)_0%,transparent_58%)] opacity-90" />

@@ -26,6 +26,7 @@ import { useSharedCover, CoverTransition } from "@/components/interactions/Cover
 import { useAuth } from "@/lib/firebase/AuthProvider";
 import { useWatchlist } from "@/lib/firebase/WatchlistProvider";
 import { cn } from "@/lib/utils/cn";
+import { SlotDigits } from "@/components/motion/SlotDigits";
 
 export interface TodayGame {
   id: number;
@@ -258,7 +259,7 @@ function NextRow({ game, today, first }: { game: TodayGame; today: string; first
           <span className="shrink-0 text-right">
             <span className="sr-only">{days === 1 ? "Out tomorrow" : `Out in ${days} days`}</span>
             <span aria-hidden className="block font-display text-[30px] font-bold leading-none tracking-[-0.03em] tabular-nums">
-              {days}
+              <SlotDigits value={days} />
             </span>
             <span aria-hidden className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
               {days === 1 ? "day" : "days"}

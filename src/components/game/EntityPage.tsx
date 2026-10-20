@@ -6,6 +6,7 @@ import { GameCover } from "@/components/game/GameCover";
 import { EntityGameExplorer } from "@/components/game/EntityGameExplorer";
 import { CareerStats } from "@/components/charts/CareerStats";
 import { ReleaseTimeline } from "@/components/charts/ReleaseTimeline";
+import { FranchiseViews } from "@/components/charts/FranchiseViews";
 import { Container, SectionHeading } from "@/components/ui/SectionHeading";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ExpandableText } from "@/components/ui/ExpandableText";
@@ -184,7 +185,11 @@ export async function EntityPage({
           <section aria-label="Release timeline">
             <SectionHeading title="Over the years" className="mb-5 sm:mb-7" />
             <Reveal blur={false}>
-              <ReleaseTimeline games={timeline} subject={entity.name} undatedCount={entity.games.length - timeline.length} />
+              {collectionPage ? (
+                <FranchiseViews games={timeline} subject={entity.name} undatedCount={entity.games.length - timeline.length} />
+              ) : (
+                <ReleaseTimeline games={timeline} subject={entity.name} undatedCount={entity.games.length - timeline.length} />
+              )}
             </Reveal>
           </section>
         )}

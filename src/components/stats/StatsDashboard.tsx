@@ -19,7 +19,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import type { CatalogueBenchmark, DriftBasis, PersonalAnalytics } from "@/lib/games/stats";
 import { CriticCompare } from "./charts/CriticCompare";
 import { EraHistogram } from "./charts/EraHistogram";
-import { FinishRing } from "./charts/FinishRing";
+import { LiquidRing } from "./charts/LiquidRing";
+import { ForecastNote } from "./ForecastNote";
+import type { BacklogForecast } from "@/lib/games/forecast";
 import { GenreRadar, shortGenre } from "./charts/GenreRadar";
 import { HoursByPlatform } from "./charts/HoursByPlatform";
 import { PlatformDonut } from "./charts/PlatformDonut";
@@ -59,14 +61,27 @@ const GROUPS = [
  * No fetching and no auth here: `StatsView` supplies live data and the dev
  * preview supplies sample data, and both render exactly this.
  */
+/** The reader's own logged hours (play journal / "Your time"), summarised. */
+export interface PersonalHours {
+  /** Total hours logged across games. */
+  logged: number;
+  games: number;
+  /** Logged ÷ typical time over finished games that have both; null below two games. */
+  paceRatio: number | null;
+}
+
 export function StatsDashboard({
   analytics,
   benchmark,
   hoursStatus,
+  forecast = null,
+  personal = null,
 }: {
   analytics: PersonalAnalytics;
   benchmark: CatalogueBenchmark | null;
   hoursStatus: HoursStatus;
+  forecast?: BacklogForecast | null;
+  personal?: PersonalHours | null;
 }) {
   const { radar, drift, hours, finish, critic, funnel, eras, platformSplit } = analytics;
   const hoursReady = hoursStatus === "ready" && hours.available;
@@ -98,6 +113,8 @@ export function StatsDashboard({
                 <Skeleton className="h-3 w-16 rounded" />
                 <Skeleton className="mt-2.5 h-6 w-12 rounded" />
               </div>
+            ) : personal && personal.logged > 0 ? (
+              <HeroTile label="Hours logged" value={personal.logged} format={formatHours} note={`across ${plural(personal.games, "game")}`} />
             ) : hoursReady && hours.finished + hours.inProgress > 0 ? (
               <HeroTile label="Hours played" value={hours.finished + hours.inProgress} format={formatHours} note="estimated" />
             ) : (
@@ -121,13 +138,21 @@ export function StatsDashboard({
               <LockedState message="Mark where you own games to see your finish rate." detail="It compares owned, released games with the ones you've marked Played." href="/library" cta="Open your library" />
             ) : (
               <div className="flex flex-1 flex-col gap-5">
-                <div className="flex items-center gap-4 sm:gap-5">
-                  <FinishRing rate={finish.rate} />
-                  <p className="text-sm leading-relaxed text-muted">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-5">
+                  <LiquidRing value={finish.rate} label="finished" />
+                  {hoursReady && hours.backlog > 0 && hours.finished + hours.inProgress > 0 && (
+                    <LiquidRing
+                      value={(hours.finished + hours.inProgress) / (hours.finished + hours.inProgress + hours.backlog)}
+                      label="hours played"
+                      tone="var(--color-brand)"
+                    />
+                  )}
+                  <p className="min-w-[10rem] flex-1 text-sm leading-relaxed text-muted">
                     <span className="font-semibold text-text">{finish.finished} of {plural(finish.base, "owned game")}</span> marked played. Pre-orders don&apos;t count until they release.
                   </p>
                 </div>
                 <BacklogLine status={hoursStatus} hours={hours} unfinished={finish.base - finish.finished} />
+                {forecast && <ForecastNote forecast={forecast} />}
               </div>
             )}
           </StatCard>
@@ -197,6 +222,13 @@ export function StatsDashboard({
               summary={hoursReady && hours.byPlatform.length ? `Estimated hours: ${hours.byPlatform.map((row) => `${row.label} ${row.finished + row.inProgress}`).join(", ")}.` : undefined}
               footnote={hoursReady ? hoursFootnote(hours.withData, hours.eligible) : undefined}
             >
+              {personal?.paceRatio && (
+                <p className="mb-4 rounded-2xl bg-fg/[0.04] p-4 text-sm leading-snug text-muted">
+                  <span className="font-display text-2xl font-bold text-text">{personal.paceRatio.toFixed(1)}×</span>{" "}
+                  {personal.paceRatio >= 1 ? "the typical time — you take it slow." : "the typical time — quicker than most."}
+                  <span className="mt-1 block text-[12px] text-faint">From the hours you logged on finished games.</span>
+                </p>
+              )}
               {!hoursReady ? (
                 <div className="space-y-3" aria-label="Loading hours">
                   <Skeleton className="h-14 rounded-2xl" />

@@ -10,3 +10,5 @@ import dynamic from "next/dynamic";
 
 export const CommunitySection = dynamic(() => import("./CommunitySection"), { ssr: false });
 export const KeyPeople = dynamic(() => import("./KeyPeople"), { ssr: false });
+// The reader's own hours and journal: signed-in, browser-only data.
+export const YourPlay = dynamic(() => import("@/components/personal/YourPlay"), { ssr: false });

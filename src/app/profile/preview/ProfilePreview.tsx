@@ -3,6 +3,7 @@
 import { ProfileScreen } from "@/components/auth/ProfileView";
 import { sampleLibrary } from "@/components/stats/preview-sample";
 import type { Review } from "@/lib/firebase/db";
+import type { JournalEntry } from "@/lib/personal/store";
 
 /** DEV PREVIEW ONLY — see the page. Saving and signing out are no-ops. */
 export function ProfilePreview() {
@@ -26,6 +27,24 @@ export function ProfilePreview() {
     review(3, 9, "Tight, fast, and the music carries every run."),
     review(20, 8, "Gorgeous turn-based combat with real-time teeth."),
   ];
+  // Sample sessions on four of the sample games, a few days apart.
+  const session = (index: number, daysAgo: number, mood: JournalEntry["mood"], note: string, hours: number | null): JournalEntry => ({
+    id: `preview-session-${index}`,
+    gameId: entries[index].gameId,
+    slug: entries[index].slug,
+    name: entries[index].name,
+    image: entries[index].image,
+    note,
+    mood,
+    hours,
+    at: Date.parse("2026-10-18T20:00:00Z") - daysAgo * 86_400_000,
+  });
+  const journal = [
+    session(1, 0, "great", "Finally reached the coast. Stopped just to watch the storm roll in.", 2.5),
+    session(3, 2, "good", "Three runs, best one ended on the last boss.", 1),
+    session(20, 5, "frustrated", "That escort mission again.", 1.5),
+    session(9, 9, "okay", "", null),
+  ];
   return (
     <ProfileScreen
       data={{
@@ -36,6 +55,7 @@ export function ProfilePreview() {
         draft: { name: "Sam Rivera", bio: "RPGs, roguelikes and the occasional racing game.", gamerTag: "samplays", ownedPlatforms: ["steam", "ps5", "switch"], activeSubscriptions: ["game-pass"], playStyle: "dedicated" },
         reviews,
         entries,
+        journal,
       }}
       onSave={async () => {}}
       onSignOut={async () => {}}

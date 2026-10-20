@@ -122,7 +122,7 @@ function WillItRun({ requirements, raw }: { requirements: PcRequirements | null;
             {specs && parsed ? null : (
               <p className="mt-1 max-w-xl text-[15px] leading-snug text-muted">
                 {parsed
-                  ? "Tell us your graphics card, processor and memory once, and every PC game page will answer this."
+                  ? "Tell us about your PC once — we can detect most of it — and every PC game page will answer this."
                   : "Steam’s requirements for this game couldn’t be read automatically — the full list is below."}
               </p>
             )}
@@ -144,7 +144,7 @@ function WillItRun({ requirements, raw }: { requirements: PcRequirements | null;
           )}
         </div>
 
-        {specs && parsed && requirements && <HardwareVerdictView specs={specs} requirements={requirements} />}
+        {specs && parsed && requirements && <HardwareVerdictView specs={specs} requirements={requirements} onRefine={openSheet} />}
       </div>
 
       {(parsed || raw) && (

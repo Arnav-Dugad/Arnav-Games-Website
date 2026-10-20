@@ -265,6 +265,11 @@ export interface SpotlightGame extends GameSummary {
   tagline: string | null;
   /** A notable game releasing today (UTC), moved to the front of the hero. */
   takeover?: boolean;
+  /**
+   * A clearly brighter screenshot for the light theme, with its palette
+   * (see `art-light.ts`). Null when the slide's own art is as bright as any.
+   */
+  lightArt?: { image: string; palette: CoverPalette | null } | null;
 }
 
 /** A game with its 0–100 hype score, for anticipation-ranked shelves. */
@@ -342,6 +347,8 @@ export interface GameDetail extends GameSummary {
   criticCount?: number | null;
   timeToBeat?: TimeToBeat | null;
   palette?: CoverPalette | null;
+  /** A clearly brighter backdrop for the hero in the light theme (see `art-light.ts`). */
+  lightBackdrop?: string | null;
   externalIds?: ExternalIds | null;
   links?: ReferenceLinks | null;
   hypeIndex?: HypeIndex | null;
@@ -594,21 +601,69 @@ export interface PcRequirements {
   recommended: PcRequirementTier | null;
 }
 
-/** The reader's own PC, entered once and kept on the device. */
+export type PcFormFactor = "desktop" | "laptop" | "handheld";
+export type PcStorageKind = "nvme" | "sata-ssd" | "hdd";
+export type PcOs = "windows" | "macos" | "linux" | "steamos";
+export type PcResolution = "720p" | "1080p" | "1440p" | "4k";
+export type PcQuality = "low" | "medium" | "high" | "max";
+
+/** What the reader wants from a game: "Smooth 1080p", "Max settings 1440p 60". */
+export interface PcGoal {
+  resolution: PcResolution;
+  fps: 30 | 60 | 120;
+  quality: PcQuality;
+}
+
+/**
+ * The reader's own PC, entered once and kept on the device (mirrored to the
+ * account when signed in). Only the three parts are required; everything
+ * else was added later and is optional, so older saved specs stay valid.
+ */
 export interface UserPcSpecs {
   cpu: string;
   gpu: string;
   ramGb: number;
+  formFactor?: PcFormFactor;
+  /** Video memory, GB. */
+  vramGb?: number;
+  storage?: PcStorageKind;
+  /** Free space on the drive games go on, GB. */
+  freeStorageGb?: number;
+  os?: PcOs;
+  /** The screen games run on. */
+  display?: { resolution: PcResolution; refreshHz?: number };
+  goal?: PcGoal;
 }
 
 export type HardwareVerdictKind = "great" | "ok" | "below" | "unknown";
 
+export type HardwarePart = "CPU" | "GPU" | "RAM" | "VRAM" | "Storage";
+
+/** How a resolution/settings combination should go, judged from the GPU. */
+export interface HardwareOutlook {
+  /** "1080p High", "1440p Max". */
+  label: string;
+  fps: number;
+  level: "great" | "ok" | "lower" | "no";
+  /** The reader's own goal, when this row is it. */
+  goal?: boolean;
+}
+
 export interface HardwareVerdict {
   kind: HardwareVerdictKind;
   /** Per-component comparison, e.g. { part: "GPU", yours: "RTX 3060", needed: "GTX 1060", ok: true }. */
-  parts: Array<{ part: "CPU" | "GPU" | "RAM"; yours: string; needed: string | null; ok: boolean | null }>;
+  parts: Array<{ part: HardwarePart; yours: string; needed: string | null; ok: boolean | null }>;
   /** One plain sentence. */
   summary: string;
+  /**
+   * The smarter sentence when we know enough about the reader's goals and
+   * GPU: "Runs well at 1080p High; 1440p needs lower settings".
+   */
+  headline?: string;
+  /** Resolution ladder, each judged against the game's recommended GPU. */
+  outlook?: HardwareOutlook[];
+  /** Plain reasons and caveats (VRAM, storage, laptop power, OS), most important first. */
+  reasons?: string[];
 }
 
 /** A Steam patch/update post condensed into "what changed". */

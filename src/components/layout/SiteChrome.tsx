@@ -20,6 +20,7 @@ import { SearchOverlay } from "./SearchOverlay";
 import { ScrollProgress } from "@/components/motion/ScrollProgress";
 import { ScrollArrows } from "@/components/interactions/ScrollArrows";
 import { ContextMenuHost } from "@/components/interactions/ContextMenu";
+import { SessionLogHost } from "@/components/personal/SessionLogHost";
 import { LiquidGlassFilter } from "@/components/interactions/LiquidGlassFilter";
 import { PullToRefresh } from "@/components/interactions/PullToRefresh";
 
@@ -66,6 +67,7 @@ export function SiteChrome() {
       <MobileTabBar onOpenSearch={openSearch} />
       <SearchOverlay open={searchOpen} onClose={closeSearch} />
       <ContextMenuHost />
+      <SessionLogHost />
       <PullToRefresh />
       <LiquidGlassFilter />
       <ScrollArrows />

@@ -25,18 +25,21 @@ export function TaxonomyTile({
   name,
   hue,
   showcase,
+  compact = false,
 }: {
   href: string;
   name: string;
   hue: number;
   showcase?: Showcase;
+  /** A shorter tile with no art — for tag rows. */
+  compact?: boolean;
 }) {
   const count = showcase?.count ?? null;
   const covers = showcase?.covers ?? [];
   return (
     <Link
       href={href}
-      className="hue-tile press group relative isolate flex h-[150px] flex-col overflow-hidden rounded-2xl p-4 sm:h-[160px] lg:p-5"
+      className={`hue-tile press group relative isolate flex flex-col overflow-hidden rounded-2xl p-4 lg:p-5 ${compact ? "h-[84px] justify-end sm:h-[92px]" : "h-[150px] sm:h-[160px]"}`}
       style={{ "--tile-hue": hue, "--tile-hue-2": (hue + 40) % 360 } as CSSProperties}
     >
       <span

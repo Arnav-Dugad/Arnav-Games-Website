@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducedMotion } from "motion/react";
+import { usePrefersReducedMotion } from "@/hooks";
 import { usePreferences } from "@/lib/preferences/PreferencesProvider";
 
 /**
@@ -10,9 +10,12 @@ import { usePreferences } from "@/lib/preferences/PreferencesProvider";
  * The CSS layer already squashes durations for both, but gesture-driven
  * components animate from JavaScript (springs, momentum), which CSS can't
  * reach — so they read this and swap to instant, non-physical behaviour.
+ *
+ * The OS half is media-query based and false on the server, so the first
+ * client render matches the server HTML (motion's own hook does not).
  */
 export function useCalmMotion(): boolean {
-  const osReduced = useReducedMotion();
+  const osReduced = usePrefersReducedMotion();
   const { reduceMotion } = usePreferences();
-  return Boolean(osReduced) || reduceMotion;
+  return osReduced || reduceMotion;
 }

@@ -98,7 +98,7 @@ export const HELP = {
   },
   willItRun: {
     title: "Will it run?",
-    body: "We compare your graphics card, processor and memory with the game’s Steam requirements. A rough guide: drivers, resolution and settings matter too.",
+    body: "We compare your graphics card, processor, memory and drive with the game’s Steam requirements, and estimate each resolution from how far your card is above the recommended one. Laptop chips are judged at a typical power limit. A rough guide: drivers and updates matter too.",
     source: "Steam’s published PC requirements",
   },
 } satisfies Record<string, Help>;

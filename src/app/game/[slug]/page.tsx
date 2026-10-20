@@ -27,7 +27,7 @@ import { Elsewhere } from "@/components/game/detail/Elsewhere";
 import { GameHero } from "@/components/game/detail/GameHero";
 import { LengthSection } from "@/components/game/detail/LengthSection";
 import { GameLiveProvider } from "@/components/game/detail/live";
-import { CommunitySection, KeyPeople } from "@/components/game/detail/lazy";
+import { CommunitySection, KeyPeople, YourPlay } from "@/components/game/detail/lazy";
 import { MoreLikeThis } from "@/components/game/detail/MoreLikeThis";
 import { LiveOnTwitch } from "@/components/game/detail/LiveSections";
 import { PcSection } from "@/components/game/detail/PcSection";
@@ -331,6 +331,10 @@ export default async function GamePage({ params, searchParams }: { params: Param
                   market={marketIds}
                 />
               </DetailSection>
+            )}
+
+            {!upcoming && (
+              <YourPlay game={{ id: game.id, slug: game.slug, name: game.name, image: game.image }} crowdHours={mainHours} />
             )}
 
             <DetailSection id="reviews" title="What players think">

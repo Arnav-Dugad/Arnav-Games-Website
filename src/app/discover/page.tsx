@@ -73,7 +73,7 @@ const FEATURED: Tile[] = [
     hue: [38, 12],
   },
   {
-    href: "/upcoming?ordering=-hypes",
+    href: "/upcoming",
     title: "Most anticipated",
     body: "What everyone is waiting for.",
     icon: <Flame size={24} strokeWidth={1.8} />,

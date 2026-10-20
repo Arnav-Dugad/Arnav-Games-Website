@@ -8,6 +8,7 @@
  * save button on a preferences screen is a promise the reader has to trust.
  */
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
@@ -29,8 +30,7 @@ import { usePreferences } from "@/lib/preferences/PreferencesProvider";
 import { useThemePreference, type ThemePreference } from "@/lib/preferences/theme";
 import { PRICE_REGIONS, readDetectedRegion, usePriceRegion } from "@/lib/preferences/region";
 import { InstallAppRow } from "@/components/pwa/InstallAppRow";
-import { MyPcSheet } from "@/components/pc/MyPcSheet";
-import { usePcSpecs } from "@/lib/preferences/pc";
+import { pcSummary, usePcSpecs } from "@/lib/preferences/pc";
 import { SearchField } from "@/components/filters";
 import { Sheet } from "@/components/ui/Sheet";
 import { Container } from "@/components/ui/SectionHeading";
@@ -39,6 +39,9 @@ import { useToast } from "@/components/ui/Toast";
 import { haptic } from "@/lib/haptics";
 import { useCalmMotion } from "@/components/interactions/motion-prefs";
 import { cn } from "@/lib/utils/cn";
+
+// The sheet carries the GPU/CPU tables and detection: only loaded when opened.
+const MyPcSheet = dynamic(() => import("@/components/pc/MyPcSheet").then((mod) => mod.MyPcSheet), { ssr: false });
 
 export function SettingsView() {
   return (
@@ -483,15 +486,17 @@ function GamingGroup() {
   useArrivalHighlight("my-pc");
   const [specs] = usePcSpecs();
   const [open, setOpen] = useState(false);
-  const summary = specs
-    ? [specs.gpu || specs.cpu, `${specs.ramGb} GB`].filter(Boolean).join(" · ")
-    : "Add";
+  const [mounted, setMounted] = useState(false);
+  const summary = specs ? pcSummary(specs) : "Add";
 
   return (
-    <Group id="my-pc" title="Gaming" footer="Your PC's parts let game pages say whether a game will run. Saved on this device only.">
+    <Group id="my-pc" title="Gaming" footer="Your PC's parts and goals let game pages say how a game will run for you.">
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setMounted(true);
+          setOpen(true);
+        }}
         aria-haspopup="dialog"
         className={cn(rowClass, "press transition-colors fine:hover:bg-fg/[0.04]")}
       >
@@ -500,7 +505,7 @@ function GamingGroup() {
         <span className="min-w-0 truncate text-[15px] text-muted">{summary}</span>
         <ChevronRight size={17} aria-hidden className="shrink-0 text-faint" />
       </button>
-      <MyPcSheet open={open} onClose={() => setOpen(false)} />
+      {mounted && <MyPcSheet open={open} onClose={() => setOpen(false)} />}
     </Group>
   );
 }
