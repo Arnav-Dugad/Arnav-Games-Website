@@ -153,3 +153,24 @@ export function fuzzyTitleScore(candidate: string, query: string): number {
 export function fuzzyMatches(candidate: string, query: string): boolean {
   return !query.trim() || fuzzyTitleScore(candidate, query) < 99;
 }
+
+/**
+ * Sort key for a search result: lower is better.
+ *
+ * Two bands. Anything whose title actually contains, starts with or spells
+ * out the query (tiers 0–4) always beats a typo-tolerant match (6+), so a
+ * famous game never jumps a precise answer on popularity alone.
+ *
+ * Inside a band, popularity carries most of the weight and the tier only
+ * nudges. Strict tier-first ordering put an obscure game literally called
+ * "Zelda" above Breath of the Wild, and GTA (1997) above GTA V: an exact
+ * title match is weak evidence of intent when the exact title is a game
+ * almost nobody has played. Editions sit half a step down, so "Elden Ring"
+ * still opens Elden Ring rather than its bundle.
+ *
+ * `popularity` is a raw count (IGDB ratings, or hypes before release).
+ */
+export function searchSortKey(score: number, isEdition: boolean, popularity: number): number {
+  const band = score < 5 ? 0 : 100;
+  return band + score * 0.35 + (isEdition ? 0.5 : 0) - Math.log10(1 + Math.max(0, popularity));
+}

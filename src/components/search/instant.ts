@@ -10,12 +10,12 @@
  */
 
 import type { SearchIndexEntry } from "@/lib/games/providers/igdb";
-import { EDITION_MARKERS, fuzzyTitleScore, normaliseSearch } from "@/lib/games/fuzzy-search";
+import { EDITION_MARKERS, fuzzyTitleScore, normaliseSearch, searchSortKey } from "@/lib/games/fuzzy-search";
 import type { SearchHit } from "@/lib/games/search";
 import { readLocalCache, writeLocalCache } from "@/lib/utils/local-cache";
 
 const INDEX_TTL_MS = 24 * 60 * 60_000;
-const CACHE_KEY = "search-index-v1";
+const CACHE_KEY = "search-index-v2";
 
 /** Resolved once per page load; a failed load is forgotten so the next open retries. */
 let indexRequest: Promise<SearchIndexEntry[]> | null = null;
@@ -57,9 +57,8 @@ export function entryAsHit(entry: SearchIndexEntry): SearchHit {
 }
 
 /**
- * Best matches for `query`, most relevant first; popularity (the index's own
- * order) breaks ties. Editions sit one step below the plain title, as on the
- * server, so "elden ring" opens Elden Ring rather than its DLC bundle.
+ * Best matches for `query`, most relevant first, ranked exactly as the server
+ * ranks (`searchSortKey`), so the list doesn't reshuffle when its answer lands.
  */
 export function matchInstant(index: SearchIndexEntry[], query: string, limit = 6): SearchHit[] {
   const q = normaliseSearch(query);
@@ -70,7 +69,7 @@ export function matchInstant(index: SearchIndexEntry[], query: string, limit = 6
     const best = Math.min(fuzzyTitleScore(entry.name, q), ...(entry.alt ?? []).map((alt) => fuzzyTitleScore(alt, q)));
     if (best >= 99) return;
     const edition = !editionQuery && EDITION_MARKERS.test(normaliseSearch(entry.name));
-    scored.push({ entry, score: best * 2 + (edition ? 1 : 0), rank });
+    scored.push({ entry, score: searchSortKey(best, edition, entry.pop ?? 0), rank });
   });
   return scored
     .sort((a, b) => a.score - b.score || a.rank - b.rank)

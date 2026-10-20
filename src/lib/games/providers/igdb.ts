@@ -53,7 +53,7 @@ import { platformKey, type PlatformKey } from "@/lib/utils/format";
 import { classifyUrl, storeFromUrl } from "../stores";
 import { buildDirectoryWhere, type DirectoryOrder } from "../directory";
 import type { SearchHit } from "../search";
-import { searchQueryVariants } from "../fuzzy-search";
+import { searchQueryVariants, searchSortKey } from "../fuzzy-search";
 import { releaseState } from "../release-state";
 
 const API = "https://api.igdb.com/v4";
@@ -1978,11 +1978,10 @@ export function fuzzyTitleScore(candidate: string, query: string): number {
  * best of the two wins, which is what makes "GTA V" find "Grand Theft Auto V"
  * and "FF7" find "Final Fantasy VII".
  *
- * Popularity only ever breaks ties within a tier — letting it cross tiers is
- * the usual failure mode of naive relevance sorting, where a famous unrelated
- * game outranks the precise answer. Editions are demoted one step for the same
- * reason: "Elden Ring" should outrank "Elden Ring: Collector's Edition", but
- * still beat an unrelated title.
+ * Direct matches always beat typo matches; within those bands popularity
+ * weighs in alongside the tier (see `searchSortKey` for why). Editions are
+ * demoted half a step: "Elden Ring" should outrank "Elden Ring: Collector's
+ * Edition", but still beat an unrelated title.
  */
 export function rankSearchResults(
   games: GameSummary[],
@@ -1999,7 +1998,7 @@ export function rankSearchResults(
     // An edition is a worse answer than the plain title at the same tier, but
     // must not fall below a genuinely weaker match.
     const isEdition = EDITION_MARKERS.test(normalise(game.name)) && !EDITION_MARKERS.test(q);
-    return best * 2 + (isEdition ? 1 : 0);
+    return searchSortKey(best, isEdition, game.added);
   };
 
   return [...games]
@@ -2299,6 +2298,8 @@ export interface SearchIndexEntry {
   genres: string;
   /** Short alternative titles ("GTA V", "BotW") — long ones never match a typed prefix. */
   alt?: string[];
+  /** IGDB rating count, for ranking. */
+  pop?: number;
 }
 
 /**
@@ -2311,7 +2312,7 @@ export interface SearchIndexEntry {
 export async function igdbSearchIndex(): Promise<SearchIndexEntry[]> {
   if (!igdbConfigured()) return [];
   const query = queryFor(TTL.detail);
-  const fields = "name,slug,cover.image_id,first_release_date,genres.name,alternative_names.name";
+  const fields = "name,slug,cover.image_id,first_release_date,genres.name,alternative_names.name,total_rating_count";
   const pages = await Promise.all(
     [0, 500].map((offset) =>
       query<IgdbGame[]>(
@@ -2346,6 +2347,7 @@ export async function igdbSearchIndex(): Promise<SearchIndexEntry[]> {
       released: row.first_release_date ? new Date(row.first_release_date * 1000).toISOString().slice(0, 10) : null,
       genres: (row.genres ?? []).slice(0, 2).map((genre) => genre.name).filter(Boolean).join(" · "),
       ...(alt.length ? { alt } : {}),
+      pop: row.total_rating_count ?? 0,
     });
   }
   return entries;
