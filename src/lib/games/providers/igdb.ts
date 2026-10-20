@@ -1971,6 +1971,14 @@ export function fuzzyTitleScore(candidate: string, query: string): number {
 }
 
 /**
+ * Alternative titles in other scripts can't be compared with a typed Latin
+ * query: normalising strips the foreign letters and leaves a fragment, so
+ * "GTA: Сан Андреас" became plain "gta" — an exact match that put San Andreas
+ * above GTA V. Latin with accents (Pokémon, Ōkami) is kept.
+ */
+const latinOnly = (name: string) => !/[^\u0000-ɏḀ-ỿ -⁯]/.test(name);
+
+/**
  * Re-ranks IGDB search results against the query the reader actually typed.
  *
  * IGDB's own `search` ordering routinely puts editions, bundles and loosely
@@ -1997,7 +2005,7 @@ export function rankSearchResults(
   if (!q) return games;
 
   const scoreOf = (game: GameSummary): number => {
-    const candidates = [game.name, ...(altNames?.get(game.id) ?? [])];
+    const candidates = [game.name, ...(altNames?.get(game.id) ?? []).filter(latinOnly)];
     // The shared scorer, not this file's older `fuzzyTitleScore`: it expands
     // shorthand ("gta" → grand theft auto), so GTA V matches on its real title
     // instead of leaning on whichever alternative names IGDB happens to hold.
