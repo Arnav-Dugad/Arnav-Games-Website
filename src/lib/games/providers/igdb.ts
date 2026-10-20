@@ -1480,8 +1480,12 @@ function mapDetail(game: IgdbGame): GameDetail {
     alternativeNames: (game.alternative_names ?? [])
       .map((entry) => entry.name)
       .filter((name): name is string => Boolean(name)),
+    devStatus: DEV_STATUS[game.status ?? -1] ?? null,
   };
 }
+
+/** IGDB `game_status` ids worth telling a reader about (released, offline and delisted aren't). */
+const DEV_STATUS: Record<number, GameDetail["devStatus"]> = { 2: "alpha", 3: "beta", 4: "early-access", 7: "rumored" };
 
 /* ---------------------------------------------------------------------------
  * Taxonomy

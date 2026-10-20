@@ -354,6 +354,11 @@ export interface GameDetail extends GameSummary {
   hypeIndex?: HypeIndex | null;
   /** Release-date changes we have observed over time (oldest first). */
   releaseChanges?: ReleaseChange[];
+  /**
+   * IGDB's development status when it says something beyond "released"
+   * ("Alpha", "Beta", "Early Access", "Rumored"); null or absent otherwise.
+   */
+  devStatus?: "alpha" | "beta" | "early-access" | "rumored" | null;
 }
 
 /**
@@ -370,11 +375,19 @@ export interface GameLiveData {
     total: number;
     /** 0–100 share of positive reviews. */
     percent: number;
+    /**
+     * The last 30 days on their own (Steam's daily review histogram), so a
+     * game whose patches won players back — or lost them — shows it. Null
+     * when the histogram couldn't be read or has too few reviews to mean
+     * anything (see `RECENT_MIN_REVIEWS` in `score-spread.ts`).
+     */
+    recent?: { positive: number; negative: number; total: number; percent: number } | null;
   } | null;
   twitch: {
     viewers: number;
     streams: number;
-    top: Array<{ user: string; title: string; viewers: number; thumbnail: string; url: string }>;
+    /** `language` is Twitch's ISO 639-1 broadcast language ("en", "de"), when given. */
+    top: Array<{ user: string; title: string; viewers: number; thumbnail: string; url: string; language?: string | null }>;
   } | null;
   deals: {
     cheapest: { store: string; price: number; retail: number; savings: number; url: string } | null;
@@ -530,6 +543,12 @@ export interface LowestEverPrice {
   date: string;
   label: "Lowest ever (US, all stores)";
   source: "cheapshark";
+  /**
+   * That low as a discount off the US retail price CheapShark lists, 0–100
+   * (null when no retail price is known). Comparable across currencies,
+   * which the dollar figure isn't — it drives "has been X% off before".
+   */
+  deepestDiscount?: number | null;
 }
 
 export interface RegionalPrice {
@@ -679,6 +698,20 @@ export interface PatchNote {
   totalItems: number;
 }
 
+/**
+ * One developer post from a game's Steam announcement feed, for the updates
+ * timeline: patch posts and everything else (events, roadmaps, news). The
+ * excerpt is plain text cut from the post — never markup.
+ */
+export interface UpdatePost {
+  title: string;
+  date: string; // ISO
+  url: string;
+  /** Steam's `patchnotes` tag, or a patch-like title backed by a real list (`isPatchPost`). */
+  patch: boolean;
+  excerpt: string;
+}
+
 export interface ReviewVelocity {
   appId: number;
   /** Cumulative Steam review totals over time, oldest first. `t` is unix seconds. */
@@ -747,6 +780,12 @@ export interface GameInsights {
   pc: GamePcInfo | null;
   /** Null without a Steam app, or when Steam couldn't be reached (see `unavailable`). */
   patches: PatchNote[] | null;
+  /**
+   * The same feed as `patches`, every recent post (newest first, ≤ 12) for
+   * the updates timeline; null exactly when `patches` is. Optional because
+   * answers cached before it existed lack it.
+   */
+  updates?: UpdatePost[] | null;
   /** Parts that were applicable but failed — "couldn't ask", not "nothing to show". */
   unavailable: Array<"market" | "pc" | "patches" | "cloud" | "antiCheat">;
   /** GeForce NOW membership (round 5). `geforceNow` is null when NVIDIA's list couldn't be read. */
@@ -951,8 +990,37 @@ export interface GameExtras {
   speedrun: SpeedrunRecords | null;
   mods: GameMods;
   people: GamePerson[];
+  /**
+   * Track records of the game's developers (≤ 2), in the order the `dev`
+   * hint named them. Optional: answers cached before it existed lack it.
+   */
+  studios?: StudioRecord[];
   /** Parts that were applicable but failed — "couldn't ask", not "nothing to show". */
-  unavailable: Array<"steamSpy" | "pcgw" | "speedrun" | "mods" | "people">;
+  unavailable: Array<"steamSpy" | "pcgw" | "speedrun" | "mods" | "people" | "studios">;
+}
+
+/**
+ * A developer's track record (`studio-record.ts`): how its released games
+ * scored with critics and, from our own delay tracker, how often its dates
+ * held. Every figure carries its sample size so a two-game studio isn't
+ * read like a fifty-game one.
+ */
+export interface StudioRecord {
+  id: number;
+  name: string;
+  slug: string;
+  /** Released main games (no DLC, editions or bundles). */
+  released: number;
+  upcoming: number;
+  /** Released games with at least `MIN_CRITICS` critic reviews, and their mean. */
+  scored: number;
+  avgCritic: number | null;
+  /** Highest-rated of those. */
+  best: { name: string; slug: string; score: number } | null;
+  /** IGDB listed more credits than one request returns: the counts are a floor. */
+  truncated: boolean;
+  /** Our delay history for the studio's games; null when it couldn't be read. */
+  reliability: StudioReliability | null;
 }
 
 /** One free-to-keep promotion on the Epic Games Store. */

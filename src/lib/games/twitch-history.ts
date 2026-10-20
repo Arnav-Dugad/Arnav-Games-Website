@@ -187,8 +187,19 @@ export async function sampleTwitch(
  * The Twitch category for a game: IGDB's external ids (a cached query the
  * game page has usually warmed), then Twitch's own IGDB mapping.
  */
+/*
+ * Categories Twitch merged without keeping an IGDB link, so neither lookup
+ * below can find them. Curated, not guessed: stripping a sequel number would
+ * send a new game's page to its predecessor's streams.
+ */
+const TWITCH_ALIASES: Record<number, string> = {
+  // Counter-Strike 2 streams under "Counter-Strike" since Twitch merged the categories (2023).
+  242408: "32399",
+};
+
 export async function twitchIdFor(igdbId: number | null): Promise<string | null> {
   if (!igdbId) return null;
+  if (TWITCH_ALIASES[igdbId]) return TWITCH_ALIASES[igdbId];
   const id = (await externalIdsFor([igdbId])).get(igdbId)?.twitch ?? null;
   if (id && TWITCH_ID.test(id)) return id;
   // IGDB doesn't link every game (Counter-Strike 2 has no Twitch row); Twitch

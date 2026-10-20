@@ -52,7 +52,9 @@ export function stripNewsMarkup(raw: string, maxLength = 280): string {
       .replace(/<\s*li[^>]*>/gi, " • ")
       // Every other tag, either syntax, keeps its inner text.
       .replace(/\[\/?[a-z0-9]+(?:[= ][^\]]*)?\]/gi, " ")
-      .replace(/<[^>]+>/g, " "),
+      .replace(/<[^>]+>/g, " ")
+      // CS2 escapes its section labels ("\[ UI ]"); the backslash isn't prose.
+      .replace(/\\\[/g, "["),
   )
     .replace(/https?:\/\/\S+/g, " ")
     .replace(/\s+/g, " ")

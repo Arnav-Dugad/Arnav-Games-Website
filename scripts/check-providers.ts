@@ -44,7 +44,12 @@ import {
 } from "../src/lib/games/market-rules";
 import { microsoftPriceOf } from "../src/lib/games/ms-store";
 import { valuePerHour } from "../src/lib/games/market-rules";
-import { condensePatchPost, isPatchPost, parsePatchBody, patchNotesFrom } from "../src/lib/games/patch-notes";
+import { condensePatchPost, isPatchPost, parsePatchBody, patchNotesFrom, steamFeedFrom } from "../src/lib/games/patch-notes";
+import { estimatedSteamSales, nextSteamSale, steamSalesFor } from "../src/lib/games/steam-sales";
+import { buyingTip, publisherHabit, saleSentence } from "../src/lib/games/buying-tip";
+import { recentFromHistogram, scoreSpread } from "../src/lib/games/score-spread";
+import { confidenceLabel, releaseConfidence, usableStudioRecord } from "../src/lib/games/release-confidence";
+import { summariseStudioGames } from "../src/lib/games/studio-record";
 import {
   CPU_SUGGESTIONS,
   evaluateHardware,
@@ -1652,6 +1657,210 @@ console.log("\nTaste profile v2");
   check("out-of-range weight rejected", parseRecsProfile({ v: 2, seeds: [{ id: 1, w: 5 }] }), "seed weights must be within -3…3");
   check("rating multipliers", [ratingMultiplier(10), ratingMultiplier(5), ratingMultiplier(1)], [1.5, 0.2, -1]);
   check("owned platform slugs", ["steam", "ps5", "playstation", "Xbox Series X", "nonsense"].map(normaliseOwnedPlatform), ["pc", "ps5", "playstation", "xbox", null]);
+}
+
+console.log("\nSteam sale calendar (round 6)");
+{
+  check("estimated pattern: Summer is the last Thursday of June", estimatedSteamSales(2025).find((s) => s.name === "Summer Sale")?.start, "2025-06-26");
+  check("estimated pattern: Winter is the third Thursday of December", estimatedSteamSales(2025).find((s) => s.name === "Winter Sale")?.start, "2025-12-18");
+  check("announced dates win over the pattern", steamSalesFor(2025).find((s) => s.name === "Spring Sale"), {
+    name: "Spring Sale",
+    start: "2025-03-13",
+    end: "2025-03-20",
+    estimated: false,
+  });
+  check("next after mid-October 2026 is the (estimated) Winter Sale", nextSteamSale("2026-10-20"), {
+    name: "Winter Sale",
+    start: "2026-12-17",
+    end: "2027-01-04",
+    estimated: true,
+    daysUntil: 58,
+    live: false,
+  });
+  check("a running sale is live, with 0 days to wait", [nextSteamSale("2026-06-30").name, nextSteamSale("2026-06-30").live, nextSteamSale("2026-06-30").daysUntil], ["Summer Sale", true, 0]);
+  check("the Winter Sale runs over New Year", [nextSteamSale("2027-01-02").name, nextSteamSale("2027-01-02").live], ["Winter Sale", true]);
+  check("January looks ahead to next Spring", [nextSteamSale("2027-01-10").start, nextSteamSale("2027-01-10").estimated], ["2027-03-18", true]);
+  check("an announced sale counts down exactly", [nextSteamSale("2025-09-01").name, nextSteamSale("2025-09-01").daysUntil, nextSteamSale("2025-09-01").estimated], ["Autumn Sale", 28, false]);
+  check("sale sentence: estimates are hedged", saleSentence(nextSteamSale("2026-10-20")), "The Steam Winter Sale usually starts in ~58 days (expected around Dec 17).");
+  check("sale sentence: announced dates are stated", saleSentence(nextSteamSale("2026-06-01")), "The Steam Summer Sale starts in 24 days, on Jun 25.");
+}
+
+console.log("\nBuying tip (round 6)");
+{
+  const base = {
+    today: "2026-10-20",
+    current: { price: 999, initial: 3999, discount: 75, store: "steam" as const },
+    history: { kind: "buy" as const, reason: "Lowest price we've seen since Mar.", days: 40, lowest: 999 },
+    deepestDiscount: 75,
+    released: "2015-05-19",
+    publishers: ["CD Projekt"],
+    onSteam: true,
+  };
+  const deep = buyingTip(base)!;
+  check("record discount + our lowest: buy, high confidence", [deep.kind, deep.confidence], ["buy", "high"]);
+  check("its summary is the heaviest reason", deep.summary, "75% off — about as deep as it has ever gone (record: 75% off, US stores).");
+  check("a sale two months out is context, not a reason to wait", deep.reasons.at(-1), { lean: "info", text: "The Steam Winter Sale usually starts in ~58 days (expected around Dec 17)." });
+
+  const fullPrice = { ...base, current: { price: 5999, initial: 5999, discount: 0, store: "steam" as const }, history: { kind: "fair" as const, reason: "No big sales in the last 120 days.", days: 40, lowest: 2999 }, deepestDiscount: 80, publishers: ["Ubisoft"] };
+  const soonSale = buyingTip({ ...fullPrice, today: "2026-11-27" })!;
+  check("full price, 80% off before, sale in 20 days: wait for the sale", [soonSale.kind, soonSale.confidence, soonSale.summary], [
+    "wait",
+    "high",
+    "The Steam Winter Sale usually starts in ~20 days (expected around Dec 17).",
+  ]);
+  const later = buyingTip(fullPrice)!;
+  check("same game, sale 58 days away: likely cheaper soon", later.kind, "soon");
+  check(
+    "reasons say why, winning side first",
+    later.reasons.map((r) => r.lean),
+    ["wait", "wait", "wait", "wait"],
+  );
+
+  const nintendo = buyingTip({
+    today: "2026-10-20",
+    current: { price: 5999, initial: 5999, discount: 0, store: "microsoft" },
+    history: { kind: "unknown", reason: "Tracking since Oct 18 — not enough history yet.", days: 3, lowest: 5999 },
+    deepestDiscount: null,
+    released: "2023-05-12",
+    publishers: ["Nintendo"],
+    onSteam: false,
+  })!;
+  check("a publisher that rarely discounts leans buy, but thin data caps confidence", [nintendo.kind, nintendo.confidence, nintendo.sale], ["buy", "medium", null]);
+  check("publisher habit matching", [publisherHabit(["Nintendo"])?.habit, publisherHabit(["Electronic Arts"])?.habit, publisherHabit(["Annapurna Interactive"])], ["rare", "frequent", null]);
+  check(
+    "a regional co-publisher doesn't lend its habit",
+    [publisherHabit(["WB Games", "CD Projekt", "Bandai Namco Entertainment"]), publisherHabit(["Nintendo", "The Pokémon Company"])?.habit],
+    [null, "rare"],
+  );
+
+  const nothing = buyingTip({ ...base, current: { price: 1999, initial: 1999, discount: 0, store: "gog" }, history: { kind: "unknown", reason: "", days: 2, lowest: null }, deepestDiscount: null, released: null, publishers: [], onSteam: false })!;
+  check("no signals: a low-confidence buy that says so", [nothing.kind, nothing.confidence, nothing.reasons.at(-1)?.lean], ["buy", "low", "info"]);
+  check("free to play: no tip", buyingTip({ ...base, current: { price: 0, initial: 0, discount: 0, store: "steam" } }), null);
+  check("not out yet: no tip", buyingTip({ ...base, released: "2027-02-01" }), null);
+  check("no price: no tip", buyingTip({ ...base, current: null }), null);
+}
+
+console.log("\nScore spread (round 6)");
+{
+  const witcher = scoreSpread({
+    critic: { score: 92, count: 26 },
+    members: { score: 94, count: 5501 },
+    steam: { percent: 87, total: 989044 },
+    recent: { percent: 95, total: 8201 },
+  })!;
+  check("every figure with enough votes is drawn", witcher.marks.map((m) => [m.key, m.value]), [["critics", 92], ["members", 94], ["steam", 87], ["recent", 95]]);
+  check("Steam speaks for players; 5 points is agreement", [witcher.gap?.players, witcher.gap?.points, witcher.gap?.tone, witcher.gap?.headline], ["steam", -5, "agree", "Critics and players broadly agree"]);
+  check("recent reviews warmer by 8+ get a sentence", witcher.trend?.text, "Recent Steam reviews are warmer: 95% positive in the last 30 days, against 87% all-time.");
+  check(
+    "a 30-point gap is a split",
+    scoreSpread({ critic: { score: 60, count: 10 }, members: null, steam: { percent: 90, total: 5000 }, recent: null })?.gap?.headline,
+    "Players like it far more than critics",
+  );
+  check(
+    "IGDB members judge tighter bands",
+    scoreSpread({ critic: { score: 80, count: 12 }, members: { score: 70, count: 50 }, steam: null, recent: null })?.gap,
+    { players: "members", points: -10, tone: "mild", headline: "Critics like it a little more than players" },
+  );
+  check("tiny samples are dropped, and one figure isn't a spread", scoreSpread({ critic: { score: 85, count: 2 }, members: { score: 80, count: 5 }, steam: { percent: 70, total: 900 }, recent: null }), null);
+  check("recent without all-time isn't drawn", scoreSpread({ critic: { score: 85, count: 20 }, members: null, steam: null, recent: { percent: 40, total: 300 } }), null);
+  check("histogram rows sum to a 30-day share", recentFromHistogram([{ recommendations_up: 167, recommendations_down: 7 }, { recommendations_up: 156, recommendations_down: 6 }]), {
+    positive: 323,
+    negative: 13,
+    total: 336,
+    percent: 96,
+  });
+  check("a quiet month isn't a figure", recentFromHistogram([{ recommendations_up: 9, recommendations_down: 1 }]), null);
+  check("junk rows are ignored", recentFromHistogram([{ recommendations_up: "x", recommendations_down: -4 }, { recommendations_up: 30 }]), { positive: 30, negative: 0, total: 30, percent: 100 });
+}
+
+console.log("\nRelease-date confidence (round 6)");
+{
+  const day = (date: string, extra: Partial<Parameters<typeof releaseConfidence>[0]> = {}) =>
+    releaseConfidence({ today: "2026-10-20", precision: "day", date, delays: 0, studio: null, ...extra });
+  check("an exact day a month out: very likely", [day("2026-11-19")?.score, day("2026-11-19")?.label], [88, "Very likely"]);
+  check("its reasons carry their effects", day("2026-11-19")?.reasons, [
+    { effect: 0, text: "It has an exact release day." },
+    { effect: 10, text: "Close: 30 days away." },
+  ]);
+  check("days away: as good as out", day("2026-10-25")?.score, 94);
+  check("each delay costs 7 points (capped at 21)", [day("2027-05-01", { delays: 1 })?.score, day("2027-05-01", { delays: 5 })?.score], [65, 51]);
+  check(
+    "a bare year more than a year out is shaky",
+    releaseConfidence({ today: "2026-10-20", precision: "year", date: "2027-12-31", delays: 0, studio: null })?.label,
+    "Shaky",
+  );
+  const shaky = releaseConfidence({
+    today: "2026-10-20",
+    precision: "quarter",
+    date: "2027-03-31",
+    delays: 2,
+    studio: { name: "Studio X", tracked: 10, delayed: 6 },
+    publishers: ["Square Enix"],
+  })!;
+  check("delays, a slipping studio and a fiscal-year-end window add up", [shaky.score, shaky.label, shaky.reasons.map((r) => r.effect)], [21, "Shaky", [0, 0, -14, -11, -4]]);
+  check(
+    "a reliable studio adds a little",
+    releaseConfidence({ today: "2026-10-20", precision: "month", date: "2026-12-31", delays: 0, studio: { name: "Studio Y", tracked: 8, delayed: 0 } })?.score,
+    73,
+  );
+  check(
+    "a thin studio record is ignored",
+    releaseConfidence({ today: "2026-10-20", precision: "month", date: "2026-12-31", delays: 0, studio: { name: "Studio Z", tracked: 2, delayed: 2 } })?.score,
+    65,
+  );
+  check("a rumoured game loses 15", day("2027-02-01", { status: "rumored" })?.score, 63);
+  check("a big, firmly dated launch adds 3", day("2027-02-01", { follows: 900 })?.score, 81);
+  check("today or past: nothing to judge", [day("2026-10-20"), day("2026-09-01")], [null, null]);
+  check("labels by band", [confidenceLabel(75).label, confidenceLabel(74).label, confidenceLabel(49).label], ["Very likely", "Could slip", "Shaky"]);
+  check(
+    "a studio record counts after 3 games and 30 days of watching",
+    [
+      usableStudioRecord({ tracked: 9, delayed: 0, since: "2026-10-19" }, "2026-10-20"),
+      usableStudioRecord({ tracked: 2, delayed: 0, since: "2026-01-01" }, "2026-10-20"),
+      usableStudioRecord({ tracked: 9, delayed: 2, since: "2026-09-01" }, "2026-10-20"),
+      usableStudioRecord(null, "2026-10-20"),
+    ],
+    [null, null, { tracked: 9, delayed: 2 }, null],
+  );
+}
+
+console.log("\nStudio record (round 6)");
+{
+  const now = Date.UTC(2026, 9, 20) / 1000;
+  const t = (date: string) => Date.parse(`${date}T00:00:00Z`) / 1000;
+  const summary = summariseStudioGames(
+    [
+      { id: 1, name: "The Witcher 3", slug: "the-witcher-3", aggregated_rating: 91.7, aggregated_rating_count: 26, first_release_date: t("2015-05-19") },
+      { id: 2, name: "Cyberpunk 2077", slug: "cyberpunk-2077", aggregated_rating: 75.2, aggregated_rating_count: 21, first_release_date: t("2020-12-10") },
+      { id: 3, name: "Battle Arena", slug: "battle-arena", aggregated_rating: 60, aggregated_rating_count: 1, first_release_date: t("2015-01-22") },
+      { id: 4, name: "The Witcher IV", slug: "the-witcher-iv", first_release_date: t("2028-12-31") },
+      { id: 5, name: "Rise of the White Wolf", slug: "rotww", game_status: 6 },
+      { id: 6, name: "Unannounced", slug: "unannounced" },
+    ],
+    now,
+  );
+  check("released, upcoming (incl. TBA), cancelled left out", [summary.released, summary.upcoming, summary.ids], [3, 2, [1, 2, 3, 4, 6]]);
+  check("critic mean needs two reviews per game", [summary.scored, summary.avgCritic], [2, 83]);
+  check("best rated", summary.best, { name: "The Witcher 3", slug: "the-witcher-3", score: 92 });
+  check("no rated games: no average, no best", summariseStudioGames([{ id: 9, first_release_date: t("2020-01-01") }], now).avgCritic, null);
+}
+
+console.log("\nUpdates timeline (round 6)");
+{
+  const feed = steamFeedFrom(
+    [
+      { gid: "a", title: "Halloween event is live!", url: "https://store.steampowered.com/news/a", date: 400, contents: "[h2]Spooky[/h2][p]Join us for [b]double XP[/b] all week.[/p][img]{STEAM_CLAN_IMAGE}/x.png[/img]<script>alert(1)</script>" },
+      { gid: "b", title: "Patch 1.2", tags: ["patchnotes"], url: "https://store.steampowered.com/news/b", date: 300, contents: "[list][*]Fixed the camera clipping into walls[/*][*]Improved loading times[/*][/list]" },
+      { gid: "b", title: "Patch 1.2 (dupe)", url: "https://store.steampowered.com/news/b", date: 300 },
+      { gid: "c", title: "Roadmap", url: "javascript:alert(1)", date: 200, contents: "Soon." },
+    ],
+    5,
+    12,
+  );
+  check("patches condensed from the same pass", feed.patches.map((n) => [n.title, n.totalItems]), [["Patch 1.2", 2]]);
+  check("every post, newest first, deduped, unsafe links dropped", feed.posts.map((p) => [p.title, p.patch]), [["Halloween event is live!", false], ["Patch 1.2", true]]);
+  check("excerpts are plain text: no markup, media or script", feed.posts[0].excerpt, "Spooky Join us for double XP all week.");
+  check("escaped section labels lose their backslash", stripNewsMarkup("[p]\\[ UI ][/p][list][*]Added a progress bar[/*][/list]"), "[ UI ] • Added a progress bar");
 }
 
 pngChecks().then(() => {

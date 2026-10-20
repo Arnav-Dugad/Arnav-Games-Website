@@ -36,6 +36,7 @@ import { Disclosure } from "./Disclosure";
 import { marketUrl, useEndpoint, type EndpointState, type GameIds } from "./endpoint";
 import { InfoTip } from "./InfoTip";
 import { useLiveField, usePagePart } from "./live";
+import { BuyingTipPanel, useBuyingTip } from "./BuyingTip";
 import { bestPrice, DiscountTag, STORE_LABEL, StoreMark, useMarket, VERDICT, VerdictChip } from "./market-ui";
 import { countryName, formatMoney, formatRate } from "./money";
 import { hoursLabel } from "./summary";
@@ -63,6 +64,8 @@ export function PriceSection({
   stores,
   mainHours,
   releaseDates,
+  released = null,
+  publishers = [],
 }: {
   ids: GameIds | null;
   name: string;
@@ -70,6 +73,9 @@ export function PriceSection({
   stores: StoreRef[];
   /** Main-story hours from IGDB, for cost per hour. */
   mainHours: number | null;
+  /** First release (YYYY-MM-DD) and publisher names, for the buying tip. */
+  released?: string | null;
+  publishers?: string[];
   /** Server-rendered "Release dates" disclosure, when there are any to show. */
   releaseDates?: ReactNode;
 }) {
@@ -96,7 +102,7 @@ export function PriceSection({
           {ids &&
             (market ? (
               best ? (
-                <BestPrice best={best} market={market} free={free} mainHours={mainHours} />
+                <BestPrice best={best} market={market} free={free} mainHours={mainHours} game={{ released, publishers }} />
               ) : (
                 <NoPrice name={name} country={countryName(market.country)} upcoming={upcoming} />
               )
@@ -180,8 +186,21 @@ function RegionPicker() {
   );
 }
 
-function BestPrice({ best, market, free, mainHours }: { best: LocalPrice; market: GameMarket; free: boolean; mainHours: number | null }) {
+function BestPrice({
+  best,
+  market,
+  free,
+  mainHours,
+  game,
+}: {
+  best: LocalPrice;
+  market: GameMarket;
+  free: boolean;
+  mainHours: number | null;
+  game: { released: string | null; publishers: string[] };
+}) {
   const verdict = VERDICT[market.verdict.kind];
+  const tip = useBuyingTip(market, free ? null : best, game);
   const perHour = !free && mainHours ? valuePerHour(best, mainHours)?.perHour ?? null : null;
   return (
     <div className="relative isolate p-5 sm:p-6">
@@ -247,7 +266,9 @@ function BestPrice({ best, market, free, mainHours }: { best: LocalPrice; market
         </a>
       </div>
 
-      {!free && (
+      {!free && tip && <BuyingTipPanel tip={tip} />}
+      {/* No tip (a pre-order, say): our history's own call, as before. */}
+      {!free && !tip && (
         <div className="mt-5 flex flex-col gap-2 border-t border-line pt-4 sm:flex-row sm:items-center sm:gap-3">
           <span className="inline-flex items-center gap-1.5">
             <VerdictChip kind={market.verdict.kind} className="w-fit" />
@@ -520,7 +541,16 @@ function RegionalTable({ market, ids }: { market: GameMarket; ids: GameIds }) {
   const converted = rows.filter((row): row is RegionalPrice & { converted: number } => row.converted !== null);
   const max = Math.max(1, ...converted.map((row) => row.converted));
   const cheapest = converted[0]?.country ?? null;
-  const shown = all ? rows : rows.slice(0, 8);
+  // The reader's own Steam price is the yardstick for "% vs you".
+  const yours = converted.find((row) => row.country === market.country)?.converted ?? null;
+  const versus = (row: RegionalPrice) =>
+    yours && row.converted !== null && row.country !== market.country ? Math.round(((row.converted - yours) / yours) * 100) : null;
+  const cheapestRow = converted[0] && converted[0].country !== market.country ? converted[0] : null;
+  const saving = cheapestRow ? versus(cheapestRow) : null;
+  // Collapsed, the reader's own row still shows (last, in rank order) — it's the yardstick for every "%".
+  const head = rows.slice(0, 8);
+  const own = rows.find((row) => row.country === market.country);
+  const shown = all ? rows : own && !head.includes(own) ? [...head.slice(0, 7), own] : head;
 
   if (!source) {
     return fetched.status === "error" || fetched.status === "missing" ? (
@@ -537,24 +567,54 @@ function RegionalTable({ market, ids }: { market: GameMarket; ids: GameIds }) {
 
   return (
     <>
+      {cheapestRow && saving !== null && saving <= -5 && (
+        <p className="mb-2 text-[14px] leading-snug text-text">
+          Cheapest in <span className="font-semibold">{countryName(cheapestRow.country)}</span>:{" "}
+          <span className="font-semibold tabular-nums text-mint">{Math.abs(saving)}% less</span> than your price.
+        </p>
+      )}
+      {yours !== null && converted.length > 1 && cheapestRow === null && (
+        <p className="mb-2 text-[14px] leading-snug text-text">Your region is already the cheapest of these.</p>
+      )}
       <p className="mb-3 text-[12px] leading-snug text-faint">
         Each store charges in its own currency (shown small). Bars compare them converted to {currency} at
-        today&rsquo;s exchange rate — a guide, not a price you can pay.
+        today&rsquo;s exchange rate — a guide, not a price you can pay: Steam charges the price of your account&rsquo;s own region.
       </p>
       <ul className="divide-y divide-line">
         {shown.map((row) => {
           const isCheapest = row.country === cheapest;
           const isYou = row.country === market.country;
           return (
-            <li key={row.country} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 py-2.5">
+            <li
+              key={row.country}
+              aria-current={isYou || undefined}
+              className={cn(
+                "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 py-2.5",
+                // The reader's row reads as theirs at a glance, without moving the columns.
+                isYou && "-mx-2 rounded-xl border-transparent bg-[color-mix(in_oklab,var(--game-accent,var(--color-brand))_9%,transparent)] px-2",
+              )}
+            >
               <span className="flex min-w-0 items-center gap-2 text-[14px] text-text">
                 <span className="w-7 shrink-0 text-[11px] font-semibold tabular-nums text-faint">{row.country}</span>
                 <span className="truncate">{countryName(row.country)}</span>
                 {isCheapest && <span className="shrink-0 rounded-full bg-mint/15 px-2 py-0.5 text-[10px] font-bold text-mint">Cheapest</span>}
                 {isYou && <span className="shrink-0 rounded-full bg-fg/[0.08] px-2 py-0.5 text-[10px] font-bold text-muted">You</span>}
               </span>
-              <span className="text-right text-[14px] font-semibold tabular-nums text-text">
-                {row.converted !== null && currency ? formatMoney(row.converted, currency, market.country) : formatMoney(row.price, row.currency, row.country)}
+              <span className="flex items-baseline justify-end gap-2 text-right">
+                {versus(row) !== null && (
+                  <span
+                    className={cn(
+                      "text-[11px] font-semibold tabular-nums",
+                      versus(row)! <= -5 ? "text-mint" : versus(row)! >= 5 ? "text-faint" : "text-muted",
+                    )}
+                  >
+                    <span className="sr-only">compared with your price: </span>
+                    {versus(row) === 0 ? "same" : `${versus(row)! > 0 ? "+" : "−"}${Math.abs(versus(row)!)}%`}
+                  </span>
+                )}
+                <span className="text-[14px] font-semibold tabular-nums text-text">
+                  {row.converted !== null && currency ? formatMoney(row.converted, currency, market.country) : formatMoney(row.price, row.currency, row.country)}
+                </span>
               </span>
               <span className="col-span-2 flex items-center gap-3">
                 <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-fg/[0.07]" aria-hidden>

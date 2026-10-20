@@ -68,6 +68,8 @@ export interface LiveRequest {
   name: string;
   /** IGDB slug: a hint that saves the extras route an IGDB lookup. */
   slug?: string | null;
+  /** IGDB company ids of the developers (≤ 2), for their track records in the extras. */
+  developers?: number[];
 }
 
 export function liveUrl({ id, steam, twitch, microsoft, name }: LiveRequest): string {
@@ -176,7 +178,7 @@ const sameIds = (a: GameIds, b: GameIds) =>
  * `ids` aren't the page's game (the compare page, a related game) — callers
  * then fall back to the part's own route.
  */
-export function useInsightPart<K extends "market" | "pc" | "patches" | "cloud" | "antiCheat">(
+export function useInsightPart<K extends "market" | "pc" | "patches" | "updates" | "cloud" | "antiCheat">(
   ids: GameIds | null,
   part: K,
 ): (EndpointState<NonNullable<GameInsights[K]>> & { retry: () => void }) | null {
@@ -186,7 +188,8 @@ export function useInsightPart<K extends "market" | "pc" | "patches" | "cloud" |
   if (insights.status !== "ready") return { ...insights, retry };
   const value = insights.data[part];
   if (value !== null && value !== undefined) return { status: "ready", data: value as NonNullable<GameInsights[K]>, retry };
-  const failed = (insights.data.unavailable as string[]).includes(part);
+  // The updates timeline shares the patches' feed, so it fails with it.
+  const failed = (insights.data.unavailable as string[]).includes(part === "updates" ? "patches" : part);
   return { status: failed ? "error" : "missing", retry };
 }
 
@@ -208,6 +211,8 @@ export function useGameExtras(enabled: boolean): EndpointState<GameExtras> | nul
     if (steam) params.set("steam", String(steam));
     params.set("name", context.request.name.slice(0, 120));
     if (context.request.slug) params.set("slug", context.request.slug);
+    const developers = (context.request.developers ?? []).filter((id) => Number.isInteger(id) && id > 0).slice(0, 2);
+    if (developers.length > 0) params.set("dev", developers.join(","));
     url = `/api/game/${context.request.id}/extras?${params.toString()}`;
   }
   const state = useEndpoint<GameExtras>(url);

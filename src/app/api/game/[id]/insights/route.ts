@@ -5,7 +5,7 @@ import { gogLocalPrice } from "@/lib/games/gog";
 import { liveDataFor } from "@/lib/games/live";
 import { marketFor, resolveMarketIds } from "@/lib/games/market";
 import { pcInfoFor } from "@/lib/games/pc";
-import { steamPatchNotes } from "@/lib/games/patches";
+import { steamUpdates } from "@/lib/games/patches";
 import { settle } from "@/lib/games/polite";
 import { twitchIdFor } from "@/lib/games/twitch-history";
 import type { GameInsights, GameLiveData, LowestEverPrice } from "@/lib/games/types";
@@ -31,11 +31,12 @@ import type { GameInsights, GameLiveData, LowestEverPrice } from "@/lib/games/ty
  *
  * Outbound requests (Workers Free allows 50 per invocation), all caches cold:
  * IGDB ids ≤ 2, Twitch category lookup ≤ 1 (only when IGDB has no link),
- * live ≤ 15 (Steam players/reviews/news ≤ 4, Twitch ≤ 4, CheapShark ≤ 4,
+ * live ≤ 16 (Steam players/reviews/30-day histogram/news ≤ 5, Twitch ≤ 4, CheapShark ≤ 4,
  * Game Pass ≤ 3), market ≤ 8 (Steam + Microsoft prices, GOG search + price,
  * the free check, the Firestore history read and, after the response, at
- * most one Firestore commit), PC ≤ 4, patches ≤ 2, GeForce NOW 1,
- * anti-cheat 1 — about 34 at worst, 3–6 warm.
+ * most one Firestore commit), PC ≤ 4, patches + updates timeline ≤ 2 (one
+ * feed), GeForce NOW 1, anti-cheat 1 — about 35 at worst (live includes the
+ * Steam 30-day review histogram), 3–6 warm.
  */
 
 const COUNTRY = /^[A-Z]{2}$/;
@@ -46,11 +47,24 @@ const LIST_MS = 6000;
 const badRequest = (error: string) =>
   NextResponse.json({ error }, { status: 400, headers: { "Cache-Control": "no-store" } });
 
-/** CheapShark's all-time low (dollars) as the labelled historic marker. */
+/**
+ * CheapShark's all-time low (dollars) as the labelled historic marker, with
+ * that low as a discount off the highest retail price its stores list today
+ * (the buying tip compares discounts, which travel across currencies).
+ */
 function lowestEverFrom(deals: GameLiveData["deals"]): LowestEverPrice | null {
   const low = deals?.historicalLow;
   if (!low || !Number.isFinite(low.price) || low.price < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(low.date)) return null;
-  return { price: Math.round(low.price * 100), currency: "USD", date: low.date, label: "Lowest ever (US, all stores)", source: "cheapshark" };
+  const retail = Math.max(0, ...(deals?.stores ?? []).map((deal) => (Number.isFinite(deal.retail) ? deal.retail : 0)));
+  const deepestDiscount = retail > 0 && low.price <= retail ? Math.round((1 - low.price / retail) * 100) : null;
+  return {
+    price: Math.round(low.price * 100),
+    currency: "USD",
+    date: low.date,
+    label: "Lowest ever (US, all stores)",
+    source: "cheapshark",
+    deepestDiscount,
+  };
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -89,9 +103,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         })
       : null,
     ids.steam
-      ? steamPatchNotes(ids.steam).then((notes) => {
-          if (notes === null) unavailable.push("patches");
-          return notes;
+      ? steamUpdates(ids.steam).then((feed) => {
+          if (feed === null) unavailable.push("patches");
+          return feed;
         })
       : null,
     ids.steam || name ? settle(geForceNowFor({ steam: ids.steam, name }), null, LIST_MS) : null,
@@ -108,7 +122,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     live,
     market: marketBody,
     pc,
-    patches,
+    patches: patches?.patches ?? null,
+    updates: patches?.posts ?? null,
     unavailable,
     cloud: { geforceNow },
     antiCheat: antiCheat ?? null,

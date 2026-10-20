@@ -18,11 +18,12 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import { compactNumber, formatDate } from "@/lib/utils/format";
-import type { PatchNote } from "@/lib/games/types";
+import type { PatchNote, UpdatePost } from "@/lib/games/types";
 import type { GameIds } from "./endpoint";
 import { useReviewVelocity, useScoreTimeline } from "./history";
 import { InfoTip } from "./InfoTip";
 import { useInsightPart, useLiveField } from "./live";
+import { ScoreSpreadView } from "./ScoreSpread";
 import { TimeChart } from "./TimeChart";
 
 const full = new Intl.NumberFormat("en-US");
@@ -36,7 +37,8 @@ const reviewColor = (percent: number) =>
 /* ------------------------------------------------------------------------ */
 
 export interface ScoresData {
-  critic: { score: number | null; label: string; caption: string };
+  /** `count`: critic reviews in the aggregate (IGDB), null when unknown (Metacritic). */
+  critic: { score: number | null; label: string; caption: string; count?: number | null };
   userRating: { rating: number; count: number } | null;
   hasSteam: boolean;
   links: { openCritic: string | null; metacritic: string | null };
@@ -88,6 +90,15 @@ export function ScoresSummary({ data }: { data: ScoresData }) {
                 <p className="mt-1.5 text-[13px] tabular-nums text-muted">
                   {reviews.value.percent}% of {compactNumber(reviews.value.total)} reviews recommend it
                 </p>
+                {reviews.value.recent && (
+                  <p className="mt-1 text-[13px] tabular-nums text-muted">
+                    Last 30 days:{" "}
+                    <span className="font-semibold" style={{ color: reviewColor(reviews.value.recent.percent) }}>
+                      {reviews.value.recent.percent}%
+                    </span>{" "}
+                    of {compactNumber(reviews.value.recent.total)}
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -106,6 +117,23 @@ export function ScoresSummary({ data }: { data: ScoresData }) {
           </div>
         )}
       </div>
+      {data.hasSteam && reviews.state === "loading" && critic.score !== null ? (
+        // Holds the spread's place until Steam answers, so nothing below jumps.
+        <div aria-hidden className="space-y-3 border-t border-line px-5 py-5 sm:px-6">
+          <Skeleton className="h-4 w-52 rounded-full" />
+          <Skeleton className="h-3 w-full rounded-full" />
+          <Skeleton className="h-10 w-3/4 rounded-xl" />
+        </div>
+      ) : (
+        <ScoreSpreadView
+          input={{
+            critic: critic.score !== null ? { score: critic.score, count: critic.count ?? null } : null,
+            members: userRating ? { score: userRating.rating * 20, count: userRating.count } : null,
+            steam: reviews.state === "ready" ? { percent: reviews.value.percent, total: reviews.value.total } : null,
+            recent: reviews.state === "ready" && reviews.value.recent ? { percent: reviews.value.recent.percent, total: reviews.value.recent.total } : null,
+          }}
+        />
+      )}
       {outLinks.length > 0 && (
         <ul className="flex flex-wrap gap-2 border-t border-line px-5 py-3.5 sm:px-6">
           <li className="self-center text-[13px] text-muted">Read the reviews:</li>
@@ -245,15 +273,24 @@ export function OpinionTrends({ ids, igdbId, launch }: { ids: GameIds; igdbId: n
 /* ------------------------------------------------------------------------ */
 
 /**
- * "Latest updates": the developers' recent patches, condensed to what
- * changed. Steam news stands in when there are no patch posts — they're the
- * same feed, so showing both would repeat every update twice.
+ * "Updates": the developers' recent posts as a timeline — patches condensed
+ * to what changed, everything else (events, roadmaps, news) as an excerpt —
+ * with a filter for patch notes alone. One feed, so nothing appears twice.
+ *
+ * Answers cached before the timeline existed carry patches only; those (and
+ * games whose feed failed) keep the older layout: patch cards, else Steam
+ * news.
  */
 export function LatestUpdates({ ids, expected }: { ids: GameIds; expected: boolean }) {
   const patches = useInsightPart(ids.steam ? ids : null, "patches") ?? ({ status: "missing" } as const);
+  const updates = useInsightPart(ids.steam ? ids : null, "updates") ?? ({ status: "missing" } as const);
   const news = useLiveField((live) => live.news);
   const [showAll, setShowAll] = useState(false);
   const notes = patches.status === "ready" ? patches.data.filter((note) => note.highlights.length > 0 || note.totalItems > 0) : [];
+
+  if (updates.status === "ready" && updates.data.length > 0) {
+    return <UpdatesTimeline posts={updates.data} notes={patches.status === "ready" ? patches.data : []} />;
+  }
 
   if (notes.length > 0) {
     return (
@@ -325,7 +362,163 @@ export function LatestUpdates({ ids, expected }: { ids: GameIds; expected: boole
   );
 }
 
+type UpdateFilter = "all" | "patch" | "news";
+const TIMELINE_STEP = 4;
+const NINETY_DAYS_MS = 90 * DAY_MS;
+
+function ago(iso: string, now: number): string {
+  const days = Math.floor((now - Date.parse(iso)) / DAY_MS);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.round(days / 30.4);
+  if (months < 12) return `${months} ${months === 1 ? "month" : "months"} ago`;
+  const years = Math.round(days / 365);
+  return `${years} ${years === 1 ? "year" : "years"} ago`;
+}
+
+function UpdatesTimeline({ posts, notes }: { posts: UpdatePost[]; notes: PatchNote[] }) {
+  const [filter, setFilter] = useState<UpdateFilter>("all");
+  const [count, setCount] = useState(TIMELINE_STEP);
+  // The data arrives client-side, so this clock never meets server HTML.
+  const [now] = useState(() => Date.now());
+  const byUrl = useMemo(() => new Map(notes.map((note) => [note.url, note])), [notes]);
+
+  const patchCount = posts.filter((post) => post.patch).length;
+  const mixed = patchCount > 0 && patchCount < posts.length;
+  const visible = posts.filter((post) => filter === "all" || (filter === "patch") === post.patch);
+  const shown = visible.slice(0, count);
+  const lastPatch = posts.find((post) => post.patch);
+  // A count "in the last 90 days" is only true if the feed reaches back that far.
+  const reachesBack = posts.length < 12 || now - Date.parse(posts[posts.length - 1].date) > NINETY_DAYS_MS;
+  const recentPatches = posts.filter((post) => post.patch && now - Date.parse(post.date) <= NINETY_DAYS_MS).length;
+
+  const filters: Array<{ key: UpdateFilter; label: string }> = [
+    { key: "all", label: "All" },
+    { key: "patch", label: "Patch notes" },
+    { key: "news", label: "News" },
+  ];
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-[17px] font-semibold text-text">
+            <Wrench size={16} aria-hidden className="text-[var(--game-accent)]" /> Updates
+          </h3>
+          <p className="mt-0.5 text-[13px] text-muted">
+            {lastPatch ? (
+              <>
+                Last patched {ago(lastPatch.date, now)}
+                {reachesBack && recentPatches > 1 && ` · ${recentPatches} patches in the last 90 days`}
+              </>
+            ) : (
+              "Developer posts on Steam"
+            )}
+          </p>
+        </div>
+        {mixed && (
+          <div role="radiogroup" aria-label="Show" className="flex rounded-full border border-line bg-fg/[0.05] p-0.5">
+            {filters.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                role="radio"
+                aria-checked={filter === option.key}
+                onClick={() => {
+                  haptic("selection");
+                  setFilter(option.key);
+                  setCount(TIMELINE_STEP);
+                }}
+                className={cn(
+                  "press inline-flex min-h-9 items-center rounded-full px-3 text-[13px] font-medium transition-colors coarse:min-h-11",
+                  filter === option.key ? "bg-panel text-text shadow-sm" : "text-muted fine:hover:text-text",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* The rail: one line down the left, a dot per post — accent for patches. */}
+      <ol className="relative mt-5 space-y-6 before:absolute before:bottom-3 before:left-[6px] before:top-3 before:w-px before:bg-line">
+        {shown.map((post) => {
+          const note = post.patch ? byUrl.get(post.url) : undefined;
+          return (
+            <li key={post.url} className="relative pl-7">
+              <span
+                aria-hidden
+                className={cn(
+                  "absolute left-0 top-[5px] h-[13px] w-[13px] rounded-full ring-4 ring-[var(--color-bg)]",
+                  post.patch ? "bg-[var(--game-accent,var(--color-brand))]" : "bg-fg/25",
+                )}
+              />
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-faint">
+                <time dateTime={post.date}>{formatDate(post.date.slice(0, 10))}</time>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]",
+                    post.patch
+                      ? "bg-[color-mix(in_oklab,var(--game-accent,var(--color-brand))_16%,transparent)] text-[color-mix(in_oklab,var(--game-accent,var(--color-brand-soft))_72%,var(--color-text))]"
+                      : "bg-fg/[0.07] text-muted",
+                  )}
+                >
+                  {post.patch ? "Patch notes" : "News"}
+                </span>
+              </p>
+              <h4 className="mt-1.5 break-words text-[15px] font-bold leading-snug text-text">{post.title}</h4>
+              {note && (note.highlights.length > 0 || note.totalItems > 0) ? (
+                <PatchBody note={note} />
+              ) : (
+                <>
+                  {post.excerpt && <p className="mt-1.5 line-clamp-3 break-words text-[13px] leading-relaxed text-muted">{post.excerpt}</p>}
+                  <a
+                    href={post.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex min-h-10 items-center gap-1 text-[13px] font-semibold text-[color-mix(in_oklab,var(--game-accent,var(--color-brand-soft))_72%,var(--color-text))]"
+                  >
+                    Read on Steam <ArrowUpRight size={13} />
+                  </a>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
+      {visible.length > count && (
+        <button
+          type="button"
+          onClick={() => {
+            haptic("selection");
+            setCount((value) => value + TIMELINE_STEP);
+          }}
+          className="press mt-4 inline-flex min-h-11 items-center rounded-full bg-fg/[0.07] px-4 text-[13px] font-semibold text-text fine:hover:bg-fg/[0.12]"
+        >
+          Show {Math.min(TIMELINE_STEP, visible.length - count)} older
+        </button>
+      )}
+    </div>
+  );
+}
+
 function PatchCard({ note }: { note: PatchNote }) {
+  return (
+    <article className="glass flex h-full flex-col rounded-3xl p-5">
+      <p className="text-[12px] text-faint">
+        <time dateTime={note.date}>{formatDate(note.date.slice(0, 10))}</time>
+      </p>
+      <h4 className="mt-1.5 text-[15px] font-bold leading-snug text-text">{note.title}</h4>
+      <PatchBody note={note} card />
+    </article>
+  );
+}
+
+/** A patch's headline bullets, the full grouped list a tap away, and the link out. */
+function PatchBody({ note, card = false }: { note: PatchNote; card?: boolean }) {
   const [open, setOpen] = useState(false);
   // Three bullets read at a glance; the rest (and the grouped full list) are a tap away.
   const highlights = note.highlights.slice(0, 3);
@@ -335,11 +528,7 @@ function PatchCard({ note }: { note: PatchNote }) {
   const expanded = grouped.length > 0 ? grouped : [{ heading: "", items: note.highlights }];
   const expandable = more > 0;
   return (
-    <article className="glass flex h-full flex-col rounded-3xl p-5">
-      <p className="text-[12px] text-faint">
-        <time dateTime={note.date}>{formatDate(note.date.slice(0, 10))}</time>
-      </p>
-      <h4 className="mt-1.5 text-[15px] font-bold leading-snug text-text">{note.title}</h4>
+    <>
       {!open && highlights.length > 0 && (
         <ul className="mt-3 space-y-1.5">
           {highlights.map((item, index) => (
@@ -367,7 +556,7 @@ function PatchCard({ note }: { note: PatchNote }) {
           ))}
         </div>
       )}
-      <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+      <div className={cn("flex flex-wrap items-center gap-2", card ? "mt-auto pt-4" : "pt-2.5")}>
         {expandable && (
           <button
             type="button"
@@ -391,6 +580,6 @@ function PatchCard({ note }: { note: PatchNote }) {
           Full notes on Steam <ArrowUpRight size={13} />
         </a>
       </div>
-    </article>
+    </>
   );
 }

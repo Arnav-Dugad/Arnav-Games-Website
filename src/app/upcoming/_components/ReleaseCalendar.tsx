@@ -27,7 +27,7 @@ import Link, { useLinkStatus } from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, type PanInfo, type Variants } from "motion/react";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Flame, History, Loader2 } from "lucide-react";
+import { CalendarCheck2, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Flame, History, Loader2 } from "lucide-react";
 import { GameCover } from "@/components/game/GameCover";
 import { MorphCover } from "@/components/interactions/CoverTransition";
 import { GameLogo } from "@/components/game/GameLogo";
@@ -38,6 +38,7 @@ import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils/cn";
 import { STORAGE_PREFIX } from "@/lib/utils/storage-keys";
 import type { GameSummary } from "@/lib/games/types";
+import { releaseConfidence, type ReleaseConfidence } from "@/lib/games/release-confidence";
 import {
   DAY_LONG,
   DAY_MONTH_SHORT,
@@ -239,6 +240,7 @@ export function ReleaseCalendar(props: ReleaseCalendarProps) {
             games={days.get(selected) ?? []}
             signals={signals}
             today={clientToday}
+            asOf={serverToday}
             next={dates.find((day) => day > selected && (days.get(day)?.length ?? 0) > 0) ?? null}
             nextCount={(day) => days.get(day)?.length ?? 0}
             onSelect={choose}
@@ -668,6 +670,7 @@ function DayPanel({
   games,
   signals,
   today,
+  asOf,
   next,
   nextCount,
   onSelect,
@@ -680,6 +683,8 @@ function DayPanel({
   games: GameSummary[];
   signals: ReleaseSignals;
   today: string | null;
+  /** The server's date: the confidence badges use it so server and client render alike. */
+  asOf: string;
   next: string | null;
   nextCount: (day: string) => number;
   onSelect: (day: string) => void;
@@ -705,12 +710,12 @@ function DayPanel({
 
       {lead ? (
         <div className="mt-3 space-y-2">
-          <LeadCard game={lead} signal={signals[lead.id]} />
+          <LeadCard game={lead} signal={signals[lead.id]} asOf={asOf} />
           {rest.length > 0 && (
             <ul className="overflow-hidden rounded-2xl border border-line bg-panel/55 light:bg-panel">
               {rest.map((game) => (
                 <li key={game.id} className="border-line [&:not(:first-child)]:border-t">
-                  <ReleaseRow game={game} signal={signals[game.id]} />
+                  <ReleaseRow game={game} signal={signals[game.id]} asOf={asOf} />
                 </li>
               ))}
             </ul>
@@ -747,8 +752,9 @@ function DayPanel({
 }
 
 /** The day's most anticipated release, over its own art. */
-function LeadCard({ game, signal }: { game: GameSummary; signal?: ReleaseSignals[number] }) {
+function LeadCard({ game, signal, asOf }: { game: GameSummary; signal?: ReleaseSignals[number]; asOf: string }) {
   const art = game.screenshots[0] ?? null;
+  const confidence = dateConfidence(game, signal, asOf);
   return (
     <article
       data-stage="dark"
@@ -781,6 +787,7 @@ function LeadCard({ game, signal }: { game: GameSummary; signal?: ReleaseSignals
             <PlatformIcons platforms={game.parentPlatforms} size={13} max={4} />
             {signal?.hype !== undefined && <HypeBadge value={signal.hype} className="bg-black/45! text-[#ffd60a]!" />}
             {signal?.delays ? <DelayBadge count={signal.delays} className="bg-black/45! text-[#ff8aa0]!" /> : null}
+            {confidence && <ConfidenceBadge confidence={confidence} onArt />}
           </div>
         </div>
         <WatchButton game={game} compact className="pointer-events-auto shrink-0" />
@@ -789,8 +796,9 @@ function LeadCard({ game, signal }: { game: GameSummary; signal?: ReleaseSignals
   );
 }
 
-function ReleaseRow({ game, signal }: { game: GameSummary; signal?: ReleaseSignals[number] }) {
+function ReleaseRow({ game, signal, asOf }: { game: GameSummary; signal?: ReleaseSignals[number]; asOf: string }) {
   const genres = game.genres.slice(0, 2).map((genre) => genre.name.replace(/ \(.+\)$/, "")).join(" · ");
+  const confidence = dateConfidence(game, signal, asOf);
   return (
     <div data-release-date={game.released ?? ""} className="relative flex items-center gap-3 px-2.5 py-2.5 transition-colors fine:hover:bg-fg/[0.035]">
       <Link
@@ -812,10 +820,11 @@ function ReleaseRow({ game, signal }: { game: GameSummary; signal?: ReleaseSigna
           <PlatformIcons platforms={game.parentPlatforms} size={12} max={4} className="shrink-0" />
           {genres && <span className="min-w-0 truncate text-faint">{genres}</span>}
         </div>
-        {(signal?.hype !== undefined || signal?.delays) && (
+        {(signal?.hype !== undefined || signal?.delays || confidence) && (
           <div className="flex items-center gap-1.5">
             {signal?.hype !== undefined && <HypeBadge value={signal.hype} />}
             {signal?.delays ? <DelayBadge count={signal.delays} /> : null}
+            {confidence && <ConfidenceBadge confidence={confidence} />}
           </div>
         )}
       </div>
@@ -833,6 +842,43 @@ function HypeBadge({ value, className }: { value: number; className?: string }) 
       <Flame size={11} aria-hidden />
       <span className="sr-only">Hype index </span>
       {value}
+    </span>
+  );
+}
+
+/**
+ * How likely the day holds (`release-confidence.ts`), from what the row
+ * already has: the exact day, our delay count and the server's date. No
+ * studio record here — that would cost a request per row; the game page
+ * adds it.
+ */
+function dateConfidence(game: GameSummary, signal: ReleaseSignals[number] | undefined, asOf: string): ReleaseConfidence | null {
+  if (!game.released || !/^\d{4}-\d{2}-\d{2}$/.test(game.released)) return null;
+  return releaseConfidence({ today: asOf, precision: "day", date: game.released, delays: signal?.delays ?? 0, studio: null });
+}
+
+/** Short words fit beside the other badges on a 320px row; the title carries the score. */
+const CONFIDENCE_TONE: Record<ReleaseConfidence["tone"], { word: string; badge: string; art: string }> = {
+  good: { word: "Likely", badge: "bg-mint/12 text-mint", art: "text-[#7ee2b8]!" },
+  fair: { word: "May slip", badge: "bg-gold/12 text-gold", art: "text-[#ffd60a]!" },
+  poor: { word: "Shaky", badge: "bg-flare/12 text-flare", art: "text-[#ff8aa0]!" },
+};
+
+function ConfidenceBadge({ confidence, onArt = false }: { confidence: ReleaseConfidence; onArt?: boolean }) {
+  const tone = CONFIDENCE_TONE[confidence.tone];
+  return (
+    <span
+      title={`Date confidence: ${confidence.label} (${confidence.score}/100), from how close it is and its delay history`}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+        tone.badge,
+        onArt && cn("bg-black/45!", tone.art),
+      )}
+    >
+      <CalendarCheck2 size={11} aria-hidden />
+      <span className="sr-only">Release date: </span>
+      {tone.word}
+      <span className="sr-only"> to hold, {confidence.score} out of 100</span>
     </span>
   );
 }

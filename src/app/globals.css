@@ -197,6 +197,11 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* A ring gauge filling to its value; the element sets --gauge-from to its circumference (empty). */
+@keyframes gauge-in {
+  from { stroke-dashoffset: var(--gauge-from); }
+}
+
 /* The track renders its children twice, so -50% lands exactly on the seam. */
 @keyframes marquee-x {
   from { transform: translate3d(0, 0, 0); }

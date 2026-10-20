@@ -79,7 +79,28 @@ export const HELP = {
   },
   regional: {
     title: "Prices around the world",
-    body: "Steam’s price in other countries, converted to your currency at today’s exchange rate. For comparison only — stores charge your own region’s price.",
+    body: "Steam’s price in other countries, converted to your currency at today’s exchange rate, and how much more or less that is than your price. For comparison only — stores charge your own region’s price.",
+    source: "Steam storefronts (refreshed daily), ECB exchange rates via Frankfurter",
+  },
+  buyingTip: {
+    title: "Should I wait?",
+    body: "A tip, not a forecast. We weigh today’s discount against the deepest one ever recorded, our own price history, the next Steam seasonal sale, the game’s age and its publisher’s known habits. Confidence is high only when several of those agree.",
+    source: "CheapShark (US, all stores), Arnav Games price history, Steam’s sale calendar",
+  },
+  scoreSpread: {
+    title: "Critics vs players",
+    body: "Where the critic average sits against what players say. Steam’s figure is the share of positive reviews, not an average score, so a gap with Steam is only called “far” past 15 points. Individual critic scores aren’t available, so there is no range among critics.",
+    source: "IGDB (critics and members), Steam reviews",
+  },
+  releaseConfidence: {
+    title: "Will the date hold?",
+    body: "Our estimate, 0–100, that the announced date holds: an exact day scores higher than a month or a year, close dates higher than far ones, and past delays — the game’s and its studio’s — count against it. A rule of thumb from public signals, not inside knowledge.",
+    source: "IGDB dates, Arnav Games delay history",
+  },
+  studioRecord: {
+    title: "Studio track record",
+    body: "The developer’s released games (no DLC or re-releases): their average critic score where at least two critics reviewed them, and how many of the dates we watched were kept.",
+    source: "IGDB, Arnav Games delay history",
   },
   deck: {
     title: "Steam Deck",

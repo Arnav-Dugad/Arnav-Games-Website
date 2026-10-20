@@ -14,6 +14,7 @@ import type { GameLiveData } from "./types";
 import { igdbAppAuth } from "./providers/igdb";
 import { stripNewsMarkup } from "./news-text";
 import { gamePassMembership } from "./gamepass";
+import { recentFromHistogram } from "./score-spread";
 
 const TIMEOUT_MS = 3500;
 /** CheapShark asks every client to identify itself. */
@@ -54,14 +55,29 @@ export async function steamPlayers(appid: number): Promise<number | null> {
   return typeof count === "number" && count >= 0 ? count : null;
 }
 
-export async function steamReviews(appid: number): Promise<GameLiveData["steamReviews"]> {
-  const json = await getJson<{
-    success?: number;
-    query_summary?: { review_score_desc?: string; total_positive?: number; total_negative?: number; total_reviews?: number };
-  }>(
-    `https://store.steampowered.com/appreviews/${appid}?json=1&language=all&purchase_type=all&num_per_page=0`,
-    3600,
+/**
+ * The last 30 days of reviews. `appreviews` only ever summarises all time
+ * (its `day_range` doesn't touch the summary), but the store's histogram —
+ * the chart on every store page — has one row per day for the last 30,
+ * across all languages. ~8 KB; cached three hours, since a day's reviews
+ * barely move a 30-day share.
+ */
+async function steamRecentReviews(appid: number): Promise<NonNullable<GameLiveData["steamReviews"]>["recent"]> {
+  const json = await getJson<{ success?: number; results?: { recent?: Array<{ recommendations_up?: number; recommendations_down?: number }> } }>(
+    `https://store.steampowered.com/appreviewhistogram/${appid}?l=english&review_score_preference=0`,
+    3 * 3600,
   );
+  return json?.success === 1 ? recentFromHistogram(json.results?.recent) : null;
+}
+
+export async function steamReviews(appid: number): Promise<GameLiveData["steamReviews"]> {
+  const [json, recent] = await Promise.all([
+    getJson<{
+      success?: number;
+      query_summary?: { review_score_desc?: string; total_positive?: number; total_negative?: number; total_reviews?: number };
+    }>(`https://store.steampowered.com/appreviews/${appid}?json=1&language=all&purchase_type=all&num_per_page=0`, 3600),
+    steamRecentReviews(appid),
+  ]);
   const summary = json?.success === 1 ? json.query_summary : undefined;
   const positive = summary?.total_positive ?? 0;
   const negative = summary?.total_negative ?? 0;
@@ -73,6 +89,7 @@ export async function steamReviews(appid: number): Promise<GameLiveData["steamRe
     negative,
     total,
     percent: Math.round((positive / Math.max(1, positive + negative)) * 100),
+    recent,
   };
 }
 
@@ -129,6 +146,7 @@ interface HelixStream {
   title?: string;
   viewer_count?: number;
   thumbnail_url?: string;
+  language?: string;
 }
 
 /**
@@ -193,6 +211,8 @@ export async function twitchActivity(twitchGameId: string | null, name: string |
       viewers: stream.viewer_count ?? 0,
       thumbnail: (stream.thumbnail_url ?? "").replace("{width}", "440").replace("{height}", "248"),
       url: `https://twitch.tv/${stream.user_login!.toLowerCase()}`,
+      // ISO 639-1 ("en"), or "other"; anything else is dropped rather than shown.
+      language: stream.language && /^[a-z]{2}$/.test(stream.language) ? stream.language : null,
     })),
   };
 }

@@ -27,7 +27,8 @@ import { Elsewhere } from "@/components/game/detail/Elsewhere";
 import { GameHero } from "@/components/game/detail/GameHero";
 import { LengthSection } from "@/components/game/detail/LengthSection";
 import { GameLiveProvider } from "@/components/game/detail/live";
-import { ArtAmbient, CommunitySection, KeyPeople, YourPlay } from "@/components/game/detail/lazy";
+import { ArtAmbient, CommunitySection, KeyPeople, StudioTrackRecord, YourPlay } from "@/components/game/detail/lazy";
+import ReleaseConfidenceCard from "@/components/game/detail/ReleaseConfidence";
 import { MoreLikeThis } from "@/components/game/detail/MoreLikeThis";
 import { LiveOnTwitch } from "@/components/game/detail/LiveSections";
 import { PcSection } from "@/components/game/detail/PcSection";
@@ -48,6 +49,8 @@ import {
   relativeRelease,
 } from "@/lib/utils/format";
 import type { GameDetail } from "@/lib/games/types";
+import type { DatePrecision } from "@/lib/games/release-confidence";
+import { releaseWindowInfo } from "@/lib/games/release-state";
 
 // The IGDB query is cached independently. Rendering the shell on demand avoids
 // publishing a day-long Steam fallback when IGDB is unreachable during build.
@@ -167,6 +170,17 @@ export default async function GamePage({ params, searchParams }: { params: Param
   const hasPc = hasSteam || game.requirements.length > 0;
   const hasMore = hasCollection || related.length > 0;
   const moreTitle = hasCollection ? "More from this series" : "More like this";
+  // Developer track records come from IGDB company ids; a Steam-sourced record has none.
+  const developerIds = source === "igdb" ? game.developers.slice(0, 2).map((developer) => developer.id) : [];
+  // What the "Will the date hold?" card judges: the reader's day, else the window's last day.
+  const dateWindow = releaseWindowInfo(game.releaseWindow);
+  const confidenceDate: { precision: DatePrecision; date: string } | null = !upcoming
+    ? null
+    : local.date && /^\d{4}-\d{2}-\d{2}$/.test(local.date)
+      ? { precision: "day", date: local.date }
+      : dateWindow
+        ? { precision: dateWindow.precision, date: dateWindow.end }
+        : null;
 
   // Nav labels are the section titles, word for word.
   const sections: DetailSectionLink[] = [
@@ -244,7 +258,17 @@ export default async function GamePage({ params, searchParams }: { params: Param
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
-      <GameLiveProvider request={{ id: game.id, steam: game.steamAppId, twitch: twitchId, microsoft: ids.microsoft, name: game.name, slug: source === "igdb" ? game.slug : null }}>
+      <GameLiveProvider
+        request={{
+          id: game.id,
+          steam: game.steamAppId,
+          twitch: twitchId,
+          microsoft: ids.microsoft,
+          name: game.name,
+          slug: source === "igdb" ? game.slug : null,
+          developers: developerIds,
+        }}
+      >
         <GameHero
           game={game}
           local={local}
@@ -274,6 +298,21 @@ export default async function GamePage({ params, searchParams }: { params: Param
                 <SourceAttribution source={source} />
               </div>
 
+              {confidenceDate && (
+                <div className="mt-8 max-w-3xl">
+                  <ReleaseConfidenceCard
+                    precision={confidenceDate.precision}
+                    date={confidenceDate.date}
+                    dateLabel={glance.release.label}
+                    delays={delays}
+                    status={game.devStatus ?? null}
+                    publishers={game.publishers.map((publisher) => publisher.name)}
+                    follows={game.hypes}
+                    hasDevelopers={developerIds.length > 0}
+                  />
+                </div>
+              )}
+
               {reviewWatch && local.date && (
                 <div className="mt-10">
                   <ReviewWatch
@@ -296,7 +335,7 @@ export default async function GamePage({ params, searchParams }: { params: Param
                   {game.description && <GameEditorialOverview game={game} />}
                   {hasDetails && (
                     <Disclosure icon={<Layers size={17} />} title="Credits, platforms and tags" subtitle={detailCounts || undefined}>
-                      <GameDetails game={game} hasThemeContent={hasThemeContent} />
+                      <GameDetails game={game} hasThemeContent={hasThemeContent} trackRecord={developerIds.length > 0} />
                     </Disclosure>
                   )}
                 </div>
@@ -337,6 +376,8 @@ export default async function GamePage({ params, searchParams }: { params: Param
               upcoming={upcoming}
               stores={game.stores}
               mainHours={mainHours}
+              released={game.released}
+              publishers={game.publishers.map((publisher) => publisher.name)}
               releaseDates={<ReleaseDates releases={game.releases} changes={changes} visitorRegion={region} countryName={local.countryName} />}
             />
 
@@ -360,7 +401,7 @@ export default async function GamePage({ params, searchParams }: { params: Param
               <div className="space-y-4">
                 <ScoresSummary
                   data={{
-                    critic: { score: game.metacritic, label: criticLabel, caption: criticCaption },
+                    critic: { score: game.metacritic, label: criticLabel, caption: criticCaption, count: source === "igdb" ? game.criticCount ?? null : null },
                     userRating: game.rating > 0 ? { rating: game.rating, count: game.ratingsCount } : null,
                     hasSteam,
                     links: { openCritic: game.links?.openCritic ?? null, metacritic: game.links?.metacritic ?? game.metacriticUrl },
@@ -587,7 +628,7 @@ function GameSidebar({ game }: { game: GameDetail }) {
 }
 
 /** Credits, platforms and tags: the deep record, behind "Show" in the Overview. */
-function GameDetails({ game, hasThemeContent }: { game: GameDetail; hasThemeContent: boolean }) {
+function GameDetails({ game, hasThemeContent, trackRecord }: { game: GameDetail; hasThemeContent: boolean; trackRecord: boolean }) {
   return (
     <div className="space-y-8 pb-1">
       <KeyPeople />
@@ -611,6 +652,8 @@ function GameDetails({ game, hasThemeContent }: { game: GameDetail; hasThemeCont
           )}
         </div>
       )}
+
+      {trackRecord && <StudioTrackRecord />}
 
       {game.platformDetails.length > 0 && (
         <div>

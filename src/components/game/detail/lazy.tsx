@@ -10,6 +10,8 @@ import dynamic from "next/dynamic";
 
 export const CommunitySection = dynamic(() => import("./CommunitySection"), { ssr: false });
 export const KeyPeople = dynamic(() => import("./KeyPeople"), { ssr: false });
+// The developers' track records, inside "Credits" beside Key people (same extras request).
+export const StudioTrackRecord = dynamic(() => import("./StudioTrackRecord"), { ssr: false });
 // The reader's own hours and journal: signed-in, browser-only data.
 export const YourPlay = dynamic(() => import("@/components/personal/YourPlay"), { ssr: false });
 // The blurred-artwork light under the top of the page: decoration, drawn after load.

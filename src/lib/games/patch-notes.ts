@@ -14,7 +14,7 @@
  * bullet end / text) and then walks them once.
  */
 
-import type { PatchNote } from "./types";
+import type { PatchNote, UpdatePost } from "./types";
 import { decodeEntities, stripNewsMarkup } from "./news-text";
 
 export interface SteamNewsItem {
@@ -265,4 +265,45 @@ export function patchNotesFrom(items: SteamNewsItem[], limit = 5): PatchNote[] {
     if (note) out.push(note);
   }
   return out;
+}
+
+/** Raw markup read for an excerpt; enough for 220 characters of prose after media is stripped. */
+const EXCERPT_SOURCE = 6000;
+const EXCERPT_MAX = 220;
+
+/**
+ * One pass over a feed for the updates timeline: the latest `patchLimit`
+ * condensed patch posts (as `patchNotesFrom`) and the latest `postLimit`
+ * posts of any kind with a plain-text excerpt. Each post's body is parsed at
+ * most once — condensing for patches, a bounded strip for the rest — which
+ * keeps a cold request's CPU small on Workers.
+ */
+export function steamFeedFrom(
+  items: SteamNewsItem[],
+  patchLimit = 5,
+  postLimit = 12,
+): { patches: PatchNote[]; posts: UpdatePost[] } {
+  const patches: PatchNote[] = [];
+  const posts: UpdatePost[] = [];
+  const seen = new Set<string>();
+  for (const item of [...items].sort((a, b) => (b.date ?? 0) - (a.date ?? 0))) {
+    if (patches.length >= patchLimit && posts.length >= postLimit) break;
+    const key = item.gid ?? item.url ?? item.title ?? "";
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const note = patches.length < patchLimit ? condensePatchPost(item) : null;
+    if (note) patches.push(note);
+    if (posts.length >= postLimit) continue;
+    const url = safeUrl(item.url);
+    if (!item.title || !url || typeof item.date !== "number") continue;
+    posts.push({
+      title: stripNewsMarkup(item.title, 160),
+      date: new Date(item.date * 1000).toISOString(),
+      url,
+      // Past the condensing quota, Steam's tag / a patch title still marks a patch.
+      patch: note !== null || (patches.length >= patchLimit && isPatchPost(item)),
+      excerpt: stripNewsMarkup((item.contents ?? "").slice(0, EXCERPT_SOURCE), EXCERPT_MAX),
+    });
+  }
+  return { patches, posts };
 }

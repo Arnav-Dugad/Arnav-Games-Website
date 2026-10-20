@@ -44,6 +44,13 @@ export function LiveOnTwitch({ standalone = false }: { standalone?: boolean }) {
                 {/* eslint-disable-next-line @next/next/no-img-element -- Twitch's preview CDN isn't a configured image host and these refresh every few minutes. */}
                 <img src={stream.thumbnail} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 fine:group-hover:scale-105" />
                 <span className="absolute left-2 top-2 rounded-md bg-[#d70015] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-white">Live</span>
+                {/* The broadcast language: a German stream shouldn't surprise someone who taps it. */}
+                {stream.language && stream.language !== "en" && (
+                  <span className="absolute right-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-white">
+                    <span className="sr-only">Language: </span>
+                    {stream.language}
+                  </span>
+                )}
                 <span className="absolute bottom-2 left-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
                   {compactNumber(stream.viewers)} viewers
                 </span>
